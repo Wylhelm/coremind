@@ -11,8 +11,9 @@
 - Reflection loop (L7) runs weekly, evaluates predictions and intents against reality.
 - Calibration improves over time (Brier score tracked).
 - Procedural memory evolves (new rules promoted, bad rules deprecated).
-- A web dashboard offers full read-only observability.
-- A second channel adapter (Slack or Discord).
+- **Agency learning:** L7 analyzes the approval ledger and proposes category changes (`ask` → `suggest`, `suggest` → `safe`) when the user has demonstrated a consistent pattern. Proposed changes are themselves `ask` intents — CoreMind never silently changes its own agency level (see `ARCHITECTURE.md §15.7`).
+- A web dashboard offers full read-only observability and renders in-dashboard approval notifications via the `NotificationPort` implemented in Phase 3.
+- A second Notification Port adapter (Signal, Discord, or email).
 - A documented Plugin Development Kit (PDK) for external contributors.
 - v0.1.0 release on GitHub: tagged, with changelog, release notes, install instructions.
 
@@ -24,9 +25,10 @@
 - [ ] `src/coremind/reflection/evaluator.py` — prediction verification
 - [ ] `src/coremind/reflection/calibration.py` — Brier score + reliability diagrams
 - [ ] `src/coremind/reflection/rule_learner.py` — promote/deprecate procedural rules
+- [ ] `src/coremind/reflection/agency_learner.py` — proposes category promotions/demotions from the approval ledger
 - [ ] `src/coremind/reflection/report.py` — human-readable weekly report
-- [ ] `src/coremind/dashboard/` — SvelteKit app embedded in the daemon's HTTP server
-- [ ] `src/coremind/channels/slack.py` OR `src/coremind/channels/discord.py`
+- [ ] `src/coremind/dashboard/` — SvelteKit app embedded in the daemon's HTTP server (renders live events, world snapshot, intents, action journal, reflection reports) + live approval buttons via the dashboard `NotificationPort` adapter (port implemented in Phase 3)
+- [ ] `src/coremind/notify/adapters/<second>.py` — one additional Notification Port adapter (Signal / Discord / email)
 - [ ] `docs/PDK.md` — Plugin Development Kit
 - [ ] `docs/RELEASE.md` — release process + versioning policy
 - [ ] `CHANGELOG.md`

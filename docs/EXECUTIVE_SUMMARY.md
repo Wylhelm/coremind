@@ -61,6 +61,18 @@ The central innovation is simple but radical: **make the LLM its own user**. Ins
 
 Each layer has a single, clear responsibility, and communicates with adjacent layers through well-defined contracts. Layers can be replaced independently.
 
+## 5bis. How You Actually Use It — The Three Modes
+
+CoreMind is *autonomous*, not *silent*. The user experiences the system through three distinct modes:
+
+1. **Passive observation** (the default). CoreMind runs in the background. The user notices it only when their environment changes or when the system chooses to reach out. The majority of cycles never involve the user.
+2. **Conversational channel.** The user talks to CoreMind through a text/voice interface (Telegram via an OpenClaw adapter, a CLI, a web chat, etc.). Queries become `WorldEvent`s; CoreMind reasons over its world snapshot and responds — or acts, or both.
+3. **Observability dashboard.** A read-only web UI that exposes the live event stream, the world snapshot, active intents, the signed action journal, and reflection reports. No commands are issued from here — the dashboard is the transparency window.
+
+Behind these modes runs the **graduated consent protocol**: every autonomous action is tagged `safe` (executes silently), `suggest` (notifies first, grace window to cancel), or `ask` (blocked until the user approves). Forced-approval classes — finance, outbound messaging, credential changes, modifications to CoreMind's own safety mechanisms — are hardcoded as `ask` and cannot be downgraded by any plugin or reasoning output.
+
+Full protocol in [`docs/ARCHITECTURE.md` §15](ARCHITECTURE.md#15-user-interaction-model).
+
 ## 6. The Atomic Unit: `WorldEvent`
 
 Every signal in CoreMind — a temperature reading, an email, a transaction, a heartbeat, a git commit — becomes a `WorldEvent` in a unified, signed format:
