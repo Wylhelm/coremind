@@ -1,0 +1,91 @@
+---
+name: "Test Standards"
+description: "Conventions for pytest test files"
+applyTo: "tests/**/*.py"
+---
+
+# Test Conventions
+
+## Structure
+
+- `tests/` mirrors `src/coremind/`. No exceptions.
+- One test file per source module. Name: `test_<module>.py`.
+- Shared fixtures live in the nearest `conftest.py`, scoped appropriately.
+
+## Writing tests
+
+- Each test has a **name that describes the behavior**, not the implementation.
+  - Good: `def test_apply_event_rejects_tampered_signature`
+  - Bad:  `def test_apply_event_1`
+- Arrange / Act / Assert — visually separated with blank lines.
+- One logical assertion per test. If you need many, split the test.
+- Use `pytest.mark.parametrize` for tabular test data.
+
+## Async tests
+
+```python
+import pytest
+
+@pytest.mark.asyncio
+async def test_event_bus_delivers_to_multiple_subscribers():
+    bus = EventBus()
+    sub_a = anext(bus.subscribe())
+    sub_b = anext(bus.subscribe())
+
+    await bus.publish(make_event("host.cpu_percent", 42))
+
+    assert (await sub_a).value == 42
+    assert (await sub_b).value == 42
+```
+
+## Test categories
+
+- **Unit:** fast, no I/O, no containers. Must run in the default `pytest` invocation.
+- **Integration:** require docker-compose (SurrealDB, Qdrant). Mark with `@pytest.mark.integration`. Run with `pytest -m integration`.
+- **E2E scenarios:** full daemon + plugins. Mark with `@pytest.mark.e2e`. Run sparingly in CI.
+
+## What to test
+
+- Invariants that would silently break other code (signing/verification, serialization roundtrip, schema compliance)
+- Error paths — not just happy paths
+- Boundary conditions — empty inputs, None, unicode, very large payloads
+- Concurrency — race conditions on shared resources
+
+## What NOT to test
+
+- Private helpers (`_method`) — test them through public interfaces
+- Third-party library behavior — trust Pydantic, SurrealDB client, etc.
+- LLM output content — test the schema, not the text
+
+## Determinism
+
+- No `time.sleep`. Use `asyncio.wait_for` or event-driven waits.
+- No dependence on wall-clock time. Inject a `Clock` protocol when a test needs "now".
+- No network calls in unit tests. Use fakes or in-process stubs.
+- No reliance on dict ordering that isn't guaranteed.
+
+## Fixtures
+
+```python
+# conftest.py
+
+@pytest.fixture
+async def world_store(tmp_path):
+    store = InMemoryWorldStore()
+    await store.connect()
+    yield store
+    await store.close()
+
+@pytest.fixture
+def signing_key():
+    return generate_test_ed25519_key()
+```
+
+## Coverage expectations
+
+- Core modules (`src/coremind/core/`, `src/coremind/world/`, `src/coremind/crypto/`): 90%+
+- Reasoning/intention/action layers: 80%+
+- CLI, plugin hosts, adapters: 70%+
+- Glue code: best effort
+
+Don't chase coverage for its own sake. If a line doesn't matter, document why in a `# pragma: no cover — <reason>`.

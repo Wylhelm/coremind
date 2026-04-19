@@ -1,0 +1,88 @@
+{
+  "// ---- Copilot ----": "",
+  "github.copilot.chat.codeGeneration.useInstructionFiles": true,
+  "github.copilot.chat.agent.autoFix": true,
+  "chat.promptFiles": true,
+  "chat.agent.enabled": true,
+  "chat.instructionsFilesLocations": {
+    ".github/instructions": true
+  },
+  "chat.useCustomizationsInParentRepositories": false,
+  "// ---- Python ----": "",
+  "python.defaultInterpreterPath": ".venv/bin/python",
+  "python.analysis.typeCheckingMode": "strict",
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.inlayHints.functionReturnTypes": true,
+  "python.analysis.inlayHints.variableTypes": true,
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestArgs": ["tests"],
+  "// ---- Ruff ----": "",
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit"
+    }
+  },
+  "// ---- Editor ----": "",
+  "editor.formatOnSave": true,
+  "editor.rulers": [88, 100],
+  "editor.tabSize": 4,
+  "editor.insertSpaces": true,
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "files.trimFinalNewlines": true,
+  "// ---- Error Lens ----": "",
+  "errorLens.enabledDiagnosticLevels": ["error", "warning", "info"],
+  "errorLens.excludeBySource": ["cSpell"],
+  "// ---- Markdown ----": "",
+  "[markdown]": {
+    "editor.wordWrap": "on",
+    "editor.quickSuggestions": {
+      "comments": "off",
+      "strings": "off",
+      "other": "off"
+    }
+  },
+  "// ---- Spell check ----": "",
+  "cSpell.language": "en,fr",
+  "cSpell.words": [
+    "asyncio",
+    "coremind",
+    "ed25519",
+    "litellm",
+    "mypy",
+    "openclaw",
+    "pydantic",
+    "qdrant",
+    "structlog",
+    "surrealdb",
+    "surrealql",
+    "ulid",
+    "uvloop"
+  ],
+  "// ---- TOML ----": "",
+  "[toml]": {
+    "editor.defaultFormatter": "tamasfe.even-better-toml"
+  },
+  "// ---- Proto ----": "",
+  "[proto3]": {
+    "editor.tabSize": 2
+  },
+  "// ---- Files ----": "",
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/.mypy_cache": true,
+    "**/.ruff_cache": true,
+    "**/*.egg-info": true,
+    "**/.coverage": true
+  },
+  "search.exclude": {
+    ".venv": true,
+    "**/_generated": true,
+    "**/node_modules": true
+  }
+}

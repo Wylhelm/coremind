@@ -1,0 +1,69 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+.eggs/
+build/
+dist/
+wheels/
+pip-wheel-metadata/
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- Testing / linting caches ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+
+# --- Editors ---
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# NOTE: .vscode/ is kept, we ship shared settings
+# Uncomment the line below if you want each dev to have their own:
+# .vscode/
+
+# --- Secrets / local ---
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+!tests/**/*.pem  # test fixtures can live in tests/
+!tests/**/*.key
+
+# --- CoreMind runtime dirs (local dev) ---
+~/.coremind/
+.coremind-local/
+
+# --- Docs build artifacts ---
+docs/_build/
+site/
+
+# --- OS junk ---
+Thumbs.db
+desktop.ini
+
+# --- Node (for TS plugins / OpenClaw adapter side) ---
+node_modules/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-store/

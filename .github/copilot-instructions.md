@@ -1,0 +1,177 @@
+# CoreMind — Copilot Instructions
+
+You are contributing to **CoreMind**, an open-source framework for continuous personal intelligence. Read `docs/ARCHITECTURE.md` and `docs/EXECUTIVE_SUMMARY.md` once per session to anchor your context.
+
+---
+
+## Project at a glance
+
+- **What:** A cognitive daemon with 7 layers: Perception → World Model → Memory → Reasoning → Intention → Action → Reflection.
+- **Mission statement:** *"A system that does not respond — one that notices."*
+- **License:** AGPL-3.0.
+- **Key docs:**
+  - [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md) — authoritative technical design
+  - [docs/INTEGRATIONS.md](../docs/INTEGRATIONS.md) — cross-system contracts
+  - [docs/phases/](../docs/phases/) — phase-by-phase build roadmap
+
+## Current phase
+
+Check `docs/phases/README.md` to see which phase is active. **Never scope-creep into a later phase.** Each phase has an explicit "Out of Scope" section — honor it.
+
+---
+
+## Tech stack (mandatory)
+
+- **Language:** Python 3.12+ for the core daemon and Python plugins.
+- **Async runtime:** `asyncio` with `uvloop` in production.
+- **Validation:** Pydantic v2 everywhere data crosses a boundary.
+- **Packaging:** `uv` or Poetry, `pyproject.toml` driven.
+- **Lint/format:** Ruff (format + lint). **No Black, no isort, no flake8.**
+- **Type check:** `mypy --strict` — no exceptions.
+- **Tests:** pytest, `pytest-asyncio`, `pytest-cov`. Target 80%+ coverage on core modules.
+- **Logging:** `structlog` with JSON output in prod, human-readable in dev.
+- **RPC:** gRPC (`grpcio` + `grpcio-tools`) for plugin protocol.
+- **Databases:**
+  - **SurrealDB** — World Model (L2)
+  - **Qdrant** — semantic memory (L3)
+  - **JSONL + hash chain** — audit log
+- **LLM routing:** LiteLLM, always via our `LLM` wrapper in `src/coremind/reasoning/llm.py`.
+- **Crypto:** `cryptography` library, ed25519 only. Canonical JSON = RFC 8785 (JCS).
+
+### TypeScript parts (OpenClaw adapter only)
+- TS 5.5+, strict mode, ESM modules.
+- Bundler: esbuild or tsup.
+- Linter: Biome or ESLint + Prettier.
+
+---
+
+## Non-negotiable rules
+
+1. **Every autonomous side-effect is signed and journaled.** Never invoke an effector without a corresponding audit journal entry.
+2. **User data never leaves the host by default.** Any outbound network call from core code requires a declared plugin permission.
+3. **Structured outputs only for LLM calls.** All LLM invocations go through `LLM.complete_structured()` with a Pydantic response model. No free-form parsing.
+4. **No hidden state.** All side-effecting functions are explicit about what they mutate. Prefer immutable Pydantic models and pure functions.
+5. **No `print()` in source code.** Use `structlog`.
+6. **No `datetime.now()` without a tz.** Use `datetime.now(UTC)` everywhere.
+7. **No `Any` in public signatures.** Narrow types at the boundary.
+8. **No global mutable state.** Pass dependencies explicitly.
+9. **No direct DB writes outside the `store.py` adapters.** All persistence goes through the typed store layer.
+10. **Tests land with the feature, not after.**
+
+---
+
+## Code style
+
+- **Naming:** `snake_case` for functions/variables, `PascalCase` for classes, `UPPER_SNAKE` for module constants. No abbreviations in public names.
+- **Imports:** absolute, grouped `stdlib / third-party / first-party / local`, separated by blank lines. Ruff enforces this.
+- **Function length:** target ≤ 40 lines. Extract helpers when exceeded.
+- **Docstrings:** required on every public function/class. Google style. State what, not how.
+- **Error handling:** Custom exception hierarchy rooted in `coremind.errors.CoreMindError`. Never catch bare `Exception`; catch specific types or let them propagate with context.
+- **Async-first:** I/O functions are `async def`. Synchronous I/O is a bug in new code.
+- **Type aliases:** Prefer `type X = ...` (PEP 695) in Python 3.12.
+
+## Architectural patterns to follow
+
+- **Dependency injection via constructors.** No service locators, no globals.
+- **Adapters at every external boundary.** SurrealDB, Qdrant, LLM providers, plugins — each sits behind a Protocol-typed port.
+- **Events over commands internally.** The `EventBus` carries `WorldEvent`s between layers. Layers do not call each other's methods directly except via the bus.
+- **One writer per stream.** Only the L1 ingest task writes to L2's event table. Only L6 writes to the action journal.
+- **Fail-safe, fail-visible.** A failure in one layer produces a `meta-event` on the bus; it never silently corrupts state.
+
+## Architectural patterns to avoid
+
+- God classes. Split by responsibility.
+- Static utility modules with mixed concerns. One module, one theme.
+- Synchronous HTTP calls in the hot path.
+- Re-implementing crypto. Use `cryptography`.
+- Re-implementing JSON canonicalization. Use a JCS library.
+
+---
+
+## Security posture
+
+- Secrets live in `~/.coremind/secrets/`, chmod 600. Accessed through a `SecretsStore` port; never directly.
+- API keys are **never** logged, **never** included in prompts, **never** placed in `WorldEvent` payloads.
+- All external-facing inputs (webhooks, IMAP content, Notion pages, user messages) are **tainted** until explicitly sanitized. Tainted content must not flow to action-shaping paths without classification.
+- Prompt injection is the assumed threat. Treat content inside events as **data**, never as instructions to the reasoning layer.
+
+---
+
+## Testing conventions
+
+- **File layout:** `tests/` mirrors `src/coremind/`. A module at `src/coremind/world/store.py` is tested in `tests/world/test_store.py`.
+- **Fixtures:** prefer pytest fixtures over test-class state. Share via `conftest.py`.
+- **Async tests:** mark with `@pytest.mark.asyncio`.
+- **No sleeping.** Use `asyncio.Event` or `anyio.fail_after` for timing assertions.
+- **Deterministic:** no reliance on wall-clock time. Inject a clock.
+- **Golden tests:** for LLM-shaped outputs, use recorded fixtures + schema validation. Don't assert on free-form text.
+- **Integration tests:** opt-in via `pytest -m integration`. They require docker-compose up.
+
+---
+
+## Commit conventions
+
+Conventional Commits. Types we use:
+- `feat:` new user-visible capability
+- `fix:` bug fix
+- `refactor:` no behavior change
+- `docs:` docs only
+- `test:` tests only
+- `chore:` tooling, deps, housekeeping
+- `perf:` performance work
+
+Scope is the top-level module: `feat(world): ...`, `fix(crypto): ...`, `docs(phases): ...`.
+
+Every commit must pass `just lint && just test` locally.
+
+---
+
+## When generating code
+
+- **Before writing:** state your plan in 2-4 bullet points, including which files you will touch and what abstractions you'll introduce. Then write.
+- **Prefer extending existing modules** over creating new ones. If a new module is needed, justify it (it represents a new concept, not a new function).
+- **Write the test first** when adding a pure function or a new class method. Tests define the contract.
+- **Never swallow errors** to make tests pass. If a test fails, understand why.
+- **Never disable a linter or type rule** without a `# noqa: XYZ — <reason>` comment explaining the justification. Ruff/mypy rules exist for good reasons.
+
+## When reviewing or refactoring
+
+- Check invariants: signature, journal, structured output, bounded state.
+- If the change touches L6 (Action), verify reversibility is declared.
+- If the change touches plugin contracts, verify the `plugin.proto` is updated and stubs regenerated.
+- If public API changes, update affected tests, docstrings, and relevant phase docs.
+
+## When you are unsure
+
+- Consult `docs/ARCHITECTURE.md` — it is authoritative.
+- If the architecture doc is silent, prefer the simpler, more observable design.
+- When trade-offs are significant, surface them in the PR description rather than deciding silently.
+
+---
+
+## Anti-patterns specific to CoreMind
+
+- **Do not** store raw message bodies in the World Model (L2). Bodies go to L3 semantic memory.
+- **Do not** make L4 (Reasoning) stateful across cycles. State lives in L2/L3.
+- **Do not** let L5 (Intention) generate questions ungrounded in the world snapshot. Every question must cite entities.
+- **Do not** execute high-confidence actions that touch financial systems without approval. Category gating is not enough; forced-approval classes trump confidence.
+- **Do not** bypass the signature check on ingest. Even for "trusted" local plugins, signatures are the only trust boundary we have.
+
+---
+
+## Fast reference: where things live
+
+| Concern | Location |
+|---|---|
+| World Event schema | `spec/worldevent.schema.json` + `src/coremind/world/model.py` |
+| Plugin protocol | `spec/plugin.proto` (source) + `src/coremind/plugin_api/_generated/` (compiled) |
+| Crypto & signatures | `src/coremind/crypto/signatures.py` |
+| SurrealDB schema | `src/coremind/world/schema.surql` |
+| Error hierarchy | `src/coremind/errors.py` |
+| LLM wrapper | `src/coremind/reasoning/llm.py` |
+| Audit journal | `src/coremind/action/journal.py` + `~/.coremind/audit.log` |
+| Config | `~/.coremind/config.toml` + `src/coremind/config/` |
+
+---
+
+This file is the contract. When in doubt, re-read it.

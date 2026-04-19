@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  phase0-contracts:
+    name: Phase 0 — Contracts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install just
+        uses: extractions/setup-just@v2
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Lint (ruff + mypy)
+        run: |
+          ruff check .
+          ruff format --check .
+          mypy src/
+
+      - name: Validate specs
+        run: python scripts/validate_specs.py
+
+      - name: Regenerate proto stubs
+        run: |
+          mkdir -p src/coremind/plugin_api/_generated
+          python -m grpc_tools.protoc \
+            --proto_path=spec \
+            --python_out=src/coremind/plugin_api/_generated \
+            --grpc_python_out=src/coremind/plugin_api/_generated \
+            --pyi_out=src/coremind/plugin_api/_generated \
+            spec/plugin.proto
+          touch src/coremind/plugin_api/_generated/__init__.py
+
+      - name: Verify generated proto stubs are committed
+        run: |
+          if ! git diff --quiet -- src/coremind/plugin_api/_generated; then
+            echo "::error::Generated proto stubs are out of date. Run 'just proto-gen' locally and commit."
+            git diff --stat -- src/coremind/plugin_api/_generated
+            exit 1
+          fi
+          echo "✅ Generated proto stubs are up to date."
+
+      - name: Run tests (none yet in Phase 0, but the harness must work)
+        run: pytest --no-cov -q || [ $? -eq 5 ]  # exit code 5 = no tests collected; acceptable in Phase 0
