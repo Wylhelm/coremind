@@ -1,0 +1,468 @@
+syntax = "proto3";
+
+package coremind.plugin.v1;
+
+// plugin.proto — gRPC contract between CoreMind daemon and plugins.
+// Versioned: bump the package suffix (v1 → v2) for breaking changes.
+//
+// Two services are defined:
+//   CoreMindPlugin — implemented by plugins, called by the daemon.
+//   CoreMindHost   — implemented by the daemon, called by plugins.
+//
+// Transport: Unix domain socket (local) or TCP (containerised).
+// All timestamps use google.protobuf.Timestamp (UTC).
+// Signatures are raw ed25519 bytes (64 bytes).
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+
+option java_package = "ai.coremind.plugin.v1";
+option java_multiple_files = true;
+option go_package = "github.com/coremind/coremind/plugin/v1;pluginv1";
+
+// ---------------------------------------------------------------------------
+// Services
+// ---------------------------------------------------------------------------
+
+// CoreMindPlugin is implemented by every plugin process.
+// The daemon discovers a plugin, connects over gRPC, and calls these RPCs
+// to drive the plugin lifecycle.
+service CoreMindPlugin {
+  // Identify returns the plugin's static manifest.
+  // Called once immediately after the daemon connects.
+  // Errors: UNIMPLEMENTED if the plugin does not support this method (always fatal).
+  rpc Identify(google.protobuf.Empty) returns (PluginManifest);
+
+  // Start begins the plugin's perception loop.
+  // The server-streaming response carries WorldEvents as they are observed.
+  // The stream stays open until the daemon sends Stop or the plugin crashes.
+  // Errors: ALREADY_EXISTS if the plugin is already started.
+  rpc Start(PluginConfig) returns (stream WorldEvent);
+
+  // Stop signals the plugin to shut down cleanly and close the Start stream.
+  // The daemon waits up to 10 s for the stream to close before killing the process.
+  // Errors: FAILED_PRECONDITION if the plugin was not started.
+  rpc Stop(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+  // HealthCheck returns the current operational status of the plugin.
+  // Called periodically by the daemon (default: every 30 s).
+  // Errors: never — a transport failure is itself a health signal.
+  rpc HealthCheck(google.protobuf.Empty) returns (HealthStatus);
+
+  // InvokeAction asks the plugin to execute an effector action.
+  // Only effector and bidirectional plugins need to implement this.
+  // Sensor-only plugins must return UNIMPLEMENTED.
+  // Errors: PERMISSION_DENIED if the action is not declared in the manifest.
+  //         UNAVAILABLE if the downstream system is unreachable.
+  rpc InvokeAction(ActionRequest) returns (ActionResult);
+}
+
+// CoreMindHost is implemented by the daemon.
+// Plugins call back on this service to request secrets or emit out-of-band events.
+service CoreMindHost {
+  // RequestSecret returns the plaintext value of a named secret from the
+  // daemon's SecretsStore. The plugin must have declared the secret in its
+  // manifest's required_permissions field (e.g. "secrets:my_token").
+  // Errors: PERMISSION_DENIED if the secret was not declared in the manifest.
+  //         NOT_FOUND if the secret does not exist in the store.
+  rpc RequestSecret(SecretRequest) returns (SecretResponse);
+
+  // EmitEvent allows a plugin to push a WorldEvent outside of the Start stream
+  // (e.g. for async callbacks, webhooks received while the stream is paused).
+  // Events submitted here are subject to the same signature verification as
+  // stream events.
+  // Errors: UNAUTHENTICATED if the event signature is invalid.
+  //         INVALID_ARGUMENT if required fields are missing.
+  rpc EmitEvent(WorldEvent) returns (google.protobuf.Empty);
+
+  // Log sends a structured log entry to the daemon's logger on behalf of the
+  // plugin. Plugins should prefer this over writing to stdout/stderr so that
+  // their log output appears in CoreMind's structured log stream with plugin
+  // context automatically attached.
+  rpc Log(LogEntry) returns (google.protobuf.Empty);
+}
+
+// ---------------------------------------------------------------------------
+// Plugin identity and configuration
+// ---------------------------------------------------------------------------
+
+// PluginManifest is the static, self-describing identity of a plugin.
+// Returned by CoreMindPlugin.Identify. The daemon validates and caches this
+// on first connect and re-validates on every reconnect.
+message PluginManifest {
+  // Globally unique reverse-DNS plugin identifier.
+  // Example: "coremind.plugin.homeassistant"
+  string plugin_id = 1;
+
+  // Semantic version of the plugin implementation.
+  // Must follow semver: "MAJOR.MINOR.PATCH".
+  string version = 2;
+
+  // Human-readable name shown in dashboards and logs.
+  string display_name = 3;
+
+  // Kind of plugin — determines which RPCs the daemon may call.
+  PluginKind kind = 4;
+
+  // Entity types this plugin may contribute to the World Model.
+  // Example values: "room", "person", "device", "project".
+  repeated string provides_entities = 5;
+
+  // Attribute names this plugin may report on entities.
+  // Example values: "temperature", "motion", "power_watts".
+  repeated string emits_attributes = 6;
+
+  // Effector operation names this plugin can execute.
+  // Only meaningful when kind is EFFECTOR or BIDIRECTIONAL.
+  // Example values: "turn_on", "set_brightness".
+  repeated string accepts_operations = 7;
+
+  // Permissions required by this plugin. The daemon enforces these at runtime.
+  // Format follows the permission vocabulary in §5.4 of ARCHITECTURE.md:
+  //   "network:local", "network:internet",
+  //   "fs:read:/path", "fs:write:/path",
+  //   "secrets:<key>"
+  repeated string required_permissions = 8;
+
+  // SPDX license identifier for the plugin code.
+  // Example: "AGPL-3.0-only"
+  string license = 9;
+
+  // Author or maintainer string, free-form.
+  string author = 10;
+
+  // Minimum CoreMind daemon version required to run this plugin.
+  // Empty string means "no constraint".
+  string min_daemon_version = 11;
+}
+
+// PluginKind classifies a plugin by its direction of data flow.
+enum PluginKind {
+  // Default unset — rejected by the daemon on Identify.
+  PLUGIN_KIND_UNSPECIFIED = 0;
+
+  // Sensor: emits WorldEvents only. InvokeAction returns UNIMPLEMENTED.
+  PLUGIN_KIND_SENSOR = 1;
+
+  // Effector: accepts ActionRequests only. Start returns an empty stream.
+  PLUGIN_KIND_EFFECTOR = 2;
+
+  // Bidirectional: both emits WorldEvents and accepts ActionRequests.
+  PLUGIN_KIND_BIDIRECTIONAL = 3;
+
+  // ModelBackend: provides an LLM endpoint consumed by L4/L5.
+  // Does not emit WorldEvents and does not accept generic ActionRequests.
+  PLUGIN_KIND_MODEL_BACKEND = 4;
+}
+
+// PluginConfig is passed to CoreMindPlugin.Start and carries runtime
+// parameters from the daemon. Plugins must not store secrets here — they
+// must call CoreMindHost.RequestSecret instead.
+message PluginConfig {
+  // Opaque TOML-serialised configuration blob, plugin-specific.
+  // Must not contain secret values.
+  string config_toml = 1;
+
+  // Address of the CoreMindHost gRPC endpoint the plugin may call back on.
+  // Unix socket path (e.g. "unix:///run/coremind/host.sock") or TCP address.
+  string host_address = 2;
+
+  // Log level the daemon requests from the plugin.
+  LogLevel log_level = 3;
+}
+
+// ---------------------------------------------------------------------------
+// World events
+// ---------------------------------------------------------------------------
+
+// WorldEvent is the atomic observation unit emitted by sensor plugins.
+// Every event must be signed by the emitting plugin using its ed25519 key.
+// The canonical form for signing is the RFC 8785 (JCS) serialisation of all
+// fields except the signature field itself.
+message WorldEvent {
+  // ULID string, lexicographically sortable by generation time.
+  // Format: 26 uppercase Crockford-base32 characters.
+  string id = 1;
+
+  // When the observation was made in the real world.
+  // Use the sensor's local clock, not the daemon's receive time.
+  google.protobuf.Timestamp timestamp = 2;
+
+  // Plugin identifier that produced this event.
+  // Must match the plugin_id in the plugin's PluginManifest.
+  string source = 3;
+
+  // Semantic version of the emitting plugin. Used for schema migration.
+  string source_version = 4;
+
+  // ed25519 signature (64 raw bytes) over the canonical form of this event
+  // (all fields except signature itself, JCS-serialised).
+  bytes signature = 5;
+
+  // Subject entity observed.
+  EntityRef entity = 6;
+
+  // What aspect of the entity is being reported.
+  // Use dot-notation namespacing: "climate.temperature", "power.watts".
+  string attribute = 7;
+
+  // Observed value. JSON-serialisable scalar or object.
+  google.protobuf.Value value = 8;
+
+  // Optional SI or conventional unit string.
+  // Examples: "°C", "W", "lux", "%RH".
+  optional string unit = 9;
+
+  // Optional change-detection metadata relative to the previous known value.
+  optional Delta delta = 10;
+
+  // Confidence in this observation, between 0.0 and 1.0 inclusive.
+  // 1.0 means a direct, unambiguous sensor reading.
+  // Values below 0.5 should be rare; consider dropping the event instead.
+  float confidence = 11;
+
+  // Optional contextual metadata enriching the observation.
+  optional EventContext context = 12;
+}
+
+// EntityRef identifies the subject of a WorldEvent or a relationship endpoint.
+message EntityRef {
+  // Entity type namespace. Examples: "room", "person", "device", "project".
+  string type = 1;
+
+  // Stable entity identifier within the type namespace.
+  // Must be consistent across events from the same plugin.
+  string entity_id = 2;
+}
+
+// Delta captures change information relative to the previously known value.
+message Delta {
+  // Absolute numeric change (new_value - previous_value), if applicable.
+  optional double absolute = 1;
+
+  // Relative change as a percentage of the previous value, if applicable.
+  optional double relative_pct = 2;
+
+  // The previous value before this event, for diffing and audit.
+  optional google.protobuf.Value previous_value = 3;
+}
+
+// EventContext holds optional enrichment metadata attached to a WorldEvent.
+message EventContext {
+  // Duration window used to compute any trend, e.g. "24h", "7d".
+  optional string trend_window = 1;
+
+  // Direction of the trend over trend_window.
+  optional TrendDirection trend_direction = 2;
+
+  // Other entities referenced by or correlated with this observation.
+  repeated EntityRef related_entities = 3;
+
+  // Free-form classification tags for filtering and routing.
+  repeated string tags = 4;
+}
+
+// TrendDirection classifies the direction of a metric over a time window.
+enum TrendDirection {
+  // Default unset — the trend direction is unknown or not applicable.
+  TREND_DIRECTION_UNSPECIFIED = 0;
+
+  // The metric is trending upward.
+  TREND_DIRECTION_RISING = 1;
+
+  // The metric is trending downward.
+  TREND_DIRECTION_FALLING = 2;
+
+  // The metric is roughly constant.
+  TREND_DIRECTION_STABLE = 3;
+
+  // The metric is fluctuating without a clear direction.
+  TREND_DIRECTION_VOLATILE = 4;
+}
+
+// ---------------------------------------------------------------------------
+// Health
+// ---------------------------------------------------------------------------
+
+// HealthStatus is returned by CoreMindPlugin.HealthCheck.
+message HealthStatus {
+  // Overall operational status of the plugin.
+  HealthState state = 1;
+
+  // Human-readable message describing the current state.
+  // Mandatory when state is DEGRADED or UNHEALTHY.
+  string message = 2;
+
+  // Wall-clock time of the most recently emitted WorldEvent, if any.
+  // Allows the daemon to detect a plugin that is alive but stalled.
+  optional google.protobuf.Timestamp last_event_at = 3;
+
+  // Number of events emitted since the plugin was started.
+  uint64 events_emitted = 4;
+
+  // Number of actions attempted since the plugin was started.
+  uint64 actions_attempted = 5;
+
+  // Number of actions that failed since the plugin was started.
+  uint64 actions_failed = 6;
+}
+
+// HealthState classifies the operational health of a plugin.
+enum HealthState {
+  // Default unset — should not appear in production.
+  HEALTH_STATE_UNSPECIFIED = 0;
+
+  // Plugin is fully operational.
+  HEALTH_STATE_OK = 1;
+
+  // Plugin is running but some capability is impaired.
+  // The daemon will log a warning and continue polling.
+  HEALTH_STATE_DEGRADED = 2;
+
+  // Plugin cannot perform its primary function.
+  // The daemon will attempt a restart after a back-off period.
+  HEALTH_STATE_UNHEALTHY = 3;
+}
+
+// ---------------------------------------------------------------------------
+// Actions
+// ---------------------------------------------------------------------------
+
+// ActionRequest is sent by the daemon to an effector plugin via InvokeAction.
+// It carries a signed intent from L6 and the operation to perform.
+message ActionRequest {
+  // Stable action identifier. ULID string.
+  string action_id = 1;
+
+  // Identifier of the L5 intent that produced this action. ULID string.
+  string intent_id = 2;
+
+  // When the daemon dispatched this action.
+  google.protobuf.Timestamp dispatched_at = 3;
+
+  // Operation name, namespace-qualified. Must match an entry in
+  // the plugin's accepts_operations list.
+  // Example: "turn_on", "set_brightness".
+  string operation = 4;
+
+  // Operation parameters as a JSON object. Schema is operation-specific.
+  google.protobuf.Struct parameters = 5;
+
+  // ed25519 signature (64 raw bytes) of the daemon over the canonical form
+  // of this request. Plugins must verify this before executing.
+  bytes daemon_signature = 6;
+
+  // Confidence score of the originating intent (0.0 – 1.0).
+  // Provided for informational / logging purposes; the daemon has already
+  // applied the confidence gate before dispatching.
+  float intent_confidence = 7;
+}
+
+// ActionResult is the plugin's response to an ActionRequest.
+message ActionResult {
+  // The action_id from the corresponding ActionRequest.
+  string action_id = 1;
+
+  // Whether the action was executed successfully.
+  ActionStatus status = 2;
+
+  // Human-readable description of the outcome, mandatory on failure.
+  string message = 3;
+
+  // Structured output from the action, if any (e.g. new device state).
+  optional google.protobuf.Struct output = 4;
+
+  // When the action completed on the effector side.
+  google.protobuf.Timestamp completed_at = 5;
+
+  // Operation that would reverse this action, if one exists.
+  // Format: "<operation_name>" within the same plugin.
+  // Empty string means the action is not reversible.
+  optional string reversed_by_operation = 6;
+
+  // Parameters for the reversal operation, if reversed_by_operation is set.
+  optional google.protobuf.Struct reversal_parameters = 7;
+}
+
+// ActionStatus classifies the outcome of an attempted effector action.
+enum ActionStatus {
+  // Default unset — should not appear in production.
+  ACTION_STATUS_UNSPECIFIED = 0;
+
+  // The action was executed successfully.
+  ACTION_STATUS_OK = 1;
+
+  // The action was not executed because a precondition was not met
+  // (e.g. device already in the target state). Not an error.
+  ACTION_STATUS_NOOP = 2;
+
+  // The action failed transiently; retrying may succeed.
+  ACTION_STATUS_TRANSIENT_FAILURE = 3;
+
+  // The action failed permanently; retrying will not help.
+  ACTION_STATUS_PERMANENT_FAILURE = 4;
+
+  // The action was rejected because the daemon signature was invalid.
+  // The daemon must not retry without investigating the key chain.
+  ACTION_STATUS_REJECTED_INVALID_SIGNATURE = 5;
+}
+
+// ---------------------------------------------------------------------------
+// Secrets
+// ---------------------------------------------------------------------------
+
+// SecretRequest is sent by a plugin to CoreMindHost.RequestSecret.
+message SecretRequest {
+  // Name of the secret as declared in the plugin's required_permissions.
+  // Example: "homeassistant_token".
+  string secret_name = 1;
+}
+
+// SecretResponse carries the plaintext secret value.
+// The daemon delivers secrets only over a local Unix socket — never over TCP.
+message SecretResponse {
+  // Plaintext secret value. Treat as sensitive; do not log.
+  string secret_value = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Logging
+// ---------------------------------------------------------------------------
+
+// LogEntry is sent by plugins to CoreMindHost.Log.
+message LogEntry {
+  // When the log event occurred in the plugin.
+  google.protobuf.Timestamp timestamp = 1;
+
+  // Severity level of the log entry.
+  LogLevel level = 2;
+
+  // Log message body.
+  string message = 3;
+
+  // Structured key-value pairs to attach to the log record.
+  // Values must be JSON-serialisable scalars.
+  google.protobuf.Struct fields = 4;
+}
+
+// LogLevel mirrors structlog / standard log severity levels.
+enum LogLevel {
+  // Default unset — daemon will treat as DEBUG.
+  LOG_LEVEL_UNSPECIFIED = 0;
+
+  // Detailed diagnostic information; high volume.
+  LOG_LEVEL_DEBUG = 1;
+
+  // Normal operational messages confirming expected behaviour.
+  LOG_LEVEL_INFO = 2;
+
+  // Something unexpected happened but the plugin continued operating.
+  LOG_LEVEL_WARNING = 3;
+
+  // An error occurred that requires operator attention.
+  LOG_LEVEL_ERROR = 4;
+
+  // A fatal condition; the plugin will exit after sending this entry.
+  LOG_LEVEL_CRITICAL = 5;
+}

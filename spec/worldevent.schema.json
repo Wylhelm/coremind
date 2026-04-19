@@ -1,0 +1,149 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://coremind.dev/specs/worldevent/1.0.0",
+    "title": "WorldEvent",
+    "description": "Atomic unit of observation in CoreMind. Produced by L1 plugins and consumed by the L2 World Model.",
+    "$comment": "additionalProperties is intentionally omitted (defaults to true) per §5.4 forward-compatibility: consumers must silently ignore unknown fields. Do not add additionalProperties: false — it would reject valid events from newer plugin versions.",
+    "type": "object",
+    "required": [
+        "id",
+        "timestamp",
+        "source",
+        "source_version",
+        "signature",
+        "entity",
+        "attribute",
+        "value",
+        "confidence"
+    ],
+    "properties": {
+        "id": {
+            "type": "string",
+            "description": "Globally unique, time-sortable ULID identifier. Enables deduplication and time-ordered storage without a separate timestamp index.",
+            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+        },
+        "timestamp": {
+            "type": "string",
+            "description": "ISO-8601 UTC timestamp with millisecond precision, Z suffix. The moment of observation, not ingest time.",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+        },
+        "source": {
+            "type": "string",
+            "description": "Stable reverse-domain plugin identifier matching the id declared in the plugin's PluginManifest.",
+            "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)+$"
+        },
+        "source_version": {
+            "type": "string",
+            "description": "Semver version of the emitting plugin at the time of emission. Used for audit traceability and compatibility gating.",
+            "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?$"
+        },
+        "signature": {
+            "type": "string",
+            "description": "ed25519 signature of the RFC 8785 canonical form of this event (signature field excluded). Format: ed25519:<128-char lowercase hex>.",
+            "pattern": "^ed25519:[0-9a-f]{128}$"
+        },
+        "entity": {
+            "$ref": "#/$defs/EntityRef"
+        },
+        "attribute": {
+            "type": "string",
+            "description": "Lowercase dot-notation name for the observed property of the entity. Must be stable across plugin MAJOR versions.",
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$"
+        },
+        "value": {
+            "description": "The observed value. May be any JSON type including null. null indicates a previously known value is no longer observed."
+        },
+        "confidence": {
+            "type": "number",
+            "description": "Probability that the observation is accurate, in the range [0.0, 1.0]. Use 1.0 for deterministic sensors.",
+            "minimum": 0.0,
+            "maximum": 1.0
+        },
+        "unit": {
+            "type": "string",
+            "description": "SI or conventional unit for a numeric value, e.g. °C, kWh, USD, lux, %. Omit for dimensionless or non-numeric values."
+        },
+        "delta": {
+            "$ref": "#/$defs/Delta"
+        },
+        "context": {
+            "$ref": "#/$defs/Context"
+        }
+    },
+    "$defs": {
+        "EntityRef": {
+            "type": "object",
+            "description": "Reference to the entity being observed. The combined key type/id uniquely identifies an entity across all plugins and all time.",
+            "required": [
+                "type",
+                "id"
+            ],
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "description": "Entity class. Canonical values: room, person, device, project, task, transaction, email, calendar_event, document. New types require an RFC.",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "minLength": 1
+                },
+                "id": {
+                    "type": "string",
+                    "description": "Stable identifier within the type namespace, preferably the upstream system's native identifier.",
+                    "minLength": 1
+                }
+            }
+        },
+        "Delta": {
+            "type": "object",
+            "description": "Change since the immediately preceding event for this (entity, attribute) pair. Recommended for quantitative attributes.",
+            "properties": {
+                "absolute": {
+                    "type": "number",
+                    "description": "current_value minus previous_value. Negative indicates a decrease. Meaningful only for numeric values."
+                },
+                "relative_pct": {
+                    "type": "number",
+                    "description": "(absolute / abs(previous_value)) × 100. Must be omitted when previous_value is 0 to avoid division by zero."
+                },
+                "previous_value": {
+                    "description": "The value from the immediately preceding event for this (entity, attribute). May be any JSON type, matching the type of value."
+                }
+            }
+        },
+        "Context": {
+            "type": "object",
+            "description": "Supporting context for the reasoning layers. All sub-fields are optional.",
+            "properties": {
+                "trend_window": {
+                    "type": "string",
+                    "description": "Duration over which trend_direction was computed, e.g. 1h, 24h, 7d.",
+                    "pattern": "^\\d+[smhdwMy]$"
+                },
+                "trend_direction": {
+                    "type": "string",
+                    "description": "Trend direction over trend_window. One of: rising, falling, stable, volatile.",
+                    "enum": [
+                        "rising",
+                        "falling",
+                        "stable",
+                        "volatile"
+                    ]
+                },
+                "related_entities": {
+                    "type": "array",
+                    "description": "Other entities causally or contextually related to this event. Used by L2 to maintain relationship edges.",
+                    "items": {
+                        "$ref": "#/$defs/EntityRef"
+                    }
+                },
+                "tags": {
+                    "type": "array",
+                    "description": "Lowercase hyphen-separated labels for filtering and coarse categorisation.",
+                    "items": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9-]*$"
+                    }
+                }
+            }
+        }
+    }
+}

@@ -26,9 +26,10 @@ SCHEMA_PATH = REPO_ROOT / "spec" / "worldevent.schema.json"
 PROSE_PATH = REPO_ROOT / "spec" / "worldevent.md"
 
 # Example payloads in the prose spec are marked as fenced JSON blocks
-# immediately following a heading that contains "Example".
+# under a ### heading that contains "Example". Any prose between the heading
+# and the code fence is allowed and is skipped by the non-greedy `.*?`.
 EXAMPLE_BLOCK_RE = re.compile(
-    r"###[^\n]*Example[^\n]*\n+```json\n(.*?)\n```",
+    r"###[^\n]*Example[^\n]*\n.*?```json\n(.*?)\n```",
     re.DOTALL | re.IGNORECASE,
 )
 
