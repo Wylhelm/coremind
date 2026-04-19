@@ -34,7 +34,7 @@ if it is lost, there is no way to reconstruct what the daemon did on the user's 
 ### 1.1 What is Logged
 
 - Every action executed by L6, regardless of confidence category.
-- Every action **rejected** because confidence was below threshold (category `uncertain`).
+- Every action **rejected** because confidence was below threshold (category `ask`, not approved).
 - Every action held for human approval, and the outcome of that approval.
 - Every action that failed at execution time.
 
@@ -91,7 +91,7 @@ Every journal entry is a flat JSON object with the following fields.
 | `action_id` | `string` | ULID. Globally unique identifier for this action. |
 | `intent_id` | `string` | ULID. The L5 intent that triggered this action. Enables tracing from outcome back to intent. |
 | `timestamp` | `string` | ISO-8601, millisecond precision, UTC, `Z` suffix. The moment L6 committed this entry. |
-| `category` | `string` | One of `safe`, `optimization`, `uncertain`, `forced_approval`. Reflects the confidence gate that applied. |
+| `category` | `string` | One of `safe`, `suggest`, `ask`. Reflects the agency category that applied (see `ARCHITECTURE.md §15.2`). |
 | `status` | `string` | One of `executed`, `rejected`, `pending_approval`, `approved`, `denied`, `failed`. Final state of the action. |
 | `operation` | `string` | Dot-notation identifier for the action type, e.g. `homeassistant.set_light_state`, `gmail.send_email`. |
 | `parameters` | `object` | Input parameters passed to the effector. Must not contain secrets or raw credential material. |
@@ -103,10 +103,12 @@ Every journal entry is a flat JSON object with the following fields.
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| `approval` | `object \| null` | Present when `status` is `approved` or `denied`. |
-| `approval.approved_by` | `string` | The channel or user that approved/denied, e.g. `telegram:@user`. |
+| `forced` | `boolean` | `true` when this action's class is a **forced-approval class** (finance, outbound messaging, credential change, etc.) and the `ask` category was hardcoded by the daemon regardless of the intent's confidence. Absent (or `false`) for non-forced actions. See `ARCHITECTURE.md §15.4`. |
+| `approval` | `object \| null` | Present when `status` is `approved`, `denied`, or `snoozed`. |
+| `approval.approved_by` | `string` | The channel or user that responded, e.g. `telegram:@user`. |
 | `approval.decided_at` | `string` | ISO-8601 timestamp of the decision. |
-| `approval.decision` | `string` | `approved` or `denied`. |
+| `approval.decision` | `string` | One of `approved`, `denied`, `snoozed`. |
+| `approval.snooze_until` | `string \| null` | ISO-8601 timestamp. Present only when `decision` is `snoozed`. The intent re-surfaces after this time. |
 | `error` | `string \| null` | Human-readable error message when `status` is `failed`. Stack traces must not appear here. |
 | `plugin_id` | `string` | The plugin that performed the action, if the action was delegated to a plugin effector. |
 
@@ -136,13 +138,18 @@ Every journal entry is a flat JSON object with the following fields.
 
 ### 4.4 Forced-Approval Entry Example
 
+Note: `category` is `ask` (the standard category). The `forced: true` flag distinguishes
+a daemon-mandated approval from a confidence-based one. Clients need only handle
+three category values; `forced` is informational.
+
 ```json
 {
   "seq": 7,
   "action_id": "act_01HXB3QQFP9EMKJ5VR7N0Y81DT",
   "intent_id": "int_01HXB3QQE1RG4H7S8T3A6P59CX",
   "timestamp": "2026-01-15T11:42:00.000Z",
-  "category": "forced_approval",
+  "category": "ask",
+  "forced": true,
   "status": "approved",
   "operation": "gmail.send_email",
   "parameters": {
