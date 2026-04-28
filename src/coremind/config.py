@@ -31,6 +31,8 @@ class IntentionConfig(BaseModel):
     interval_seconds: int = Field(default=600, ge=10)
     max_questions: int = Field(default=5, ge=1)
     user_ask_classes: list[str] = Field(default_factory=list)
+    min_salience: float = Field(default=0.0, ge=0.0, le=1.0)
+    min_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
 class ActionConfig(BaseModel):

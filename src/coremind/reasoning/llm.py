@@ -64,13 +64,13 @@ class LLMConfig(BaseModel):
     """Complete LLM routing configuration for all four layers."""
 
     reasoning_heavy: LayerConfig = Field(
-        default_factory=lambda: LayerConfig(model="ollama/llama3.3:8b")
+        default_factory=lambda: LayerConfig(model="ollama/deepseek-v4-flash:cloud")
     )
     reasoning_fast: LayerConfig = Field(
-        default_factory=lambda: LayerConfig(model="ollama/llama3.3:8b")
+        default_factory=lambda: LayerConfig(model="ollama/deepseek-v4-flash:cloud")
     )
-    intention: LayerConfig = Field(default_factory=lambda: LayerConfig(model="ollama/llama3.3:8b"))
-    reflection: LayerConfig = Field(default_factory=lambda: LayerConfig(model="ollama/llama3.3:8b"))
+    intention: LayerConfig = Field(default_factory=lambda: LayerConfig(model="ollama/deepseek-v4-flash:cloud"))
+    reflection: LayerConfig = Field(default_factory=lambda: LayerConfig(model="ollama/deepseek-v4-flash:cloud"))
 
 
 # ---------------------------------------------------------------------------

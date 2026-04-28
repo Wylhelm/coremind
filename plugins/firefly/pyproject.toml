@@ -1,0 +1,21 @@
+[project]
+name = "coremind-plugin-firefly"
+version = "0.1.0"
+description = "Firefly III finance sensor plugin for CoreMind."
+readme = "README.md"
+license = { text = "AGPL-3.0-or-later" }
+authors = [{ name = "Guillaume Gagnon" }]
+requires-python = ">=3.12"
+dependencies = [
+    "coremind>=0.0.1",
+    "grpcio>=1.66.0",
+    "requests>=2.32.0",
+    "structlog>=24.4.0",
+]
+[project.scripts]
+coremind-plugin-firefly = "coremind_plugin_firefly.main:main"
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+[tool.hatch.build.targets.wheel]
+packages = ["coremind_plugin_firefly"]

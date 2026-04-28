@@ -124,7 +124,7 @@ Initial window: last 24 hours.</p>
   <tbody>
   {% for event in initial_events %}
     <tr>
-      <td>{{ event.timestamp.isoformat() }}</td>
+      <td>{{ event.timestamp|localtime }}</td>
       <td>{{ event.source }}</td>
       <td>{{ event.entity.type }}:{{ event.entity.id }}</td>
       <td>{{ event.attribute }}</td>
@@ -209,7 +209,7 @@ _REASONING_BODY = """
   {% for cycle in cycles %}
     <tr>
       <td>{{ cycle.cycle_id }}</td>
-      <td>{{ cycle.timestamp.isoformat() }}</td>
+      <td>{{ cycle.timestamp|localtime }}</td>
       <td>{{ cycle.model_used }}</td>
       <td>{{ cycle.patterns | length }}</td>
       <td>{{ cycle.anomalies | length }}</td>
@@ -229,7 +229,7 @@ _INTENTS_BODY = """
   <tbody>
   {% for intent in intents %}
     <tr>
-      <td>{{ intent.created_at.isoformat() }}</td>
+      <td>{{ intent.created_at|localtime }}</td>
       <td>{{ intent.question.text }}</td>
       <td><span class="pill {{ intent.category }}">{{ intent.category }}</span></td>
       <td>{{ intent.status }}</td>
@@ -246,7 +246,7 @@ _INTENTS_BODY = """
   <tbody>
   {% for note in pending_notifications %}
     <tr>
-      <td>{{ note.sent_at.isoformat() }}</td>
+      <td>{{ note.sent_at|localtime }}</td>
       <td>{{ note.message }}</td>
       <td>{{ note.intent_id or '—' }}</td>
       <td>
@@ -297,7 +297,7 @@ _ACTIONS_BODY = """
   {% for entry in entries %}
     <tr>
       <td>{{ entry.seq }}</td>
-      <td>{{ entry.timestamp.isoformat() }}</td>
+      <td>{{ entry.timestamp|localtime }}</td>
       <td>{{ entry.kind }}</td>
       <td>{{ entry.operation }}</td>
       <td>{{ entry.action_class }}</td>
@@ -316,7 +316,7 @@ _REFLECTION_BODY = """
 {% endif %}
 {% for stored in reports %}
 <section>
-  <h2>{{ stored.report.window_start.isoformat() }} → {{ stored.report.window_end.isoformat() }}</h2>
+  <h2>{{ stored.report.window_start|localtime }} → {{ stored.report.window_end|localtime }}</h2>
   <p class="muted">Cycle id: <code>{{ stored.report.cycle_id }}</code> ·
   Predictions evaluated: {{ stored.report.predictions.evaluated }} ·
   {% set brier = stored.report.calibration.brier_score %}
@@ -347,6 +347,10 @@ _env = Environment(
 # types (e.g. ``datetime``).  We accept those by stringifying them, and rely
 # on Jinja's autoescape on the surrounding HTML to keep the output safe.
 _env.filters["tojson"] = lambda value: json.dumps(value, default=str, sort_keys=True)
+
+from zoneinfo import ZoneInfo
+_LOCAL_TZ = ZoneInfo("America/Toronto")
+_env.filters["localtime"] = lambda dt: dt.astimezone(_LOCAL_TZ).strftime("%Y-%m-%d %H:%M")
 
 
 def _render(active: str, title: str, body_template: str, **context: Any) -> str:

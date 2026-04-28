@@ -73,6 +73,8 @@ class IntentionLoopConfig(BaseModel):
     max_questions: int = Field(default=5, ge=1, le=20)
     recent_intent_window_hours: int = Field(default=24, ge=1)
     recent_reasoning_window_hours: int = Field(default=1, ge=1)
+    min_salience: float = Field(default=0.0, ge=0.0, le=1.0)
+    min_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
 # ---------------------------------------------------------------------------
@@ -293,6 +295,13 @@ class IntentionLoop:
                 category=category,  # type: ignore[arg-type]
                 status="pending",
             )
+            # Skip low-confidence intents — don't bother the user
+            if (self._config.min_salience > 0 and salience < self._config.min_salience) or \
+               (self._config.min_confidence > 0 and confidence < self._config.min_confidence):
+                intent.status = "auto_dismissed"
+                await self._intents.save(intent)
+                log.debug("intention.auto_dismissed", id=intent.id, salience=salience, confidence=confidence)
+                continue
             await self._intents.save(intent)
             try:
                 await self._router.route(intent)

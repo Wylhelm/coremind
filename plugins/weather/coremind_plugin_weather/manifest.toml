@@ -1,0 +1,9 @@
+plugin_id = "coremind.plugin.weather"
+version = "0.1.0"
+display_name = "Weather (Open-Meteo)"
+kind = "SENSOR"
+provides_entities = ["location"]
+emits_attributes = ["temperature", "humidity", "apparent_temperature", "precipitation_probability", "wind_speed", "weather_code"]
+required_permissions = ["net:http"]
+license = "AGPL-3.0-or-later"
+author = "Guillaume Gagnon"

@@ -253,6 +253,8 @@ class CoreMindDaemon:
                 config=IntentionLoopConfig(
                     interval_seconds=config.intention.interval_seconds,
                     max_questions=config.intention.max_questions,
+                    min_salience=config.intention.min_salience,
+                    min_confidence=config.intention.min_confidence,
                 ),
             )
             intention_loop.start()

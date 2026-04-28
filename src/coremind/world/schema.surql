@@ -9,7 +9,7 @@ DEFINE FIELD type             ON entity TYPE string;
 DEFINE FIELD display_name     ON entity TYPE string;
 DEFINE FIELD created_at       ON entity TYPE datetime;
 DEFINE FIELD updated_at       ON entity TYPE datetime;
-DEFINE FIELD properties       ON entity FLEXIBLE TYPE object DEFAULT {};
+DEFINE FIELD properties       ON entity TYPE object FLEXIBLE DEFAULT {};
 DEFINE FIELD source_plugins   ON entity TYPE array<string> DEFAULT [];
 DEFINE INDEX entity_type_id   ON entity FIELDS type, id UNIQUE;
 
@@ -22,7 +22,7 @@ DEFINE FIELD source           ON event TYPE string;
 DEFINE FIELD source_version   ON event TYPE string;
 DEFINE FIELD entity           ON event TYPE record<entity>;
 DEFINE FIELD attribute        ON event TYPE string;
-DEFINE FIELD value            ON event FLEXIBLE TYPE any;
+DEFINE FIELD value            ON event TYPE any;
 DEFINE FIELD confidence       ON event TYPE float;
 DEFINE FIELD signature        ON event TYPE option<string>;
 DEFINE FIELD unit             ON event TYPE option<string>;

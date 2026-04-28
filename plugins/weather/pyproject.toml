@@ -1,0 +1,16 @@
+[project]
+name = "coremind-plugin-weather"
+version = "0.1.0"
+description = "Weather sensor plugin for CoreMind via Open-Meteo API."
+readme = "README.md"
+license = { text = "AGPL-3.0-or-later" }
+authors = [{ name = "Guillaume Gagnon" }]
+requires-python = ">=3.12"
+dependencies = ["coremind>=0.0.1", "grpcio>=1.66.0", "requests>=2.32.0", "structlog>=24.4.0"]
+[project.scripts]
+coremind-plugin-weather = "coremind_plugin_weather.main:main"
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+[tool.hatch.build.targets.wheel]
+packages = ["coremind_plugin_weather"]

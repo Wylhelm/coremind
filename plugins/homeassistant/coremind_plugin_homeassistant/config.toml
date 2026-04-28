@@ -1,5 +1,3 @@
 [homeassistant]
 base_url = "http://localhost:8123"
-# The token value is read from this environment variable; never stored here.
-access_token_env = "HA_TOKEN"
-entity_prefixes = ["sensor.", "light.", "binary_sensor."]
+entity_prefixes = ["sensor.", "light.", "binary_sensor.", "sun."]

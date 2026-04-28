@@ -54,13 +54,13 @@ def _event_signing_payload(event: WorldEventRecord) -> bytes:
     """
     payload: dict[str, object] = {
         "id": event.id,
-        "timestamp": event.timestamp.isoformat(),
+        "timestamp": event.timestamp.isoformat().replace("+00:00", "Z"),
         "source": event.source,
         "source_version": event.source_version,
-        "entity": {"type": event.entity.type, "id": event.entity.id},
+        "entity": {"type": event.entity.type, "entity_id": event.entity.id},
         "attribute": event.attribute,
-        "value": event.value,
-        "confidence": event.confidence,
+        "value": round(float(event.value), 6),
+        "confidence": round(event.confidence, 4),
     }
     if event.unit is not None:
         payload["unit"] = event.unit
@@ -198,7 +198,7 @@ class WorldStore:
         try:
             await self._db.query(
                 """
-                UPSERT type::thing('entity', $entity_id) SET
+                UPSERT type::record('entity', $entity_id) SET
                     type         = $entity_type,
                     display_name = IF display_name IS NONE
                                    THEN $display_name
@@ -226,11 +226,11 @@ class WorldStore:
         try:
             await self._db.query(
                 """
-                UPSERT type::thing('event', $event_id) SET
+                UPSERT type::record('event', $event_id) SET
                     timestamp      = <datetime> $timestamp,
                     source         = $source,
                     source_version = $source_version,
-                    entity         = type::thing('entity', $entity_id),
+                    entity         = type::record('entity', $entity_id),
                     attribute      = $attribute,
                     value          = $value,
                     confidence     = $confidence,
@@ -380,7 +380,7 @@ class WorldStore:
                 "SELECT * FROM event"
                 " WHERE timestamp > <datetime> $after"
                 " AND timestamp <= <datetime> $before"
-                " AND entity = type::thing('entity', $entity_id)"
+                " AND entity = type::record('entity', $entity_id)"
                 " ORDER BY timestamp ASC LIMIT $limit;"
             )
         else:
@@ -425,7 +425,7 @@ class WorldStore:
             surql = (
                 "SELECT * FROM event"
                 " WHERE timestamp < <datetime> $cutoff"
-                " AND entity = type::thing('entity', $entity_id)"
+                " AND entity = type::record('entity', $entity_id)"
                 " ORDER BY timestamp ASC LIMIT $limit;"
             )
         else:
@@ -461,7 +461,7 @@ class WorldStore:
         try:
             await self._db.query(
                 """
-                UPSERT type::thing('entity', $entity_id) SET
+                UPSERT type::record('entity', $entity_id) SET
                     type         = 'episode',
                     display_name = $display_name,
                     created_at   = IF created_at IS NONE
@@ -509,7 +509,7 @@ class WorldStore:
         try:
             for event_id in event_ids:
                 await self._db.query(
-                    "DELETE type::thing('event', $id);",
+                    "DELETE type::record('event', $id);",
                     {"id": event_id},
                 )
         except Exception as exc:

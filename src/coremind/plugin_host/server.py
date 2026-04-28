@@ -120,10 +120,12 @@ class _CoreMindHostServicer(plugin_pb2_grpc.CoreMindHostServicer):
         registry: PluginRegistry,
         event_bus: EventBus,
         secrets_resolver: SecretsResolver,
+        plugin_keys_dir: Path = Path.home() / ".coremind" / "keys" / "plugins",
     ) -> None:
         self._registry = registry
         self._event_bus = event_bus
         self._secrets_resolver = secrets_resolver
+        self._plugin_keys_dir = plugin_keys_dir
 
     async def RequestSecret(  # noqa: N802
         self,
@@ -233,6 +235,44 @@ class _CoreMindHostServicer(plugin_pb2_grpc.CoreMindHostServicer):
             return empty_pb2.Empty()
 
         public_key = self._registry.resolve_key(request.source)
+        if public_key is None:
+            # Auto-register: try to load the plugin's public key from the
+            # standard key directory (~/.coremind/keys/plugins/*.ed25519).
+            # Key filenames use underscores, plugin IDs use dots.
+            key_id = request.source.replace(".", "_")
+            key_path = self._plugin_keys_dir / f"{key_id}.ed25519"
+            try:
+                from cryptography.hazmat.primitives.serialization import (
+                    load_pem_private_key,
+                )
+
+                # The private key is in PEM format; load it and
+                # derive the public key.
+                private_key_bytes = key_path.read_bytes()
+                private_key = load_pem_private_key(private_key_bytes, None)
+                auto_key = private_key.public_key()
+                self._registry.register(
+                    manifest=plugin_pb2.PluginManifest(
+                        plugin_id=request.source,
+                        version=request.source_version or "0.0.0",
+                        display_name=request.source,
+                        kind=plugin_pb2.PLUGIN_KIND_SENSOR,
+                    ),
+                    public_key=auto_key,
+                )
+                public_key = auto_key
+                log.info(
+                    "plugin_host.auto_registered",
+                    plugin_id=request.source,
+                    key_file=str(key_path),
+                )
+            except Exception:
+                await context.abort(
+                    grpc.StatusCode.UNAUTHENTICATED,
+                    f"plugin {request.source!r} is not registered",
+                )
+                return empty_pb2.Empty()
+
         if public_key is None:
             await context.abort(
                 grpc.StatusCode.UNAUTHENTICATED,

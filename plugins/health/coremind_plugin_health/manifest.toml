@@ -1,0 +1,11 @@
+# CoreMind plugin manifest — coremind.plugin.health
+plugin_id = "coremind.plugin.health"
+version = "0.1.0"
+display_name = "Apple Health"
+kind = "SENSOR"
+provides_entities = ["person"]
+emits_attributes = ["step_count", "sleep_hours", "heart_rate", "resting_heart_rate", "active_energy", "weight", "body_fat"]
+required_permissions = ["net:http"]
+license = "AGPL-3.0-or-later"
+author = "Guillaume Gagnon"
+min_daemon_version = ""
