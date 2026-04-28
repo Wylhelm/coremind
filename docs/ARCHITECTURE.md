@@ -1,7 +1,7 @@
 # CoreMind — Technical Architecture
 
 **Version:** 0.1 (Design)
-**Status:** Pre-implementation — specification only
+**Status:** Implemented — v0.1.0 feature-complete
 **Audience:** Contributors, implementers, coding agents
 
 ---

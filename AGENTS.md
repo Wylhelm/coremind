@@ -24,7 +24,7 @@ CoreMind is an open-source framework for **continuous personal intelligence**. 7
 
 Update this line when starting a new phase:
 
-> **Active phase: Phase 4 — REFLECTION ECOSYSTEM** (see `docs/phases/PHASE_4_REFLECTION_ECOSYSTEM.md`)
+> **All phases complete — v0.1.0 feature-complete.** New work belongs in a post-v0.1.0 milestone (see deferred items in `CHANGELOG.md`).
 
 Do not implement anything outside the active phase.
 

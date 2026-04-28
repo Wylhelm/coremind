@@ -6,16 +6,16 @@ A coding agent (Codex, Claude Code, Cursor, etc.) should work through them **in 
 
 ---
 
-## Total estimate: ~6 weeks (+ 3-5 days optional for Phase 2.5)
+## Status: all phases complete (v0.1.0 feature-complete)
 
-| # | Title | Duration | Core output |
+| # | Title | Status | Core output |
 |---|---|---|---|
-| **0** | [Foundations](PHASE_0_FOUNDATIONS.md) | ~1 week | Specs, schemas, protocol, CI, repo structure |
-| **1** | [Core Daemon + World Model](PHASE_1_CORE_DAEMON.md) | ~1 week | Live event pipeline into SurrealDB, one reference plugin |
-| **2** | [Memory + Reasoning](PHASE_2_MEMORY_REASONING.md) | ~1.5 weeks | 3-kind memory, LLM-powered reasoning loop, 2 real plugins |
-| **2.5** | [OpenClaw Adapter](PHASE_2_5_OPENCLAW_ADAPTER.md) *(optional)* | 3–5 days | Bidirectional integration with OpenClaw ecosystem |
-| **3** | [Intention + Action](PHASE_3_INTENTION_ACTION.md) | ~1.5 weeks | Self-prompting, graduated agency, signed audit journal |
-| **4** | [Reflection + Ecosystem](PHASE_4_REFLECTION_ECOSYSTEM.md) | ~1 week | Weekly self-evaluation, dashboard, v0.1.0 release |
+| **0** | [Foundations](PHASE_0_FOUNDATIONS.md) | ✅ Done | Specs, schemas, protocol, CI, repo structure |
+| **1** | [Core Daemon + World Model](PHASE_1_CORE_DAEMON.md) | ✅ Done | Live event pipeline into SurrealDB, one reference plugin |
+| **2** | [Memory + Reasoning](PHASE_2_MEMORY_REASONING.md) | ✅ Done | 3-kind memory, LLM-powered reasoning loop, 2 real plugins |
+| **2.5** | [OpenClaw Adapter](PHASE_2_5_OPENCLAW_ADAPTER.md) *(optional)* | ✅ Done | Bidirectional integration with OpenClaw ecosystem |
+| **3** | [Intention + Action](PHASE_3_INTENTION_ACTION.md) | ✅ Done | Self-prompting, graduated agency, signed audit journal |
+| **4** | [Reflection + Ecosystem](PHASE_4_REFLECTION_ECOSYSTEM.md) | ✅ Done | Weekly self-evaluation, dashboard, v0.1.0 release |
 
 **Phase 2.5 is optional.** Skip it if you don't use OpenClaw. It can also run in parallel with Phase 3 if you have capacity. See its own doc for details.
 

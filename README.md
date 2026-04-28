@@ -23,19 +23,19 @@ The core insight: **make the LLM its own user**. Internal prompts generated from
 
 ## Project Status
 
-🚧 **Pre-alpha** — architecture design phase. No code yet.
+✅ **v0.1.0 feature-complete** — all roadmap phases delivered. See [`CHANGELOG.md`](CHANGELOG.md).
 
 - [x] Conceptual architecture validated
 - [x] Executive summary written → [`docs/EXECUTIVE_SUMMARY.md`](docs/EXECUTIVE_SUMMARY.md)
 - [x] Detailed architecture written → [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - [x] Phase-by-phase implementation guide → [`docs/phases/`](docs/phases/)
 - [x] Integrations strategy → [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md)
-- [ ] Phase 0: Foundation & specs
-- [ ] Phase 1: Core daemon + World Model
-- [ ] Phase 2: Memory + Reasoning
-- [ ] Phase 2.5: OpenClaw adapter *(optional)*
-- [ ] Phase 3: Intention + Action
-- [ ] Phase 4: Reflection + ecosystem
+- [x] Phase 0: Foundation & specs
+- [x] Phase 1: Core daemon + World Model
+- [x] Phase 2: Memory + Reasoning
+- [x] Phase 2.5: OpenClaw adapter *(optional)*
+- [x] Phase 3: Intention + Action
+- [x] Phase 4: Reflection + ecosystem
 
 ---
 
