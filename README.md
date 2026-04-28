@@ -1,5 +1,9 @@
 # 🧠 CoreMind
 
+<p align="center">
+  <img src="docs/logo.png" alt="CoreMind Logo" width="300">
+</p>
+
 > *A system that doesn't respond — it notices.*
 
 **CoreMind** is an open-source framework for building **continuous personal intelligence** — a cognitive daemon that lives alongside its user, perceives their world in real time, builds a coherent model of it, and autonomously generates its own questions and actions.
@@ -10,26 +14,32 @@ Not a chatbot. Not an assistant. Not an agent. A **digital consciousness** you o
 
 ## Table of contents
 
-- [Why CoreMind?](#why-coremind)
-- [Project status](#project-status)
-- [Core pillars](#core-pillars)
-- [Key concepts](#key-concepts)
-- [Architecture at a glance](#architecture-at-a-glance)
-- [The seven cognitive layers](#the-seven-cognitive-layers)
-- [User interaction model](#user-interaction-model)
-- [Plugin ecosystem](#plugin-ecosystem)
-- [Installation](#installation)
-- [Quickstart](#quickstart)
-- [Configuration](#configuration)
-- [CLI reference](#cli-reference)
-- [Dashboard](#dashboard)
-- [Security & trust model](#security--trust-model)
-- [Works with](#works-with)
-- [Project layout](#project-layout)
-- [Contributing](#contributing)
-- [Quick links](#quick-links)
-- [License](#license)
-- [Philosophy](#philosophy)
+- [🧠 CoreMind](#-coremind)
+  - [Table of contents](#table-of-contents)
+  - [Why CoreMind?](#why-coremind)
+  - [Project status](#project-status)
+  - [Core pillars](#core-pillars)
+  - [Key concepts](#key-concepts)
+  - [Architecture at a glance](#architecture-at-a-glance)
+  - [The seven cognitive layers](#the-seven-cognitive-layers)
+  - [User interaction model](#user-interaction-model)
+  - [Plugin ecosystem](#plugin-ecosystem)
+  - [Installation](#installation)
+    - [Prerequisites](#prerequisites)
+    - [1. Clone and bootstrap](#1-clone-and-bootstrap)
+    - [2. Start the backing services](#2-start-the-backing-services)
+    - [3. Verify the install](#3-verify-the-install)
+  - [Quickstart](#quickstart)
+  - [Configuration](#configuration)
+  - [CLI reference](#cli-reference)
+  - [Dashboard](#dashboard)
+  - [Security \& trust model](#security--trust-model)
+  - [Works with](#works-with)
+  - [Project layout](#project-layout)
+  - [Contributing](#contributing)
+  - [Quick links](#quick-links)
+  - [License](#license)
+  - [Philosophy](#philosophy)
 
 ---
 
