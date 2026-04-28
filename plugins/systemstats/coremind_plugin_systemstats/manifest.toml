@@ -1,0 +1,15 @@
+# CoreMind plugin manifest — coremind.plugin.systemstats
+# This file is informational metadata mirroring the PluginManifest proto fields.
+# The daemon reads the live manifest via the Identify RPC when the CoreMindPlugin
+# service is implemented; in Phase 1 the plugin uses EmitEvent directly.
+
+plugin_id = "coremind.plugin.systemstats"
+version = "0.1.0"
+display_name = "System Statistics"
+kind = "SENSOR"
+provides_entities = ["host"]
+emits_attributes = ["cpu_percent", "memory_percent", "uptime_seconds"]
+required_permissions = []
+license = "AGPL-3.0-or-later"
+author = "Guillaume Gagnon"
+min_daemon_version = ""

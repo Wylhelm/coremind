@@ -1,0 +1,74 @@
+---
+description: Python conventions for CoreMind daemon and plugins. Auto-applied on Python files.
+globs:
+  - "**/*.py"
+alwaysApply: false
+---
+
+# Python Code Standards
+
+## Mandatory patterns
+
+- Python 3.12+ syntax (PEP 695 type aliases, typing.override, etc.)
+- All public functions/methods have type hints — parameters AND return type.
+- All public functions have Google-style docstrings.
+- Async I/O everywhere: `async def` for anything that hits a DB, file, socket, or subprocess.
+- Pydantic v2 models for every data structure crossing a module boundary.
+- `structlog.get_logger(__name__)` for logging. Never `print`. Never `logging` directly.
+- Timezone-aware datetimes only: `datetime.now(UTC)`.
+
+## Forbidden patterns
+
+- Bare `except:` or `except Exception:` without re-raising
+- `global` statements
+- Mutable default arguments (`def f(x=[])`)
+- String-formatted SQL or Cypher. Use parameterized queries.
+- `json.loads` on signed payloads. Use `coremind.crypto.canonical_json` for anything that will be signed or verified.
+
+## Preferred idioms
+
+```python
+# Pydantic v2 models at boundaries
+from pydantic import BaseModel, Field
+
+class WorldEvent(BaseModel):
+    id: str
+    timestamp: datetime
+    entity: EntityRef
+    attribute: str
+    value: Any
+    confidence: float = Field(ge=0.0, le=1.0)
+
+# Protocol ports for external deps
+from typing import Protocol
+
+class WorldStore(Protocol):
+    async def apply_event(self, event: WorldEvent) -> None: ...
+    async def snapshot(self, at: datetime | None = None) -> WorldSnapshot: ...
+
+# Structured errors
+from coremind.errors import CoreMindError
+
+class SignatureError(CoreMindError):
+    """Raised when a WorldEvent signature fails verification."""
+```
+
+## Tests
+
+- One test file per module: `src/coremind/x/y.py` → `tests/x/test_y.py`.
+- Use `pytest.fixture` for shared setup. Keep fixtures in the nearest `conftest.py`.
+- Async tests require `@pytest.mark.asyncio`.
+- Parametrize instead of duplicating test bodies.
+- Assertions describe the contract, not the implementation.
+
+## Type checking
+
+- `mypy --strict` must pass. Add `# type: ignore[specific-error]` only with a justification comment.
+- Prefer `collections.abc` generics (`Sequence`, `Mapping`) over `list`, `dict` in public signatures.
+- `None` unions written as `X | None`, not `Optional[X]`.
+
+## Performance notes
+
+- Avoid `.dict()` on Pydantic models in hot paths; use `.model_dump(mode="json")` only when serializing.
+- `asyncio.gather` for independent awaits; sequential `await` only when there is an ordering dependency.
+- Use `orjson` for JSON serialization in hot paths. Stdlib `json` is fine elsewhere.

@@ -1,0 +1,1 @@
+"""CoreMind Gmail IMAP plugin."""

@@ -1,0 +1,11 @@
+# CoreMind plugin manifest — coremind.plugin.gmail-imap
+plugin_id = "coremind.plugin.gmail-imap"
+version = "0.1.0"
+display_name = "Gmail (IMAP)"
+kind = "SENSOR"
+provides_entities = ["email"]
+emits_attributes = ["subject", "sender", "has_attachment"]
+required_permissions = ["net:imap", "secrets:imap_password"]
+license = "AGPL-3.0-or-later"
+author = "Guillaume Gagnon"
+min_daemon_version = ""

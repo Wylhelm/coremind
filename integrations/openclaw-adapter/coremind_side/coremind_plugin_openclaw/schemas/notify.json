@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "coremind.openclaw_adapter.v1.notify",
+  "title": "openclaw.notify parameters",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["channel", "target", "text"],
+  "properties": {
+    "channel": { "type": "string", "minLength": 1 },
+    "target":  { "type": "string", "minLength": 1 },
+    "text":    { "type": "string", "minLength": 1, "maxLength": 8192 },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    }
+  }
+}

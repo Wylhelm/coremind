@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "coremind.openclaw_adapter.v1.schedule_cron",
+  "title": "openclaw.schedule_cron parameters",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["cron_id", "expression", "skill_name"],
+  "properties": {
+    "cron_id":     { "type": "string", "minLength": 1 },
+    "expression":  { "type": "string", "minLength": 1 },
+    "skill_name":  { "type": "string", "minLength": 1 },
+    "parameters":  { "type": "object" },
+    "description": { "type": "string" }
+  }
+}

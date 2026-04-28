@@ -1,0 +1,44 @@
+{
+  "name": "@coremind/openclaw-adapter",
+  "version": "0.1.0",
+  "description": "OpenClaw extension that bridges OpenClaw gateway activity into CoreMind's cognitive pipeline.",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "main": "dist/index.js",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "files": [
+    "dist/",
+    "src/",
+    "proto/",
+    "manifest.json",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "proto:gen": "buf generate || grpc_tools_node_protoc --ts_proto_out=./src/_generated --proto_path=../proto --proto_path=../../../spec ../proto/adapter.proto ../../../spec/plugin.proto",
+    "lint": "tsc --noEmit",
+    "test": "node --test --import tsx './test/**/*.test.ts'",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.11.1",
+    "@grpc/proto-loader": "^0.7.13",
+    "ulid": "^2.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  },
+  "peerDependencies": {
+    "@openclaw/plugin-sdk": ">=0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@openclaw/plugin-sdk": { "optional": false }
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

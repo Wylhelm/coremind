@@ -1,0 +1,18 @@
+# CoreMind plugin manifest — coremind.plugin.homeassistant
+plugin_id = "coremind.plugin.homeassistant"
+version = "0.2.0"
+display_name = "Home Assistant"
+kind = "BIDIRECTIONAL"
+provides_entities = ["ha_sensor", "ha_light", "ha_binary_sensor"]
+emits_attributes = ["state", "temperature", "humidity", "brightness"]
+accepts_operations = [
+    "homeassistant.turn_on",
+    "homeassistant.turn_off",
+    "homeassistant.set_brightness",
+    "homeassistant.set_temperature",
+    "homeassistant.trigger_scene",
+]
+required_permissions = ["secrets:ha_token", "net:http"]
+license = "AGPL-3.0-or-later"
+author = "Guillaume Gagnon"
+min_daemon_version = ""

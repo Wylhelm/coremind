@@ -1,0 +1,6 @@
+[imap]
+host = "imap.gmail.com"
+port = 993
+username = ""
+password_env = "GMAIL_IMAP_PASSWORD"
+folder = "INBOX"

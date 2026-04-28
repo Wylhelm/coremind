@@ -1,0 +1,22 @@
+# Virtualenvs and caches
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+*.egg-info/
+
+# Generated code (protobuf stubs)
+**/_generated/
+
+# Node
+node_modules/
+
+# Build artifacts
+dist/
+build/
+
+# Local data
+*.db
+*.sqlite

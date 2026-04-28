@@ -1,0 +1,286 @@
+syntax = "proto3";
+
+package coremind.openclaw_adapter.v1;
+
+// adapter.proto — gRPC contract between the CoreMind-side plugin and the
+// OpenClaw-side extension of the OpenClaw adapter. See
+// docs/phases/PHASE_2_5_OPENCLAW_ADAPTER.md for architectural context.
+//
+// Two services are defined:
+//   CoreMindHalf  — implemented by the CoreMind Python plugin. Called by the
+//                   OpenClaw extension to forward in-bound OpenClaw activity
+//                   (messages received, skills invoked, cron executions, …).
+//   OpenClawHalf  — implemented by the OpenClaw TypeScript extension. Called
+//                   by the CoreMind plugin to dispatch effector operations
+//                   (notify, approval requests, skill invocations, cron).
+//
+// Transport: Unix domain socket for same-host installs; TLS TCP for
+// cross-host installs. Package version bumps (v1 → v2) are required for any
+// breaking schema change.
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "plugin.proto";
+
+option java_package = "ai.coremind.openclaw_adapter.v1";
+option java_multiple_files = true;
+option go_package = "github.com/coremind/coremind/openclaw_adapter/v1;adapterv1";
+
+// ---------------------------------------------------------------------------
+// Services
+// ---------------------------------------------------------------------------
+
+// CoreMindHalf is implemented by the CoreMind-side plugin.
+// The OpenClaw extension connects to it as a gRPC client and forwards
+// adapter-local events (already translated to WorldEvent form) and
+// health probes.
+service CoreMindHalf {
+  // IngestEvent accepts a signed WorldEvent from the OpenClaw side and
+  // publishes it onto the CoreMind daemon's event stream.
+  // Signature verification follows the same rules as CoreMindHost.EmitEvent.
+  // Errors: UNAUTHENTICATED on bad signature.
+  //         INVALID_ARGUMENT on malformed event.
+  rpc IngestEvent(coremind.plugin.v1.WorldEvent) returns (google.protobuf.Empty);
+
+  // HealthCheck returns the CoreMind side's operational status.
+  // Called periodically by the OpenClaw side for liveness detection.
+  rpc HealthCheck(google.protobuf.Empty) returns (Health);
+}
+
+// OpenClawHalf is implemented by the OpenClaw-side extension.
+// The CoreMind plugin connects to it as a gRPC client to dispatch
+// effector actions against OpenClaw's channels, skills and cron scheduler.
+service OpenClawHalf {
+  // Notify delivers a text message on a named OpenClaw channel.
+  rpc Notify(NotifyRequest) returns (NotifyResult);
+
+  // RequestApproval opens an approval dialog through OpenClaw's approval UI
+  // and returns the outcome (approved / denied / timed out).
+  rpc RequestApproval(ApprovalRequest) returns (ApprovalResult);
+
+  // InvokeSkill triggers a registered OpenClaw skill by name with parameters.
+  rpc InvokeSkill(SkillInvocation) returns (SkillResult);
+
+  // ScheduleCron registers a new cron entry in OpenClaw's scheduler.
+  rpc ScheduleCron(CronScheduleRequest) returns (CronScheduleResult);
+
+  // CancelCron removes a previously scheduled cron entry.
+  rpc CancelCron(CronCancelRequest) returns (CronCancelResult);
+
+  // Mem0Query reads from OpenClaw's mem0 semantic store (optional backend).
+  rpc Mem0Query(Mem0QueryRequest) returns (Mem0QueryResult);
+
+  // Mem0Store writes to OpenClaw's mem0 semantic store (optional backend).
+  rpc Mem0Store(Mem0StoreRequest) returns (Mem0StoreResult);
+
+  // ListChannels returns the set of channel identifiers the extension can
+  // reach with its current configuration.
+  rpc ListChannels(google.protobuf.Empty) returns (ChannelList);
+
+  // ListSkills returns the set of skills registered in the OpenClaw gateway.
+  rpc ListSkills(google.protobuf.Empty) returns (SkillList);
+
+  // HealthCheck returns the OpenClaw side's operational status.
+  rpc HealthCheck(google.protobuf.Empty) returns (Health);
+}
+
+// ---------------------------------------------------------------------------
+// Health
+// ---------------------------------------------------------------------------
+
+// Health reports the live status of either half of the adapter.
+message Health {
+  HealthState state = 1;
+  string message = 2;
+  google.protobuf.Timestamp as_of = 3;
+  // Count of adapter-local events processed since startup.
+  uint64 events_processed = 4;
+  // Count of dispatched actions since startup.
+  uint64 actions_dispatched = 5;
+}
+
+// HealthState mirrors the plugin-side health enum.
+enum HealthState {
+  HEALTH_STATE_UNSPECIFIED = 0;
+  HEALTH_STATE_OK = 1;
+  HEALTH_STATE_DEGRADED = 2;
+  HEALTH_STATE_UNHEALTHY = 3;
+}
+
+// ---------------------------------------------------------------------------
+// Notify
+// ---------------------------------------------------------------------------
+
+// NotifyRequest asks OpenClaw to deliver a text message on a specific channel.
+message NotifyRequest {
+  // Channel identifier (e.g. "telegram", "signal", "discord", "slack").
+  string channel = 1;
+  // Target within the channel (user/chat id, as understood by OpenClaw).
+  string target = 2;
+  // Message body.
+  string text = 3;
+  // Optional free-form metadata (e.g. reply_to_message_id).
+  map<string, string> metadata = 4;
+}
+
+// NotifyResult carries the outcome of a Notify call.
+message NotifyResult {
+  bool delivered = 1;
+  // Channel-native identifier for the delivered message, if any.
+  string message_id = 2;
+  // Human-readable failure reason when delivered=false.
+  string error = 3;
+}
+
+// ---------------------------------------------------------------------------
+// Approval
+// ---------------------------------------------------------------------------
+
+// ApprovalRequest opens an approval prompt via OpenClaw's approval UI.
+message ApprovalRequest {
+  // Stable identifier the caller chooses (idempotency key).
+  string approval_id = 1;
+  // Channel to render the prompt on (e.g. "telegram").
+  string channel = 2;
+  // Target recipient.
+  string target = 3;
+  // Human-readable prompt text.
+  string prompt = 4;
+  // Structured context displayed alongside the prompt (JSON).
+  google.protobuf.Struct context = 5;
+  // How long OpenClaw should wait for a response, in seconds (0 = default).
+  uint32 timeout_seconds = 6;
+}
+
+// ApprovalResult is the recorded outcome of an ApprovalRequest.
+message ApprovalResult {
+  ApprovalOutcome outcome = 1;
+  string approval_id = 2;
+  // Free-form reason/feedback provided by the user, if any.
+  string feedback = 3;
+  google.protobuf.Timestamp responded_at = 4;
+}
+
+// ApprovalOutcome classifies the result of a human approval prompt.
+enum ApprovalOutcome {
+  APPROVAL_OUTCOME_UNSPECIFIED = 0;
+  APPROVAL_OUTCOME_APPROVED = 1;
+  APPROVAL_OUTCOME_DENIED = 2;
+  APPROVAL_OUTCOME_TIMEOUT = 3;
+  APPROVAL_OUTCOME_CANCELLED = 4;
+}
+
+// ---------------------------------------------------------------------------
+// Skill invocation
+// ---------------------------------------------------------------------------
+
+// SkillInvocation asks OpenClaw to execute a registered skill.
+message SkillInvocation {
+  // Name of the skill as registered with OpenClaw.
+  string skill_name = 1;
+  // JSON parameters passed to the skill.
+  google.protobuf.Struct parameters = 2;
+  // Optional call identifier for correlation/idempotency.
+  string call_id = 3;
+}
+
+// SkillResult carries the structured output of a skill execution.
+message SkillResult {
+  string call_id = 1;
+  bool ok = 2;
+  google.protobuf.Struct output = 3;
+  string error = 4;
+  google.protobuf.Timestamp completed_at = 5;
+}
+
+// ---------------------------------------------------------------------------
+// Cron
+// ---------------------------------------------------------------------------
+
+// CronScheduleRequest registers a cron entry that OpenClaw will execute.
+message CronScheduleRequest {
+  // Stable caller-chosen identifier (idempotency key).
+  string cron_id = 1;
+  // Standard 5-field cron expression (minute hour day-of-month month dow).
+  string expression = 2;
+  // Skill to invoke when the schedule fires.
+  string skill_name = 3;
+  // JSON parameters for each invocation.
+  google.protobuf.Struct parameters = 4;
+  // Optional human-readable description for the OpenClaw UI.
+  string description = 5;
+}
+
+// CronScheduleResult confirms the schedule was recorded.
+message CronScheduleResult {
+  bool scheduled = 1;
+  string cron_id = 2;
+  string error = 3;
+}
+
+// CronCancelRequest removes a previously scheduled cron entry.
+message CronCancelRequest {
+  string cron_id = 1;
+}
+
+// CronCancelResult confirms the schedule was removed.
+message CronCancelResult {
+  bool cancelled = 1;
+  string error = 2;
+}
+
+// ---------------------------------------------------------------------------
+// mem0 (optional backend)
+// ---------------------------------------------------------------------------
+
+// Mem0QueryRequest retrieves semantic memories from OpenClaw's mem0 plugin.
+message Mem0QueryRequest {
+  string query = 1;
+  uint32 top_k = 2;
+  // Optional filter clauses (key/value) applied server-side.
+  map<string, string> filters = 3;
+}
+
+// Mem0QueryResult carries retrieved memories.
+message Mem0QueryResult {
+  repeated Mem0Record records = 1;
+}
+
+// Mem0StoreRequest persists a new memory in OpenClaw's mem0 plugin.
+message Mem0StoreRequest {
+  string content = 1;
+  map<string, string> metadata = 2;
+  // Optional stable id for upserts. If empty, mem0 generates one.
+  string record_id = 3;
+}
+
+// Mem0StoreResult confirms storage.
+message Mem0StoreResult {
+  string record_id = 1;
+  bool ok = 2;
+  string error = 3;
+}
+
+// Mem0Record is a single retrieved memory.
+message Mem0Record {
+  string record_id = 1;
+  string content = 2;
+  float score = 3;
+  map<string, string> metadata = 4;
+  google.protobuf.Timestamp stored_at = 5;
+}
+
+// ---------------------------------------------------------------------------
+// Listings
+// ---------------------------------------------------------------------------
+
+// ChannelList enumerates the channels the OpenClaw gateway is configured for.
+message ChannelList {
+  repeated string channels = 1;
+}
+
+// SkillList enumerates the skills registered with the OpenClaw gateway.
+message SkillList {
+  repeated string skills = 1;
+}

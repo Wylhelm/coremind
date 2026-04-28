@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "coremind.openclaw_adapter.v1.invoke_skill",
+  "title": "openclaw.invoke_skill parameters",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["skill_name"],
+  "properties": {
+    "skill_name": { "type": "string", "minLength": 1 },
+    "parameters": { "type": "object" },
+    "call_id":    { "type": "string" }
+  }
+}

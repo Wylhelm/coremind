@@ -11,8 +11,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  phase0-contracts:
-    name: Phase 0 — Contracts
+  ci:
+    name: CI — Lint, Specs, Tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -39,8 +39,8 @@ jobs:
       - name: Check proto stubs are up to date
         run: just proto-gen-check
 
-      - name: Run tests (no tests yet in Phase 0; harness must work)
-        run: |
-          just test; exit_code=$?
-          # exit code 5 = no tests collected; acceptable in Phase 0
-          if [ $exit_code -ne 0 ] && [ $exit_code -ne 5 ]; then exit $exit_code; fi
+      - name: Run tests
+        run: just test
+
+      - name: Run release-gating scenarios
+        run: just test-scenarios

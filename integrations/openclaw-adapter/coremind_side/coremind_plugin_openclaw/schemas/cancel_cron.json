@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "coremind.openclaw_adapter.v1.cancel_cron",
+  "title": "openclaw.cancel_cron parameters",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["cron_id"],
+  "properties": {
+    "cron_id": { "type": "string", "minLength": 1 }
+  }
+}

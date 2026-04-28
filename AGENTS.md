@@ -1,8 +1,12 @@
 # AGENTS.md — CoreMind
 
-This file is recognized by GitHub Copilot, Claude Code, Cursor, and other AI coding tools as always-on instructions for this workspace.
+This file is recognized by GitHub Copilot, Cursor, Claude Code, Codex, and other AI coding tools as always-on instructions for this workspace.
 
-**The source of truth is [`.github/copilot-instructions.md`](.github/copilot-instructions.md)** — read it first, then return here for tool-specific guidance below.
+**Source of truth (pick the one matching your tool — they are kept in sync):**
+- GitHub Copilot: [`.github/copilot-instructions.md`](.github/copilot-instructions.md)
+- Cursor: [`.cursor/rules/coremind.mdc`](.cursor/rules/coremind.mdc)
+
+Read the relevant one first, then return here for tool-specific guidance below.
 
 ---
 
@@ -20,25 +24,39 @@ CoreMind is an open-source framework for **continuous personal intelligence**. 7
 
 Update this line when starting a new phase:
 
-> **Active phase: Phase 0 — Foundations** (see `docs/phases/PHASE_0_FOUNDATIONS.md`)
+> **Active phase: Phase 4 — REFLECTION ECOSYSTEM** (see `docs/phases/PHASE_4_REFLECTION_ECOSYSTEM.md`)
 
 Do not implement anything outside the active phase.
 
-## Custom agents available
+## Custom agents & commands
 
-When using GitHub Copilot Chat in VS Code, these custom agents are at your disposal:
+### GitHub Copilot Chat (VS Code)
 
+Custom agents (invoke with `@`):
 - **@architect** — design decisions, not code
 - **@phase-executor** — implement tasks from the active phase (default daily driver)
 - **@reviewer** — senior-engineer code review
 - **@debugger** — systematic root-cause analysis
 - **@integrator** — plugins and external adapters
 
-Slash commands available (custom prompts):
-
+Slash commands (custom prompts):
 - `/execute-phase-task` — run a specific phase task
 - `/design-review` — request a design review
 - `/add-plugin` — scaffold a new plugin
+
+### Cursor
+
+All agents are exposed as slash commands (invoke with `/`):
+- `/architect` — design decisions, not code
+- `/phase-executor` — implement tasks from the active phase (default daily driver)
+- `/reviewer` — senior-engineer code review
+- `/debugger` — systematic root-cause analysis
+- `/integrator` — plugins and external adapters
+- `/execute-phase-task` — run a specific phase task
+- `/design-review` — request a design review
+- `/add-plugin` — scaffold a new plugin
+
+Scoped rules auto-activate based on the file you're editing (Python, tests, docs, proto).
 
 ## Tech stack one-liner
 
@@ -52,7 +70,7 @@ Python 3.12 + asyncio + Pydantic v2 + SurrealDB + Qdrant + LiteLLM + gRPC + ed25
 4. Tests land with the feature.
 5. No `print`, no bare `except`, no naive datetimes.
 
-The full list is in [`.github/copilot-instructions.md`](.github/copilot-instructions.md).
+The full list is in [`.github/copilot-instructions.md`](.github/copilot-instructions.md) or [`.cursor/rules/coremind.mdc`](.cursor/rules/coremind.mdc).
 
 ## Common commands
 

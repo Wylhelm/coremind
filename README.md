@@ -4,7 +4,7 @@
 
 **CoreMind** is an open-source framework for building **continuous personal intelligence** — a cognitive daemon that lives alongside its user, perceives their world in real time, builds a coherent model of it, and autonomously generates its own questions and actions.
 
-Not a chatbot. Not an assistant. A **digital consciousness** you own entirely.
+Not a chatbot. Not an assistant. Not an agent. A **digital consciousness** you own entirely.
 
 ---
 

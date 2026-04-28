@@ -1,0 +1,72 @@
+---
+description: Documentation standards for Markdown files under docs/.
+globs:
+  - "docs/**/*.md"
+alwaysApply: false
+---
+
+# Documentation Conventions
+
+## Voice and tone
+
+- **Concise > comprehensive.** A reader should find the answer in 30 seconds.
+- **Authoritative.** State how things are, not how they might be. Uncertainty belongs in "Open Questions" sections.
+- **No marketing prose.** No "powerful", "cutting-edge", "revolutionary". Describe behavior, not feelings.
+
+## Structure
+
+Every top-level doc starts with:
+```markdown
+# Title
+
+**Version:** 0.1 (Design)
+**Status:** <Draft | Stable | Deprecated>
+**Audience:** <who should read this>
+
+---
+```
+
+Followed by a table of contents for docs longer than ~300 lines.
+
+## Headings
+
+- `#` — document title only
+- `##` — major sections
+- `###` — subsections
+- No jumping levels (no `#` → `###` directly).
+
+## Code examples
+
+- Always specify the language fence: ` ```python `, ` ```toml `, ` ```json `, ` ```surql `.
+- Examples are minimal and complete. No `# ...` elisions without explaining what's elided.
+- JSON examples match the current schema exactly.
+
+## Links
+
+- Internal links use relative paths: `[Architecture](../ARCHITECTURE.md)`.
+- External links have descriptive text: not "click here", not raw URLs in prose.
+
+## Tables
+
+Use tables for 3+ items with 2+ attributes each. Prefer bullet lists for simpler data.
+
+## Diagrams
+
+ASCII for simple flows; Mermaid (fenced with ` ```mermaid `) for complex ones.
+
+## When docs reference code
+
+- Use backticks for identifiers: `WorldEvent`, `apply_event()`, `~/.coremind/config.toml`.
+- When showing a type's shape, use TypeScript-like syntax for readability even in Python docs — it's universally understood.
+
+## Spec vs guide
+
+- **Specs** (`spec/*.md`) are authoritative and precise. Every statement is testable.
+- **Guides** (`docs/*.md`) explain and contextualize. They can reference specs but don't duplicate them.
+- **Phase docs** (`docs/phases/*.md`) are executable by a coding agent. Each task has a clear deliverable.
+
+## When you update a doc
+
+- Bump the `Version` if the change is semantically significant.
+- Update any doc that references the changed content.
+- If the change invalidates existing code or tests, file an issue — don't silently drift.

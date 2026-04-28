@@ -32,7 +32,7 @@ lint-ruff:
     .venv/bin/ruff format --check .
 
 lint-mypy:
-    .venv/bin/mypy src/
+    .venv/bin/mypy src/ plugins/systemstats/ tests/plugins/systemstats/ plugins/homeassistant/ tests/plugins/homeassistant/ integrations/openclaw-adapter/coremind_side/ tests/integrations/openclaw_adapter/
 
 # Auto-fix what can be fixed
 fix:
@@ -58,6 +58,21 @@ proto-gen:
         --pyi_out=src/coremind/plugin_api/_generated \
         spec/plugin.proto
     touch src/coremind/plugin_api/_generated/__init__.py
+    mkdir -p integrations/openclaw-adapter/coremind_side/coremind_plugin_openclaw/_generated
+    .venv/bin/python -m grpc_tools.protoc \
+        --proto_path=spec \
+        --proto_path=integrations/openclaw-adapter/proto \
+        --python_out=integrations/openclaw-adapter/coremind_side/coremind_plugin_openclaw/_generated \
+        --grpc_python_out=integrations/openclaw-adapter/coremind_side/coremind_plugin_openclaw/_generated \
+        --pyi_out=integrations/openclaw-adapter/coremind_side/coremind_plugin_openclaw/_generated \
+        integrations/openclaw-adapter/proto/adapter.proto
+    touch integrations/openclaw-adapter/coremind_side/coremind_plugin_openclaw/_generated/__init__.py
+    # Rewrite generated imports to avoid flat-module collisions.
+    sed -i 's|^import plugin_pb2 as plugin__pb2|from coremind.plugin_api._generated import plugin_pb2 as plugin__pb2|' \
+        integrations/openclaw-adapter/coremind_side/coremind_plugin_openclaw/_generated/adapter_pb2.py \
+        integrations/openclaw-adapter/coremind_side/coremind_plugin_openclaw/_generated/adapter_pb2_grpc.py
+    sed -i 's|^import adapter_pb2 as adapter__pb2|from coremind_plugin_openclaw._generated import adapter_pb2 as adapter__pb2|' \
+        integrations/openclaw-adapter/coremind_side/coremind_plugin_openclaw/_generated/adapter_pb2_grpc.py
 
 # CI check: ensure generated files are committed (no git diff after regen)
 proto-gen-check: proto-gen
@@ -78,6 +93,10 @@ test:
 test-integration:
     .venv/bin/pytest -m integration
 
+# Run release-gating end-to-end scenarios (no external services)
+test-scenarios:
+    .venv/bin/pytest -m e2e
+
 # Run all tests
 test-all:
     .venv/bin/pytest
@@ -85,7 +104,7 @@ test-all:
 # --- All-in-one ---
 
 # Everything CI runs
-ci: lint spec-validate proto-gen-check test
+ci: lint spec-validate proto-gen-check test test-scenarios
 
 # Quick pre-commit check
 pre-commit: fix lint

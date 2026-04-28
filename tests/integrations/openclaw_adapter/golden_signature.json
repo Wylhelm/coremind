@@ -1,0 +1,23 @@
+{
+  "__doc__": "Frozen cross-runtime signature vector. Both the Python translators (translators.sign_event) and the TypeScript reference signer (openclaw_side/src/signer.ts) MUST reproduce the same signature bytes over the same event. See translators.py module docstring for the canonical encoding contract. To regenerate, change the event payload, run scripts in tests/integrations/openclaw_adapter/, and commit the new values.",
+  "private_key_seed_hex": "7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b",
+  "public_key_hex": "7f747b67bd3fe63c2a736739dfe40156d622347346e70f68f51c178a75ce5537",
+  "event": {
+    "id": "evt_golden_01",
+    "timestamp": "2026-04-19T20:14:02Z",
+    "source": "coremind.plugin.openclaw_adapter",
+    "source_version": "0.1.0",
+    "entity": { "type": "conversation", "entity_id": "telegram:1" },
+    "attribute": "message_received",
+    "value": {
+      "from": { "id": "u1", "display_name": "A" },
+      "text_excerpt": "hi",
+      "length_chars": 2,
+      "has_media": false,
+      "truncated": false
+    },
+    "confidence": 1.0
+  },
+  "canonical_payload": "{\"attribute\":\"message_received\",\"confidence\":1,\"entity\":{\"entity_id\":\"telegram:1\",\"type\":\"conversation\"},\"id\":\"evt_golden_01\",\"source\":\"coremind.plugin.openclaw_adapter\",\"source_version\":\"0.1.0\",\"timestamp\":\"2026-04-19T20:14:02Z\",\"value\":{\"from\":{\"display_name\":\"A\",\"id\":\"u1\"},\"has_media\":false,\"length_chars\":2,\"text_excerpt\":\"hi\",\"truncated\":false}}",
+  "signature_hex": "f8d5d2851ffcb66eb254308e1cdca0ea2b333a16cbcd081b2f671b6f1f98e8a5072ddd259a26955dd17689958c9a63a107d35840c39b5736650c27d701f5710d"
+}

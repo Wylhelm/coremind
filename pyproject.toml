@@ -17,11 +17,25 @@ classifiers = [
 ]
 
 dependencies = [
-    # Runtime deps will be added as Phase 1 progresses.
-    # Phase 0 is spec-only, so nothing here yet.
+    "aiohttp>=3.10.0",
+    "aioimaplib>=1.1.0",
+    "click>=8.1.0",
+    "cryptography>=43.0.0",
+    "grpcio>=1.66.0",
+    "jcs>=0.2.1",
+    "jinja2>=3.1.0",
+    "litellm>=1.50.0",
+    "pydantic>=2.9.0",
+    "qdrant-client>=1.11.0",
+    "structlog>=24.4.0",
+    "surrealdb>=1.0.0",
 ]
 
+[project.scripts]
+coremind = "coremind.cli:cli"
+
 [project.optional-dependencies]
+embeddings-local = ["sentence-transformers>=3.0.0"]
 dev = [
     "ruff>=0.6.0",
     "mypy>=1.11.0",
@@ -31,7 +45,10 @@ dev = [
     "jsonschema>=4.23.0",
     "grpcio>=1.66.0",
     "grpcio-tools>=1.66.0",
+    "grpc-stubs>=1.53.0",
+    "types-protobuf>=5.0.0",
     "pydantic>=2.9.0",
+    "psutil>=6.0.0",
 ]
 
 [project.urls]
@@ -57,29 +74,29 @@ extend-exclude = ["**/_generated/**"]
 
 [tool.ruff.lint]
 select = [
-    "E",    # pycodestyle errors
-    "W",    # pycodestyle warnings
-    "F",    # Pyflakes
-    "I",    # isort
-    "B",    # flake8-bugbear
-    "C4",   # flake8-comprehensions
-    "UP",   # pyupgrade
-    "N",    # pep8-naming
-    "SIM",  # flake8-simplify
-    "PL",   # pylint
-    "RUF",  # ruff-specific
-    "ANN",  # flake8-annotations
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "F",     # Pyflakes
+    "I",     # isort
+    "B",     # flake8-bugbear
+    "C4",    # flake8-comprehensions
+    "UP",    # pyupgrade
+    "N",     # pep8-naming
+    "SIM",   # flake8-simplify
+    "PL",    # pylint
+    "RUF",   # ruff-specific
+    "ANN",   # flake8-annotations
     "ASYNC",
-    "S",    # bandit
-    "A",    # flake8-builtins
-    "COM",  # flake8-commas
-    "DTZ",  # flake8-datetimez — enforce timezone-aware datetimes
+    "S",     # bandit
+    "A",     # flake8-builtins
+    "COM",   # flake8-commas
+    "DTZ",   # flake8-datetimez — enforce timezone-aware datetimes
     "PIE",
     "RET",
     "TID",
-    "PTH",  # flake8-use-pathlib
-    "ERA",  # eradicate
-    "T20",  # flake8-print
+    "PTH",   # flake8-use-pathlib
+    "ERA",   # eradicate
+    "T20",   # flake8-print
 ]
 ignore = [
     "COM812",  # conflicts with formatter
@@ -88,8 +105,16 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101", "PLR2004", "ANN"]  # assert/magic-values/annotations are fine in tests
-"scripts/**/*.py" = ["T20", "S603", "S607"]  # CLI scripts are allowed to print and shell out
+"tests/**/*.py" = [
+    "S101",
+    "PLR2004",
+    "ANN",
+] # assert/magic-values/annotations are fine in tests
+"scripts/**/*.py" = [
+    "T20",
+    "S603",
+    "S607",
+] # CLI scripts are allowed to print and shell out
 
 [tool.ruff.format]
 quote-style = "double"
@@ -110,10 +135,28 @@ no_implicit_optional = true
 show_error_codes = true
 pretty = true
 exclude = ["_generated"]
+mypy_path = [
+    "src",
+    "plugins/systemstats",
+    "plugins/homeassistant",
+    "plugins/gmail-imap",
+    "integrations/openclaw-adapter/coremind_side",
+]
 
 [[tool.mypy.overrides]]
-module = ["coremind.plugin_api._generated.*"]
+module = [
+    "coremind.plugin_api._generated.*",
+    "coremind_plugin_openclaw._generated.*",
+]
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = ["sentence_transformers", "aioimaplib", "litellm"]
+ignore_missing_imports = true
 
 # --------------------------------------------------------------------
 # Pytest
@@ -122,6 +165,13 @@ ignore_errors = true
 minversion = "8.0"
 testpaths = ["tests"]
 asyncio_mode = "auto"
+pythonpath = [
+    "src",
+    "plugins/systemstats",
+    "plugins/homeassistant",
+    "plugins/gmail-imap",
+    "integrations/openclaw-adapter/coremind_side",
+]
 addopts = [
     "-ra",
     "--strict-markers",
@@ -133,6 +183,7 @@ markers = [
     "integration: tests requiring external services (docker-compose)",
     "e2e: full end-to-end scenarios",
     "slow: tests that take > 1 second",
+    "unit: fast unit tests with no I/O",
 ]
 
 [tool.coverage.run]

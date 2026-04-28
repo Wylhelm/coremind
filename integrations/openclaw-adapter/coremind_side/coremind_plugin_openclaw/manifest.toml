@@ -1,0 +1,73 @@
+# CoreMind plugin manifest — coremind.plugin.openclaw_adapter
+#
+# This manifest mirrors the PluginManifest proto fields. The daemon reads it
+# on plugin start and enforces the declared permissions at runtime. Users may
+# further narrow the `required_permissions` scope at install time via the
+# plugin's configuration file.
+
+plugin_id = "coremind.plugin.openclaw_adapter"
+version = "0.1.0"
+display_name = "OpenClaw Adapter"
+kind = "BIDIRECTIONAL"
+
+provides_entities = ["conversation", "skill_run", "cron_job", "approval"]
+emits_attributes = [
+    "message_received",
+    "message_sent",
+    "skill_invoked",
+    "skill_completed",
+    "cron_executed",
+    "approval_responded",
+    "integration.openclaw.degraded",
+]
+accepts_operations = [
+    "openclaw.notify",
+    "openclaw.approve_request",
+    "openclaw.invoke_skill",
+    "openclaw.schedule_cron",
+    "openclaw.cancel_cron",
+]
+
+required_permissions = [
+    "network:local",
+    "openclaw:channels:*",
+    "openclaw:skills:*",
+    "openclaw:cron:manage",
+    # Uncomment if mem0 backend is enabled:
+    # "openclaw:mem0:read",
+    # "openclaw:mem0:write",
+]
+
+license = "AGPL-3.0-or-later"
+author = "Guillaume Gagnon"
+min_daemon_version = "0.0.1"
+
+# ---------------------------------------------------------------------------
+# Operations schemas — JSON Schemas validated by the action dispatcher.
+# Relative paths resolved against this manifest's directory.
+# ---------------------------------------------------------------------------
+
+[[accepts_operations_schemas]]
+name = "openclaw.notify"
+params_schema = "schemas/notify.json"
+reversible = false
+
+[[accepts_operations_schemas]]
+name = "openclaw.approve_request"
+params_schema = "schemas/approve_request.json"
+reversible = false
+
+[[accepts_operations_schemas]]
+name = "openclaw.invoke_skill"
+params_schema = "schemas/invoke_skill.json"
+reversible = "depends"
+
+[[accepts_operations_schemas]]
+name = "openclaw.schedule_cron"
+params_schema = "schemas/schedule_cron.json"
+reversed_by_operation = "openclaw.cancel_cron"
+
+[[accepts_operations_schemas]]
+name = "openclaw.cancel_cron"
+params_schema = "schemas/cancel_cron.json"
+reversible = false

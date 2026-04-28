@@ -39,10 +39,22 @@ Instead of reimplementing any of these, CoreMind plugs in via an adapter. Users 
 - [ ] `integrations/openclaw-adapter/openclaw_side/` — OpenClaw extension half
 - [ ] `integrations/openclaw-adapter/proto/` — adapter-specific proto extensions
 - [ ] `integrations/openclaw-adapter/docs/SETUP.md` — install + config guide for end users
-- [ ] `integrations/openclaw-adapter/tests/` — both sides tested
-- [ ] Optional: `src/coremind/llm/openclaw_backend.py` — LiteLLM delegation to OpenClaw
-- [ ] Optional: `src/coremind/memory/backends/openclaw_mem0.py` — mem0 backend via adapter
-- [ ] Conformance suite entry: `coremind-conformance test --plugin integrations/openclaw-adapter/coremind_side/`
+- [ ] `tests/integrations/openclaw_adapter/` — both sides tested from the main tree
+
+The adapter currently ships in the main repo; once it stabilises it can be
+lifted to its own repository and its tests moved under
+`integrations/openclaw-adapter/tests/`. Until then the canonical test
+location is the main-tree path above.
+
+### Deferred to a later phase (explicitly out of scope here)
+
+- `src/coremind/llm/openclaw_backend.py` — LiteLLM delegation to OpenClaw
+  (section 2.5.6). Requires a new `InferModel` RPC on `OpenClawHalf`.
+- `src/coremind/memory/backends/openclaw_mem0.py` — mem0 backend via
+  adapter (section 2.5.7).
+- `coremind-conformance test --plugin integrations/openclaw-adapter/coremind_side/`
+  — the conformance CLI itself does not yet exist; wire this in when the
+  conformance suite lands.
 
 ---
 

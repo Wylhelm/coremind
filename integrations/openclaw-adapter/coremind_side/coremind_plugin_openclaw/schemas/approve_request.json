@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "coremind.openclaw_adapter.v1.approve_request",
+  "title": "openclaw.approve_request parameters",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["approval_id", "channel", "target", "prompt"],
+  "properties": {
+    "approval_id": { "type": "string", "minLength": 1 },
+    "channel":     { "type": "string", "minLength": 1 },
+    "target":      { "type": "string", "minLength": 1 },
+    "prompt":      { "type": "string", "minLength": 1, "maxLength": 4096 },
+    "context":     { "type": "object" },
+    "timeout_seconds": { "type": "integer", "minimum": 0, "maximum": 86400 }
+  }
+}
