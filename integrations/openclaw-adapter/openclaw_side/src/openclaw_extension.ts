@@ -58,7 +58,7 @@ export function buildHandlers(host: OpenClawHost): OpenClawHandlers {
         channel: r.channel,
         target: r.target,
         prompt: r.prompt,
-        timeoutSeconds: r.timeout_seconds,
+        ...(r.timeout_seconds !== undefined ? { timeoutSeconds: r.timeout_seconds } : {}),
       });
       return {
         outcome: `APPROVAL_OUTCOME_${outcome.outcome.toUpperCase()}`,
@@ -88,7 +88,7 @@ export function buildHandlers(host: OpenClawHost): OpenClawHandlers {
         expression: r.expression,
         skillName: r.skill_name,
         parameters: r.parameters ?? {},
-        description: r.description,
+        ...(r.description !== undefined ? { description: r.description } : {}),
       });
       return { scheduled: true, cron_id: r.cron_id, error: "" };
     },

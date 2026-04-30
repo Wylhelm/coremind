@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "OpenClaw extension that bridges OpenClaw gateway activity into CoreMind's cognitive pipeline.",
   "license": "AGPL-3.0-or-later",
+  "openclaw": {
+    "extensions": ["./dist/index.js"]
+  },
   "type": "module",
   "main": "dist/index.js",
   "exports": {

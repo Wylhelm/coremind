@@ -144,9 +144,17 @@ class TelegramNotificationPort:
 
             for update in data.get("result", []):
                 self._poll_offset = int(update["update_id"]) + 1
+                cq_id = _callback_query_id(update)
                 response = _update_to_response(update, resolve_token=self._token_to_intent.get)
                 if response is not None:
+                    # Acknowledge the callback so the button stops spinning.
+                    if cq_id is not None:
+                        await self._answer_callback(cq_id, response.decision)
                     yield response
+                elif cq_id is not None:
+                    # Callback on a non-ask message (stale/unknown) — still
+                    # dismiss the spinner so it doesn't hang forever.
+                    await self._answer_callback(cq_id, "unknown")
 
     # ------------------------------------------------------------------
     # Internal HTTP helper
@@ -165,6 +173,32 @@ class TelegramNotificationPort:
         self._intent_to_token[intent_id] = token
         self._token_to_intent[token] = intent_id
         return token
+
+    async def _answer_callback(self, callback_query_id: str, decision: str | None) -> None:
+        """Acknowledge a callback query so Telegram dismisses the loading state.
+
+        Args:
+            callback_query_id: The callback query id from the update.
+            decision: The decision value, used to craft a user-visible toast.
+        """
+        texts: dict[str, str] = {
+            "approve": "✅ Approved — executing…",
+            "deny": "❌ Denied",
+            "snooze": "⏸ Snoozed",
+        }
+        text = texts.get(decision or "", "👍 Got it")
+        try:
+            await self._call(
+                "answerCallbackQuery",
+                {"callback_query_id": callback_query_id, "text": text},
+            )
+        except NotificationError:
+            # If answering fails (e.g. callback already expired), still
+            # log but don't crash — the update has been consumed.
+            log.warning(
+                "telegram.answer_callback_failed",
+                callback_query_id=callback_query_id,
+            )
 
     async def _call(self, method: str, body: dict[str, Any]) -> dict[str, Any]:
         """POST *body* to ``/bot<token>/<method>`` and return parsed JSON."""
@@ -213,6 +247,14 @@ def _inline_keyboard(
             continue
         buttons.append({"text": action.label, "callback_data": payload})
     return {"inline_keyboard": [buttons]}
+
+
+def _callback_query_id(update: dict[str, Any]) -> str | None:
+    """Extract the callback query id from an update, if present."""
+    callback = update.get("callback_query")
+    if callback is None:
+        return None
+    return callback.get("id")
 
 
 def _update_to_response(

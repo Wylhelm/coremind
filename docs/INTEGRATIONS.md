@@ -50,40 +50,52 @@ CoreMind does **not** replicate any of these. Users who already run OpenClaw can
 ### 2.2 Topology
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                          User                                │
-└──────────────┬──────────────────────────┬────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                          User                                    │
+└──────────────┬──────────────────────────┬────────────────────────┘
                │                          │
                │ messages/commands        │ dashboard/CLI
                ▼                          ▼
-   ┌───────────────────────┐   ┌───────────────────────┐
-   │   OpenClaw gateway    │   │  CoreMind daemon      │
-   │   (existing install)  │   │  (new install)        │
-   └──┬─────────────────┬──┘   └──┬─────────────────┬──┘
-      │                 │         │                 │
-      │ native          │ coremind-openclaw-adapter │ native
-      │ channels        │◄─────── gRPC ──────────►  │ plugins
-      │                 │                           │
-      ▼                 ▼                           ▼
-  Telegram           Discord                    Home Assistant
-  Signal             Slack                      Gmail IMAP
-  iMessage           Matrix                     Govee
-  ...                ...                        ...
+   ┌───────────────────────┐   ┌───────────────────────────────┐
+   │   OpenClaw gateway    │   │  CoreMind daemon              │
+   │   (existing install)  │   │  (L1→L7 cognitive layers)     │
+   └──┬─────────────────┬──┘   └──┬─────────────────────────┬──┘
+      │                 │         │                         │
+      │ native          │  ┌──────┴──────────┐    native    │
+      │ channels        │  │ OpenClaw Bridge │    plugins   │
+      │                 │  │ (Python gRPC)   │              │
+      ▼                 │  │  ↕ notify_queue │              ▼
+  Telegram               │  │  ↕ JSONL pipe   │         Home Assistant
+  ...                    │  └──────┬──────────┘         Firefly III
+                         │         │                    Apple Health
+                         │    ┌────┴───────────┐       Open-Meteo
+                         │    │  G-Bot          │       Vikunja
+                         │    │  (heartbeat     │
+                         │    │   reads queue)  │
+                         │    └────────────────┘
+                         │
+  ┌──────────────────────┴──────────────────────────┐
+  │  @coremindapp_bot  (approbations Ask/Approve)    │
+  └─────────────────────────────────────────────────┘
 ```
 
-Two processes, two responsibilities, one user experience.
+Three notification paths:
+1. **Approvals (Ask):** CoreMind → @coremindapp_bot direct (inline buttons)
+2. **Notifications (Suggest):** CoreMind → Adapter → Bridge → Queue → G-Bot heartbeat → Telegram
+3. **Safe:** Silently executed, logged in audit journal
 
-### 2.3 The Adapter Plugin
+### 2.3 The Adapter (v0.1.0 — Activated 2026-04-30)
 
-Published separately as `coremind-openclaw-adapter`. Installed in two places:
+Two components, deployed as systemd user services:
 
-- **On the OpenClaw side:** as an OpenClaw extension
-  `openclaw plugins install @coremind/openclaw-adapter`
+- **CoreMind side** (`coremind-openclaw.service`): Python plugin registered with the CoreMind daemon via `~/.coremind/keys/plugins/`. Listens on Unix sockets for gRPC calls from the daemon.
+  - Config: `~/.coremind/plugins/openclaw_adapter.toml`
 
-- **On the CoreMind side:** as a CoreMind plugin
-  `coremind plugin install coremind-openclaw-adapter`
+- **OpenClaw side** (`coremind-bridge.service`): Python gRPC server (`openclaw_side_bridge.py`) implementing the `OpenClawHalf` service. Listens on `unix://~/.coremind/run/openclaw-adapter.sock`.
+  - Writes notifications to `~/.coremind/run/notify_queue.jsonl`
+  - G-Bot's HEARTBEAT.md checks the queue and delivers messages with "🤖 CoreMind:" prefix
 
-Both halves speak gRPC to each other over a local Unix socket (or TLS TCP for cross-host).
+Future: the original TypeScript extension (`openclaw_side/`) is built but pending OpenClaw extension system compatibility.
 
 ### 2.4 Events from OpenClaw → CoreMind
 

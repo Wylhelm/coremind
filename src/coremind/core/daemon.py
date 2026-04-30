@@ -139,6 +139,8 @@ class CoreMindDaemon:
         self._approval_expirer_stop: asyncio.Event = asyncio.Event()
         self._approved_dispatcher_task: asyncio.Task[None] | None = None
         self._approved_dispatcher_stop: asyncio.Event = asyncio.Event()
+        self._response_listener_task: asyncio.Task[None] | None = None
+        self._response_listener_stop: asyncio.Event = asyncio.Event()
 
     async def start(self) -> None:
         """Initialise all subsystems and begin the ingest loop.
@@ -241,6 +243,12 @@ class CoreMindDaemon:
             name="coremind.approvals.dispatcher",
         )
 
+        self._response_listener_stop = asyncio.Event()
+        self._response_listener_task = asyncio.create_task(
+            self._response_listener_loop(notify_router, approvals),
+            name="coremind.approvals.listener",
+        )
+
         if config.intention.enabled:
             reasoning_journal = config.audit_log_path.parent / "reasoning.log"
             llm = LLM(LLMConfig())
@@ -303,6 +311,13 @@ class CoreMindDaemon:
             with contextlib.suppress(asyncio.CancelledError):
                 await self._approval_expirer_task
             self._approval_expirer_task = None
+
+        if self._response_listener_task is not None:
+            self._response_listener_stop.set()
+            self._response_listener_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._response_listener_task
+            self._response_listener_task = None
 
         if self._approved_dispatcher_task is not None:
             self._approved_dispatcher_stop.set()
@@ -408,6 +423,37 @@ class CoreMindDaemon:
                 )
             except TimeoutError:
                 continue
+
+    async def _response_listener_loop(
+        self, notify_router: NotificationRouter, approvals: ApprovalGate
+    ) -> None:
+        """Listen for approval responses from all callback-capable ports.
+
+        Telegram callbacks, dashboard API submissions, and CLI responses all
+        flow through the notification router's ``subscribe_responses()``
+        stream.  This loop feeds every response to the approval gate so
+        inline-button clicks and API calls actually take effect.
+
+        Runs until cancelled or :attr:`_response_listener_stop` is set.
+        Individual response-handling errors are logged but never terminate
+        the loop — a bad response cannot block legitimate ones.
+
+        Args:
+            notify_router: The notification router to subscribe to.
+            approvals: The approval gate to feed responses into.
+        """
+        async for response in notify_router.subscribe_responses():
+            if self._response_listener_stop.is_set():
+                break
+            try:
+                await approvals.handle_response(response)
+            except Exception:
+                log.exception(
+                    "approvals.handle_response_failed",
+                    intent_id=response.intent_id,
+                    decision=response.decision,
+                    responder=response.responder.id,
+                )
 
     async def _approved_dispatcher_loop(self, approvals: ApprovalGate) -> None:
         """Periodically dispatch intents that have been approved.

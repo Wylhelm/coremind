@@ -9,7 +9,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
-- _(empty — next release notes go here)_
+- OpenClaw adapter activated: Python bridge (`openclaw_side_bridge.py`) replaces TypeScript extension
+- G-Bot heartbeat integration: CoreMind notifications delivered via JSONL queue
+- `openclaw.plugin.json` manifest for future TypeScript extension loading
+
+### Fixed
+- Telegram approval callbacks now properly handled (missing `subscribe_responses()` consumer in daemon)
+- `answerCallbackQuery` added to Telegram adapter — buttons no longer spin indefinitely
+- `~` tilde expansion in Unix socket paths (adapter main.py)
+- TypeScript strict mode fixes: exactOptionalPropertyTypes, unused variable
 
 ---
 

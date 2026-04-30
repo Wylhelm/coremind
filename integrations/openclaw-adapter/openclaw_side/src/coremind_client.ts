@@ -39,8 +39,6 @@ const DEFAULT_BUFFER_LIMIT = 10_000;
 
 export class CoreMindClient {
   private channel: grpc.Client | null = null;
-  private readonly coremindHalf: { IngestEvent: (event: unknown, callback: (err: grpc.ServiceError | null) => void) => void } | null = null;
-
   constructor(private readonly config: AdapterConfig) {}
 
   /** Load the adapter.proto service package and connect to CoreMindHalf. */

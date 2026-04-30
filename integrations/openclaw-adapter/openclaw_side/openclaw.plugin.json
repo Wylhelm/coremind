@@ -1,0 +1,44 @@
+{
+  "id": "coremind-openclaw-adapter",
+  "name": "CoreMind Adapter",
+  "version": "0.1.0",
+  "description": "Forwards OpenClaw activity into CoreMind as signed WorldEvents, and lets CoreMind dispatch notifications, approvals, skills, and cron entries through OpenClaw.",
+  "author": "Guillaume Gagnon",
+  "license": "AGPL-3.0-or-later",
+  "kind": "bridge",
+  "minOpenclawVersion": "0.5.0",
+  "requiredPermissions": [
+    "events:subscribe",
+    "channels:*:send",
+    "skills:*:invoke",
+    "cron:manage",
+    "network:local"
+  ],
+  "configSchema": {
+    "type": "object",
+    "required": ["coremind_address", "rpc_listen"],
+    "properties": {
+      "coremind_address": {
+        "type": "string",
+        "description": "gRPC address of the CoreMind-side CoreMindHalf service (unix:// or host:port)."
+      },
+      "rpc_listen": {
+        "type": "string",
+        "description": "gRPC address this extension listens on for OpenClawHalf RPCs."
+      },
+      "buffer_path": {
+        "type": "string",
+        "description": "Disk-backed queue for events emitted while CoreMind is unreachable."
+      },
+      "channel_allowlist": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Channels this adapter is permitted to surface events from and send on."
+      },
+      "skill_allowlist": {
+        "type": "array",
+        "items": { "type": "string" }
+      }
+    }
+  }
+}
