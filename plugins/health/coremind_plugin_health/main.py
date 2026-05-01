@@ -46,12 +46,36 @@ INFLUX_BUCKET = os.environ.get("INFLUXDB_BUCKET", "apple_health")
 # Metrics to collect: (attribute_name, flux_query, display_unit)
 # Time range: last 2h to ensure we catch recent syncs
 _METRICS: list[tuple[str, str, str | None]] = [
-    ("step_count", 'from(bucket:"{bucket}") |> range(start: -2h) |> filter(fn:(r) => r._measurement == "step_count") |> filter(fn:(r) => r._field == "value") |> last()', "steps"),
-    ("sleep_hours", 'from(bucket:"{bucket}") |> range(start: -48h) |> filter(fn:(r) => r._measurement == "sleep_analysis") |> filter(fn:(r) => r._field == "totalSleep") |> last()', "hours"),
-    ("heart_rate", 'from(bucket:"{bucket}") |> range(start: -2h) |> filter(fn:(r) => r._measurement == "heart_rate") |> filter(fn:(r) => r._field == "value") |> last()', "bpm"),
-    ("resting_heart_rate", 'from(bucket:"{bucket}") |> range(start: -48h) |> filter(fn:(r) => r._measurement == "resting_heart_rate") |> filter(fn:(r) => r._field == "value") |> last()', "bpm"),
-    ("active_energy", 'from(bucket:"{bucket}") |> range(start: -48h) |> filter(fn:(r) => r._measurement == "active_energy_burned") |> filter(fn:(r) => r._field == "value") |> last()', "kcal"),
-    ("weight", 'from(bucket:"{bucket}") |> range(start: -30d) |> filter(fn:(r) => r._measurement == "body_mass") |> filter(fn:(r) => r._field == "value") |> last()', "kg"),
+    (
+        "step_count",
+        'from(bucket:"{bucket}") |> range(start: -2h) |> filter(fn:(r) => r._measurement == "step_count") |> filter(fn:(r) => r._field == "value") |> last()',
+        "steps",
+    ),
+    (
+        "sleep_hours",
+        'from(bucket:"{bucket}") |> range(start: -48h) |> filter(fn:(r) => r._measurement == "sleep_analysis") |> filter(fn:(r) => r._field == "totalSleep") |> last()',
+        "hours",
+    ),
+    (
+        "heart_rate",
+        'from(bucket:"{bucket}") |> range(start: -2h) |> filter(fn:(r) => r._measurement == "heart_rate") |> filter(fn:(r) => r._field == "value") |> last()',
+        "bpm",
+    ),
+    (
+        "resting_heart_rate",
+        'from(bucket:"{bucket}") |> range(start: -48h) |> filter(fn:(r) => r._measurement == "resting_heart_rate") |> filter(fn:(r) => r._field == "value") |> last()',
+        "bpm",
+    ),
+    (
+        "active_energy",
+        'from(bucket:"{bucket}") |> range(start: -48h) |> filter(fn:(r) => r._measurement == "active_energy_burned") |> filter(fn:(r) => r._field == "value") |> last()',
+        "kcal",
+    ),
+    (
+        "weight",
+        'from(bucket:"{bucket}") |> range(start: -30d) |> filter(fn:(r) => r._measurement == "body_mass") |> filter(fn:(r) => r._field == "value") |> last()',
+        "kg",
+    ),
 ]
 
 CONFIDENCE: float = 0.92

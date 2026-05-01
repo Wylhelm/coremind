@@ -148,10 +148,10 @@ async def run(config: AdapterConfig, private_key: Ed25519PrivateKey) -> None:
     plugin_server = grpc.aio.server()
     plugin_pb2_grpc.add_CoreMindPluginServicer_to_server(plugin_servicer, plugin_server)  # type: ignore[no-untyped-call]
     if config.plugin_grpc_address.startswith("unix://"):
-        sock_path = Path(config.plugin_grpc_address.removeprefix("unix://")).expanduser()
+        sock_path = Path(config.plugin_grpc_address.removeprefix("unix://")).expanduser()  # noqa: ASYNC240
         sock_path.parent.mkdir(parents=True, exist_ok=True)
-        if sock_path.exists():  # noqa: ASYNC240 — startup-only, local FS
-            sock_path.unlink()  # noqa: ASYNC240 — startup-only, local FS
+        if sock_path.exists():
+            sock_path.unlink()
     plugin_server.add_insecure_port(config.plugin_grpc_address)
     await plugin_server.start()
     log.info("openclaw_adapter.plugin_rpc_started", address=config.plugin_grpc_address)

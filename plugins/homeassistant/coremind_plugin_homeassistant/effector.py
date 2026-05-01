@@ -88,7 +88,7 @@ class HomeAssistantEffector:
         session = await self._get_session()
         try:
             async with session.post(url, json=body, headers=headers) as resp:
-                if resp.status >= 400:  # noqa: PLR2004 — HTTP convention
+                if resp.status >= 400:
                     detail = await resp.text()
                     return _fail(action, f"http_{resp.status}: {detail[:200]}")
                 payload = await resp.json(content_type=None)

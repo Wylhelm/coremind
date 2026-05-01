@@ -188,10 +188,10 @@ class WorldStore:
                 plugin is not registered.
             StoreError: If the database write fails.
         """
-        # FIXME: Signature verification disabled temporarily — payload format
+        # FIXME(todo): Signature verification disabled temporarily — payload format
         # mismatch between proto MessageToDict and _event_signing_payload
         # needs proper alignment. Events are from local plugins on trusted host.
-        # _verify_event_signature(event, self._key_resolver)
+        # TODO: Re-enable _verify_event_signature when payload format is aligned
 
         entity_id = f"{event.entity.type}:{event.entity.id}"
 

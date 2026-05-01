@@ -349,6 +349,7 @@ _env = Environment(
 _env.filters["tojson"] = lambda value: json.dumps(value, default=str, sort_keys=True)
 
 from zoneinfo import ZoneInfo
+
 _LOCAL_TZ = ZoneInfo("America/Toronto")
 _env.filters["localtime"] = lambda dt: dt.astimezone(_LOCAL_TZ).strftime("%Y-%m-%d %H:%M")
 

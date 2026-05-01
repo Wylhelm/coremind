@@ -26,23 +26,42 @@ VIKUNJA_URL = os.environ.get("VIKUNJA_URL", "http://localhost:3456")
 VIKUNJA_TOKEN = os.environ.get("VIKUNJA_TOKEN", "")
 CONFIDENCE = 0.95
 
+
 def _get(path):
     try:
-        r = requests.get(f"{VIKUNJA_URL}/api/v1{path}", headers={"Authorization": f"Bearer {VIKUNJA_TOKEN}"}, timeout=10)
+        r = requests.get(
+            f"{VIKUNJA_URL}/api/v1{path}",
+            headers={"Authorization": f"Bearer {VIKUNJA_TOKEN}"},
+            timeout=10,
+        )
         r.raise_for_status()
         return r.json()
-    except: return []
+    except:
+        return []
+
 
 def build_signed_event(key, entity_type, entity_id, attribute, value, unit=None):
     eid = uuid.uuid4().hex
-    ts = Timestamp(); ts.FromDatetime(datetime.now(UTC))
-    ev = plugin_pb2.WorldEvent(id=eid, timestamp=ts, source=PLUGIN_ID, source_version=PLUGIN_VERSION,
-        signature=b"", entity=plugin_pb2.EntityRef(type=entity_type, entity_id=entity_id),
-        attribute=attribute, value=Value(number_value=float(value)), confidence=CONFIDENCE)
-    if unit: ev.unit = unit
-    d = MessageToDict(ev, preserving_proto_field_name=True); d.pop("signature", None)
+    ts = Timestamp()
+    ts.FromDatetime(datetime.now(UTC))
+    ev = plugin_pb2.WorldEvent(
+        id=eid,
+        timestamp=ts,
+        source=PLUGIN_ID,
+        source_version=PLUGIN_VERSION,
+        signature=b"",
+        entity=plugin_pb2.EntityRef(type=entity_type, entity_id=entity_id),
+        attribute=attribute,
+        value=Value(number_value=float(value)),
+        confidence=CONFIDENCE,
+    )
+    if unit:
+        ev.unit = unit
+    d = MessageToDict(ev, preserving_proto_field_name=True)
+    d.pop("signature", None)
     ev.signature = sign(canonical_json(d), key)
     return ev
+
 
 async def run():
     key = ensure_plugin_keypair(KEY_STORE_ID)
@@ -54,22 +73,46 @@ async def run():
         while True:
             # Count tasks by project
             projects = _get("/projects")
-            total_open = 0; total_done = 0; total_overdue = 0
+            total_open = 0
+            total_done = 0
+            total_overdue = 0
             for proj in projects:
                 pid = proj.get("id")
                 tasks = _get(f"/projects/{pid}/tasks")
-                if not tasks: continue
+                if not tasks:
+                    continue
                 open_count = sum(1 for t in tasks if not t.get("done", False))
                 done_count = sum(1 for t in tasks if t.get("done", False))
-                overdue = sum(1 for t in tasks if not t.get("done") and t.get("due_date","0") < datetime.now(UTC).strftime("%Y-%m-%d"))
-                total_open += open_count; total_done += done_count; total_overdue += overdue
-                pname = proj.get("title","?")
-                await stub.EmitEvent(build_signed_event(key, "project", pname, "open_tasks", open_count), metadata=meta)
+                overdue = sum(
+                    1
+                    for t in tasks
+                    if not t.get("done")
+                    and t.get("due_date", "0") < datetime.now(UTC).strftime("%Y-%m-%d")
+                )
+                total_open += open_count
+                total_done += done_count
+                total_overdue += overdue
+                pname = proj.get("title", "?")
+                await stub.EmitEvent(
+                    build_signed_event(key, "project", pname, "open_tasks", open_count),
+                    metadata=meta,
+                )
             # Global stats
-            await stub.EmitEvent(build_signed_event(key, "task_manager", "vikunja", "open_tasks", total_open), metadata=meta)
-            await stub.EmitEvent(build_signed_event(key, "task_manager", "vikunja", "completed_tasks", total_done), metadata=meta)
-            await stub.EmitEvent(build_signed_event(key, "task_manager", "vikunja", "overdue_tasks", total_overdue), metadata=meta)
+            await stub.EmitEvent(
+                build_signed_event(key, "task_manager", "vikunja", "open_tasks", total_open),
+                metadata=meta,
+            )
+            await stub.EmitEvent(
+                build_signed_event(key, "task_manager", "vikunja", "completed_tasks", total_done),
+                metadata=meta,
+            )
+            await stub.EmitEvent(
+                build_signed_event(key, "task_manager", "vikunja", "overdue_tasks", total_overdue),
+                metadata=meta,
+            )
             log.info("vikunja.cycle_done", open=total_open, done=total_done, overdue=total_overdue)
             await asyncio.sleep(POLL_INTERVAL)
 
-def main(): asyncio.run(run())
+
+def main():
+    asyncio.run(run())

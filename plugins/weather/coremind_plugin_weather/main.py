@@ -38,16 +38,29 @@ _METRICS = [
     ("weather_code", "weather_code", "wmo"),
 ]
 
+
 def build_signed_event(key, entity_type, entity_id, attribute, value, unit=None):
     eid = uuid.uuid4().hex
-    ts = Timestamp(); ts.FromDatetime(datetime.now(UTC))
-    ev = plugin_pb2.WorldEvent(id=eid, timestamp=ts, source=PLUGIN_ID, source_version=PLUGIN_VERSION,
-        signature=b"", entity=plugin_pb2.EntityRef(type=entity_type, entity_id=entity_id),
-        attribute=attribute, value=Value(number_value=float(value)), confidence=CONFIDENCE)
-    if unit: ev.unit = unit
-    d = MessageToDict(ev, preserving_proto_field_name=True); d.pop("signature", None)
+    ts = Timestamp()
+    ts.FromDatetime(datetime.now(UTC))
+    ev = plugin_pb2.WorldEvent(
+        id=eid,
+        timestamp=ts,
+        source=PLUGIN_ID,
+        source_version=PLUGIN_VERSION,
+        signature=b"",
+        entity=plugin_pb2.EntityRef(type=entity_type, entity_id=entity_id),
+        attribute=attribute,
+        value=Value(number_value=float(value)),
+        confidence=CONFIDENCE,
+    )
+    if unit:
+        ev.unit = unit
+    d = MessageToDict(ev, preserving_proto_field_name=True)
+    d.pop("signature", None)
     ev.signature = sign(canonical_json(d), key)
     return ev
+
 
 async def run():
     key = ensure_plugin_keypair(KEY_STORE_ID)
@@ -71,4 +84,6 @@ async def run():
                 log.warning("weather.error", error=str(e))
             await asyncio.sleep(POLL_INTERVAL)
 
-def main(): asyncio.run(run())
+
+def main():
+    asyncio.run(run())

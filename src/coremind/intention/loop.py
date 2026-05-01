@@ -296,11 +296,17 @@ class IntentionLoop:
                 status="pending",
             )
             # Skip low-confidence intents — don't bother the user
-            if (self._config.min_salience > 0 and salience < self._config.min_salience) or \
-               (self._config.min_confidence > 0 and confidence < self._config.min_confidence):
+            if (self._config.min_salience > 0 and salience < self._config.min_salience) or (
+                self._config.min_confidence > 0 and confidence < self._config.min_confidence
+            ):
                 intent.status = "auto_dismissed"
                 await self._intents.save(intent)
-                log.debug("intention.auto_dismissed", id=intent.id, salience=salience, confidence=confidence)
+                log.debug(
+                    "intention.auto_dismissed",
+                    id=intent.id,
+                    salience=salience,
+                    confidence=confidence,
+                )
                 continue
             await self._intents.save(intent)
             try:

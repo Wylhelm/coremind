@@ -27,17 +27,23 @@ NOTIFY_QUEUE = Path.home() / ".coremind" / "run" / "notify_queue.jsonl"
 
 CHANNELS = ["telegram"]
 SKILLS = [
-    "weather.current", "weather.forecast",
-    "gog.gmail", "gog.calendar", "goplaces.search",
-    "notion.page", "notion.database",
-    "tapo-cam.snapshot", "tapo-cam.clip",
-    "sonoscli.play", "sonoscli.status",
-    "openhue.lights", "openhue.scenes",
+    "weather.current",
+    "weather.forecast",
+    "gog.gmail",
+    "gog.calendar",
+    "goplaces.search",
+    "notion.page",
+    "notion.database",
+    "tapo-cam.snapshot",
+    "tapo-cam.clip",
+    "sonoscli.play",
+    "sonoscli.status",
+    "openhue.lights",
+    "openhue.scenes",
 ]
 
 
 class OpenClawHalfServicer(adapter_pb2_grpc.OpenClawHalfServicer):
-
     async def Notify(self, request, context):
         try:
             entry = {
@@ -65,10 +71,14 @@ class OpenClawHalfServicer(adapter_pb2_grpc.OpenClawHalfServicer):
         )
 
     async def InvokeSkill(self, request, context):
-        return adapter_pb2.SkillResult(call_id=request.call_id, ok=False, error="Not implemented yet")
+        return adapter_pb2.SkillResult(
+            call_id=request.call_id, ok=False, error="Not implemented yet"
+        )
 
     async def ScheduleCron(self, request, context):
-        return adapter_pb2.CronScheduleResult(scheduled=False, cron_id=request.cron_id, error="Not implemented yet")
+        return adapter_pb2.CronScheduleResult(
+            scheduled=False, cron_id=request.cron_id, error="Not implemented yet"
+        )
 
     async def CancelCron(self, request, context):
         return adapter_pb2.CronCancelResult(cancelled=False, error="Not implemented yet")

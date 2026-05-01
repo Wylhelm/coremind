@@ -49,7 +49,10 @@ def _ff_get(path: str) -> dict[str, Any]:
     try:
         r = requests.get(
             f"{FIREFLY_URL}{path}",
-            headers={"Authorization": f"Bearer {FIREFLY_TOKEN}", "Accept": "application/vnd.api+json"},
+            headers={
+                "Authorization": f"Bearer {FIREFLY_TOKEN}",
+                "Accept": "application/vnd.api+json",
+            },
             timeout=15,
         )
         r.raise_for_status()
@@ -76,10 +79,14 @@ def build_signed_event(
     event_id = uuid.uuid4().hex
     ts = _make_timestamp(datetime.now(UTC))
     unsigned = plugin_pb2.WorldEvent(
-        id=event_id, timestamp=ts,
-        source=PLUGIN_ID, source_version=PLUGIN_VERSION, signature=b"",
+        id=event_id,
+        timestamp=ts,
+        source=PLUGIN_ID,
+        source_version=PLUGIN_VERSION,
+        signature=b"",
         entity=plugin_pb2.EntityRef(type=entity_type, entity_id=entity_id),
-        attribute=attribute, value=Value(number_value=value),
+        attribute=attribute,
+        value=Value(number_value=value),
         confidence=CONFIDENCE,
     )
     if unit:

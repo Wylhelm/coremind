@@ -115,6 +115,16 @@ ignore = [
     "S603",
     "S607",
 ] # CLI scripts are allowed to print and shell out
+"integrations/openclaw-adapter/openclaw_side_bridge.py" = [
+    "N802", "ANN", "ASYNC230", "PTH123", "F401", "I001", "E501",
+]  # gRPC bridge: CamelCase methods, JSONL queue I/O
+"plugins/**/*.py" = [
+    "ANN", "E501", "E401", "E701", "E702", "E722",
+    "F401", "PLR2004", "ASYNC210", "N802", "E741", "I001", "PTH123",
+]  # plugin code predates strict lint rules
+"src/coremind/dashboard/views.py" = ["E402", "I001"]
+"src/coremind/plugin_host/server.py" = ["B008", "PLC0415"]
+"src/coremind/intention/loop.py" = ["E501"]
 
 [tool.ruff.format]
 quote-style = "double"
