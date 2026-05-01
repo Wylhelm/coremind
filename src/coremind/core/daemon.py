@@ -16,7 +16,6 @@ import asyncio
 import contextlib
 import os
 import signal
-from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
@@ -30,7 +29,7 @@ from coremind.action.effectors import (
     NotificationEffector,
     VikunjaEffector,
 )
-from coremind.action.executor import EffectorPort, Executor
+from coremind.action.executor import Executor
 from coremind.action.journal import ActionJournal
 from coremind.action.router import ActionRouter
 from coremind.config import DaemonConfig, DashboardConfig, load_config
@@ -50,7 +49,7 @@ from coremind.notify.quiet_hours import QuietHoursFilter, QuietHoursPolicy
 from coremind.notify.router import NotificationRouter
 from coremind.plugin_host.registry import PluginRegistry
 from coremind.plugin_host.server import PluginHostServer
-from coremind.reasoning.llm import LLM, LLMConfig, LayerConfig
+from coremind.reasoning.llm import LLM, LayerConfig, LLMConfig
 from coremind.reasoning.persistence import JsonlCyclePersister
 from coremind.world.model import WorldEventRecord
 from coremind.world.store import WorldStore
@@ -262,8 +261,6 @@ class CoreMindDaemon:
             if hasattr(config, 'llm') and config.llm.intention.model:
                 llm_cfg.intention = LayerConfig(
                     model=config.llm.intention.model,
-                    max_tokens=config.llm.intention.max_tokens,
-                    temperature=config.llm.intention.temperature,
                 )
             llm = LLM(llm_cfg)
             intention_loop = IntentionLoop(

@@ -44,7 +44,8 @@ Available operations (use EXACTLY these names):
 
 Parameters for each operation:
   - notification.send: {"title": "...", "message": "..."}
-  - homeassistant.get_state/get_history: {"entity_id": "sensor.xxx"} or {"entity_ids": ["sensor.a", "sensor.b"]}
+  - homeassistant.get_state/get_history: {"entity_id": "sensor.xxx"}
+    or {"entity_ids": ["sensor.a", "sensor.b"]}
   - homeassistant.turn_on/turn_off: {"entity_id": "light.xxx"}
   - homeassistant.set_temperature: {"entity_id": "climate.xxx", "temperature": "21.5"}
   - homeassistant.create_automation: {"name": "...", "trigger": {...}, "action": {...}}

@@ -542,9 +542,9 @@ def _build_semantic_memory() -> object:
         A ready-to-use :class:`coremind.memory.semantic.SemanticMemory`
         instance.  The caller must ``await .initialise()`` before use.
     """
-    from qdrant_client import AsyncQdrantClient  # noqa: PLC0415 — optional heavy dep
+    from qdrant_client import AsyncQdrantClient
 
-    from coremind.memory.embeddings import EmbedderConfig, build_embedder  # noqa: PLC0415
+    from coremind.memory.embeddings import EmbedderConfig, build_embedder
 
     _ = AsyncQdrantClient  # imported to fail-fast if missing
     embedder = build_embedder(EmbedderConfig())
@@ -615,7 +615,7 @@ def _open_cycle_persister() -> object:
     Returns:
         A ready-to-use cycle persister.
     """
-    from coremind.reasoning.persistence import JsonlCyclePersister  # noqa: PLC0415
+    from coremind.reasoning.persistence import JsonlCyclePersister
 
     return JsonlCyclePersister(_REASONING_JOURNAL)
 
@@ -636,7 +636,7 @@ def reason() -> None:
 @click.option("--limit", default=50, show_default=True, help="Maximum cycles to return.")
 def reason_list(last_duration: str, limit: int) -> None:
     """List recent reasoning cycles."""
-    from coremind.reasoning.persistence import JsonlCyclePersister  # noqa: PLC0415
+    from coremind.reasoning.persistence import JsonlCyclePersister
 
     duration = _parse_duration(last_duration)
     persister = JsonlCyclePersister(_REASONING_JOURNAL)
@@ -668,7 +668,7 @@ def reason_list(last_duration: str, limit: int) -> None:
 @click.argument("cycle_id", required=True)
 def reason_show(cycle_id: str) -> None:
     """Show the full detail of a reasoning cycle."""
-    from coremind.reasoning.persistence import JsonlCyclePersister  # noqa: PLC0415
+    from coremind.reasoning.persistence import JsonlCyclePersister
 
     persister = JsonlCyclePersister(_REASONING_JOURNAL)
 
@@ -1187,7 +1187,7 @@ def notify_test(port_id: str | None) -> None:
     Other ports (Telegram, …) require the running daemon which owns their
     credentials and callback subscriptions.
     """
-    from coremind.notify.adapters.dashboard import DashboardNotificationPort  # noqa: PLC0415
+    from coremind.notify.adapters.dashboard import DashboardNotificationPort
 
     config = load_config()
     target = port_id or config.notify.primary
@@ -1271,7 +1271,7 @@ def reflect_now(window_days: int) -> None:
     (JSONL intent store, JSONL reasoning cycles, hash-chained audit journal)
     and runs one complete L7 cycle.
     """
-    from datetime import datetime, timedelta, UTC
+    from datetime import UTC, datetime, timedelta
 
     from coremind.config import load_config as _load_config
 
@@ -1288,25 +1288,25 @@ def reflect_now(window_days: int) -> None:
     )
 
     async def _run() -> None:
-        from coremind.reflection.loop import ReflectionLoop, ReflectionLoopConfig
-        from coremind.reflection.evaluator import (
-            PredictionEvaluatorImpl,
-            InMemoryPredictionEvaluationStore,
-        )
-        from coremind.reflection.calibration import Calibrator, InMemoryCalibrationStore
-        from coremind.reflection.rule_learner import (
-            RuleLearnerImpl,
-            InMemoryCandidateLedger,
-            InMemoryRuleProposalStore,
-        )
-        from coremind.reflection.report import MarkdownReportProducer
-        from coremind.reflection.schemas import FeedbackEvaluationResult
-        from coremind.reasoning.persistence import JsonlCyclePersister
         from coremind.cli.reflect_ports import (
+            CliActionFeed,
             CliCycleSource,
             CliIntentSource,
-            CliActionFeed,
         )
+        from coremind.reasoning.persistence import JsonlCyclePersister
+        from coremind.reflection.calibration import Calibrator, InMemoryCalibrationStore
+        from coremind.reflection.evaluator import (
+            InMemoryPredictionEvaluationStore,
+            PredictionEvaluatorImpl,
+        )
+        from coremind.reflection.loop import ReflectionLoop, ReflectionLoopConfig
+        from coremind.reflection.report import MarkdownReportProducer
+        from coremind.reflection.rule_learner import (
+            InMemoryCandidateLedger,
+            InMemoryRuleProposalStore,
+            RuleLearnerImpl,
+        )
+        from coremind.reflection.schemas import FeedbackEvaluationResult
 
         # -- 1. CycleSource ------------------------------------------------
         reasoning_path = Path.home() / ".coremind" / "reasoning.log"
@@ -1327,8 +1327,8 @@ def reflect_now(window_days: int) -> None:
         action_feed = CliActionFeed(journal)
 
         # -- 4. PredictionEvaluator ----------------------------------------
+        from coremind.reflection.evaluator import ConditionResolver, EventHistorySource
         from coremind.world.store import WorldStore
-        from coremind.reflection.evaluator import EventHistorySource, ConditionResolver
 
         class CliEventHistorySource:
             """EventHistorySource that tries SurrealDB and falls back gracefully."""
@@ -1340,7 +1340,7 @@ def reflect_now(window_days: int) -> None:
                 after: datetime,
                 before: datetime,
                 limit: int = 1000,
-            ) -> list:
+            ) -> list:  # type: ignore[type-arg]
                 if self._store is None:
                     try:
                         store = WorldStore(
@@ -1368,7 +1368,7 @@ def reflect_now(window_days: int) -> None:
             async def resolve(
                 self,
                 prediction: object,
-                evidence: list,
+                evidence: list,  # type: ignore[type-arg]
             ) -> tuple[str, str]:
                 if not evidence:
                     return ("undetermined", "no world evidence available (SurrealDB offline)")
@@ -1376,7 +1376,7 @@ def reflect_now(window_days: int) -> None:
 
         eval_store = InMemoryPredictionEvaluationStore()
         history: EventHistorySource = CliEventHistorySource()
-        resolver: ConditionResolver = BasicConditionResolver()
+        resolver: ConditionResolver = BasicConditionResolver()  # type: ignore[assignment]
         prediction_evaluator = PredictionEvaluatorImpl(
             history=history,
             resolver=resolver,
@@ -1388,8 +1388,8 @@ def reflect_now(window_days: int) -> None:
             """Evaluates actions against user feedback from intents."""
             async def evaluate(
                 self,
-                actions: list,
-                intents: list,
+                actions: list,  # type: ignore[type-arg]
+                intents: list,  # type: ignore[type-arg]
             ) -> FeedbackEvaluationResult:
                 approved = sum(1 for i in intents if i.status == "approved")
                 rejected = sum(
@@ -1422,7 +1422,7 @@ def reflect_now(window_days: int) -> None:
         # -- 7. RuleLearner ------------------------------------------------
         class EmptyRuleSource:
             """RuleSource returning no active rules (CLI has no procedural memory)."""
-            async def list_active_rules(self):
+            async def list_active_rules(self):  # type: ignore[no-untyped-def]
                 return []
 
         rule_learner = RuleLearnerImpl(
@@ -1442,7 +1442,7 @@ def reflect_now(window_days: int) -> None:
             intent_source=intent_source,
             action_feed=action_feed,
             prediction_evaluator=prediction_evaluator,
-            feedback_evaluator=feedback_evaluator,
+            feedback_evaluator=feedback_evaluator,  # type: ignore[arg-type]
             calibration_updater=calibration_updater,
             rule_learner=rule_learner,
             report_producer=report_producer,

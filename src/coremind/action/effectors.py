@@ -573,7 +573,10 @@ class VikunjaEffector:
         return ActionResult(
             action_id=action.id,
             status="ok",
-            message=f"retrieved {len(task_list)} tasks (filter={filter_type}, project={project or 'any'})",
+            message=(
+                f"retrieved {len(task_list)} tasks "
+                f"(filter={filter_type}, project={project or 'any'})"
+            ),
             output={"tasks": task_list, "total": len(tasks)},
             completed_at=datetime.now(UTC),
         )
