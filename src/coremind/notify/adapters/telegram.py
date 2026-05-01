@@ -254,7 +254,7 @@ def _callback_query_id(update: dict[str, Any]) -> str | None:
     callback = update.get("callback_query")
     if callback is None:
         return None
-    return callback.get("id")
+    return callback.get("id")  # type: ignore[no-any-return]
 
 
 def _update_to_response(

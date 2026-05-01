@@ -258,9 +258,9 @@ class _CoreMindHostServicer(plugin_pb2_grpc.CoreMindHostServicer):
                         display_name=request.source,
                         kind=plugin_pb2.PLUGIN_KIND_SENSOR,
                     ),
-                    public_key=auto_key,
+                    public_key=auto_key,  # type: ignore[arg-type]
                 )
-                public_key = auto_key
+                public_key = auto_key  # type: ignore[assignment]
                 log.info(
                     "plugin_host.auto_registered",
                     plugin_id=request.source,
