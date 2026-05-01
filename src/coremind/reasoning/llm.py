@@ -70,7 +70,7 @@ class LLMConfig(BaseModel):
         default_factory=lambda: LayerConfig(model="ollama/deepseek-v4-flash:cloud")
     )
     intention: LayerConfig = Field(
-        default_factory=lambda: LayerConfig(model="ollama/deepseek-v4-flash:cloud")
+        default_factory=lambda: LayerConfig(model="ollama/mistral-small3.2:24b")
     )
     reflection: LayerConfig = Field(
         default_factory=lambda: LayerConfig(model="ollama/deepseek-v4-flash:cloud")

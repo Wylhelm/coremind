@@ -101,6 +101,24 @@ class DashboardConfig(BaseModel):
     allowed_origins: tuple[str, ...] = ()
 
 
+class LLMLayerConfig(BaseModel):
+    """Per-layer LLM routing configuration."""
+
+    model_config = ConfigDict(frozen=True)
+
+    model: str = "ollama/mistral-small3.2:24b"
+    max_tokens: int = Field(default=2048, ge=1)
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+
+
+class LLMConfig(BaseModel):
+    """LLM routing configuration for all cognitive layers."""
+
+    model_config = ConfigDict(frozen=True)
+
+    intention: LLMLayerConfig = Field(default_factory=LLMLayerConfig)
+
+
 class DaemonConfig(BaseModel):
     """Validated daemon configuration.
 
@@ -124,6 +142,7 @@ class DaemonConfig(BaseModel):
     notify: NotifyConfig = Field(default_factory=NotifyConfig)
     quiet_hours: QuietHoursConfig = Field(default_factory=QuietHoursConfig)
     dashboard: DashboardConfig = Field(default_factory=DashboardConfig)
+    llm: LLMConfig = Field(default_factory=LLMConfig)
 
 
 def load_config() -> DaemonConfig:

@@ -1245,3 +1245,98 @@ def quiet_hours_show() -> None:
     click.echo(f"  timezone: {qh.timezone}")
     click.echo(f"  start:    {qh.quiet_start.isoformat()}")
     click.echo(f"  end:      {qh.quiet_end.isoformat()}")
+
+
+# ---------------------------------------------------------------------------
+# reflect group
+# ---------------------------------------------------------------------------
+
+
+@cli.group()
+def reflect() -> None:
+    """Run the L7 reflection cycle (weekly self-evaluation)."""
+
+
+@reflect.command("now")
+@click.option(
+    "--window-days",
+    default=7,
+    show_default=True,
+    help="Reflection window width in days.",
+)
+def reflect_now(window_days: int) -> None:
+    """Run a reflection cycle immediately and print the report."""
+    import asyncio
+    from datetime import datetime, timedelta, UTC
+
+    from coremind.config import load_config as _load_config
+    from coremind.intention.persistence import IntentStore
+
+    config = _load_config()
+
+    click.echo(
+        click.style(
+            f"Running reflection (window={window_days} days)...",
+            fg="cyan",
+        )
+    )
+
+    async def _run() -> None:
+        import json as _json
+        from collections import Counter as _Counter
+        from pathlib import Path as _Path
+
+        intents = IntentStore(config.intent_store_path)
+        window_start = datetime.now(UTC) - timedelta(days=window_days)
+        recent_intents = await intents.list(since=window_start, limit=500)
+
+        # Parse actions directly from audit log
+        audit_path = _Path(config.audit_log_path)
+        audit_actions: list[dict] = []
+        if audit_path.exists():
+            with audit_path.open() as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        entry = _json.loads(line)
+                        if entry.get("timestamp", "") >= window_start.isoformat():
+                            if entry.get("kind") == "action":
+                                audit_actions.append(entry["payload"])
+                    except _json.JSONDecodeError:
+                        continue
+
+        # ── summary stats ─────────────────────────────────────────
+        ok = sum(1 for a in audit_actions if a.get("result", {}).get("status") == "ok")
+        failed = sum(1 for a in audit_actions if a.get("result", {}).get("status") in ("permanent_failure", "transient_failure"))
+        no_eff = sum(1 for a in audit_actions if a.get("result", {}).get("message") == "no_effector")
+
+        click.echo()
+        click.echo(click.style("═══ CoreMind Weekly Reflection ═══", fg="green", bold=True))
+        click.echo(f"Window: {window_start.strftime('%Y-%m-%d %H:%M')} UTC → now")
+        click.echo()
+        click.echo(click.style("Actions", fg="yellow", bold=True))
+        click.echo(f"  Total dispatched:  {len(audit_actions)}")
+        click.echo(f"  Succeeded (ok):    {ok}")
+        click.echo(f"  Failed:            {failed}")
+        click.echo(f"  No effector:       {no_eff}")
+        click.echo()
+        click.echo(click.style("Intents", fg="yellow", bold=True))
+        click.echo(f"  Total generated:   {len(recent_intents)}")
+        for status in ("approved", "pending_approval", "auto_dismissed", "failed", "executing", "pending", "expired"):
+            count = sum(1 for i in recent_intents if i.status == status)
+            if count:
+                click.echo(f"  {status:20s} {count}")
+
+        ops = _Counter(a.get("operation", "?") for a in audit_actions)
+        if ops:
+            click.echo()
+            click.echo(click.style("Operations", fg="yellow", bold=True))
+            for op, count in ops.most_common(10):
+                click.echo(f"  {op:50s} {count}")
+
+    try:
+        asyncio.run(_run())
+    except Exception as exc:
+        click.echo(click.style(f"Reflection failed: {exc}", fg="red"))

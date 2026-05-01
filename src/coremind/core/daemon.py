@@ -23,6 +23,13 @@ from typing import Protocol
 import structlog
 
 from coremind.action.approvals import ApprovalGate
+from coremind.action.effectors import (
+    CalendarEffector,
+    EffectorRegistry,
+    HomeAssistantEffector,
+    NotificationEffector,
+    VikunjaEffector,
+)
 from coremind.action.executor import EffectorPort, Executor
 from coremind.action.journal import ActionJournal
 from coremind.action.router import ActionRouter
@@ -43,7 +50,7 @@ from coremind.notify.quiet_hours import QuietHoursFilter, QuietHoursPolicy
 from coremind.notify.router import NotificationRouter
 from coremind.plugin_host.registry import PluginRegistry
 from coremind.plugin_host.server import PluginHostServer
-from coremind.reasoning.llm import LLM, LLMConfig
+from coremind.reasoning.llm import LLM, LLMConfig, LayerConfig
 from coremind.reasoning.persistence import JsonlCyclePersister
 from coremind.world.model import WorldEventRecord
 from coremind.world.store import WorldStore
@@ -198,7 +205,7 @@ class CoreMindDaemon:
 
         notify_router = _build_notification_router(config, dashboard_port)
 
-        effector_resolver = _make_effector_resolver(registry)
+        effector_resolver = _build_effector_registry(notify_router)
         executor = Executor(
             journal,
             intents,
@@ -251,7 +258,14 @@ class CoreMindDaemon:
 
         if config.intention.enabled:
             reasoning_journal = config.audit_log_path.parent / "reasoning.log"
-            llm = LLM(LLMConfig())
+            llm_cfg = LLMConfig()
+            if hasattr(config, 'llm') and config.llm.intention.model:
+                llm_cfg.intention = LayerConfig(
+                    model=config.llm.intention.model,
+                    max_tokens=config.llm.intention.max_tokens,
+                    temperature=config.llm.intention.temperature,
+                )
+            llm = LLM(llm_cfg)
             intention_loop = IntentionLoop(
                 snapshot_provider=world_store,
                 reasoning_feed=JsonlCyclePersister(reasoning_journal),
@@ -549,22 +563,68 @@ class _AllowAllFilter(QuietHoursFilter):
         super().__init__(QuietHoursPolicy(quiet_start=_time(0, 0), quiet_end=_time(0, 0)))
 
 
-def _make_effector_resolver(
-    _registry: PluginRegistry,
-) -> Callable[[str], EffectorPort | None]:
-    """Return a resolver that maps an operation name to an effector port.
+def _build_effector_registry(
+    notify_router: NotificationRouter,
+) -> EffectorRegistry:
+    """Build the in-process effector registry with all available effectors.
 
-    Phase 3 note: plugin-side ``InvokeAction`` RPC support lives in each
-    plugin; a full bidirectional wiring arrives with Phase 3.5 plugin host
-    changes.  For now the resolver always returns ``None``, meaning the
-    executor will raise :class:`coremind.action.executor.EffectorNotFoundError`
-    until the plugin host supports dispatching to a live plugin.
+    Each effector wraps an external API and implements :class:`EffectorPort`.
+    The registry doubles as an :class:`EffectorResolver` callable, so it can
+    be passed directly to :class:`Executor`.
+
+    When the future Phase 3.5 gRPC reverse-channel lands, this function can
+    be replaced by one that builds per-plugin gRPC effector stubs.  For now,
+    in-process effectors are pragmatic and sufficient.
     """
+    registry = EffectorRegistry()
 
-    def _resolve(_operation: str) -> EffectorPort | None:
-        return None
+    # Notification effector — wraps the existing notification router
+    notifier = NotificationEffector(notify_router)
+    registry.register("coremind.plugin.notification.send", notifier)
+    registry.register("coremind.plugin.notification.send_sms", notifier)
+    # Alias: LLM sometimes generates different operation names for the same thing
+    registry.register("coremind.plugin.telegram.send_message", notifier)
+    registry.register("coremind.plugin.task_manager.remind", notifier)
 
-    return _resolve
+    # Home Assistant effector
+    ha = HomeAssistantEffector()
+    registry.register_many(
+        [
+            "coremind.plugin.homeassistant.get_state",
+            "coremind.plugin.homeassistant.get_history",
+            "coremind.plugin.homeassistant.turn_on",
+            "coremind.plugin.homeassistant.turn_off",
+            "coremind.plugin.homeassistant.light.turn_off",
+            "coremind.plugin.homeassistant.create_automation",
+            "coremind.plugin.homeassistant.send_notification",
+            "coremind.plugin.homeassistant.get_printer_estimated_pages",
+            "coremind.plugin.homeassistant.set_temperature",
+        ],
+        ha,
+    )
+
+    # Vikunja task manager effector
+    vikunja = VikunjaEffector()
+    registry.register_many(
+        [
+            "coremind.plugin.vikunja.list_tasks",
+            "coremind.plugin.vikunja.get_tasks",
+        ],
+        vikunja,
+    )
+
+    # Calendar effector (Google Calendar via gog)
+    calendar = CalendarEffector()
+    registry.register_many(
+        [
+            "coremind.plugin.calendar.fetch_upcoming_events",
+            "coremind.plugin.calendar.get_next_payday",
+        ],
+        calendar,
+    )
+
+    log.info("effector_registry.built", operation_count=len(registry._effectors))
+    return registry
 
 
 # ---------------------------------------------------------------------------
