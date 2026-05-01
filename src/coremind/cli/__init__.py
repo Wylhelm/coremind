@@ -1265,78 +1265,201 @@ def reflect() -> None:
     help="Reflection window width in days.",
 )
 def reflect_now(window_days: int) -> None:
-    """Run a reflection cycle immediately and print the report."""
-    import asyncio
+    """Run a reflection cycle immediately and print the full Markdown report.
+
+    Wires all 8 reflection loop ports against the daemon's live data sources
+    (JSONL intent store, JSONL reasoning cycles, hash-chained audit journal)
+    and runs one complete L7 cycle.
+    """
     from datetime import datetime, timedelta, UTC
 
     from coremind.config import load_config as _load_config
-    from coremind.intention.persistence import IntentStore
 
     config = _load_config()
+    window_end = datetime.now(UTC)
+    window_start = window_end - timedelta(days=window_days)
 
     click.echo(
         click.style(
-            f"Running reflection (window={window_days} days)...",
+            f"Running reflection cycle: {window_start.strftime('%Y-%m-%d')} "
+            f"\u2192 {window_end.strftime('%Y-%m-%d')} ({window_days}d window)...",
             fg="cyan",
         )
     )
 
     async def _run() -> None:
-        import json as _json
-        from collections import Counter as _Counter
-        from pathlib import Path as _Path
+        from coremind.reflection.loop import ReflectionLoop, ReflectionLoopConfig
+        from coremind.reflection.evaluator import (
+            PredictionEvaluatorImpl,
+            InMemoryPredictionEvaluationStore,
+        )
+        from coremind.reflection.calibration import Calibrator, InMemoryCalibrationStore
+        from coremind.reflection.rule_learner import (
+            RuleLearnerImpl,
+            InMemoryCandidateLedger,
+            InMemoryRuleProposalStore,
+        )
+        from coremind.reflection.report import MarkdownReportProducer
+        from coremind.reflection.schemas import FeedbackEvaluationResult
+        from coremind.reasoning.persistence import JsonlCyclePersister
+        from coremind.cli.reflect_ports import (
+            CliCycleSource,
+            CliIntentSource,
+            CliActionFeed,
+        )
 
-        intents = IntentStore(config.intent_store_path)
-        window_start = datetime.now(UTC) - timedelta(days=window_days)
-        recent_intents = await intents.list(since=window_start, limit=500)
+        # -- 1. CycleSource ------------------------------------------------
+        reasoning_path = Path.home() / ".coremind" / "reasoning.log"
+        persister = JsonlCyclePersister(reasoning_path)
+        cycle_source = CliCycleSource(persister)
 
-        # Parse actions directly from audit log
-        audit_path = _Path(config.audit_log_path)
-        audit_actions: list[dict] = []
-        if audit_path.exists():
-            with audit_path.open() as fh:
-                for line in fh:
-                    line = line.strip()
-                    if not line:
-                        continue
+        # -- 2. IntentSource -----------------------------------------------
+        intent_store = IntentStore(config.intent_store_path)
+        intent_source = CliIntentSource(intent_store)
+
+        # -- 3. ActionFeed ------------------------------------------------
+        from coremind.crypto.signatures import ensure_daemon_keypair
+
+        private = ensure_daemon_keypair()
+        public = private.public_key()
+        journal = ActionJournal(config.audit_log_path, private, public)
+        await journal.load()
+        action_feed = CliActionFeed(journal)
+
+        # -- 4. PredictionEvaluator ----------------------------------------
+        from coremind.world.store import WorldStore
+        from coremind.reflection.evaluator import EventHistorySource, ConditionResolver
+
+        class CliEventHistorySource:
+            """EventHistorySource that tries SurrealDB and falls back gracefully."""
+            def __init__(self) -> None:
+                self._store: WorldStore | None = None
+
+            async def events_in_window(
+                self,
+                after: datetime,
+                before: datetime,
+                limit: int = 1000,
+            ) -> list:
+                if self._store is None:
                     try:
-                        entry = _json.loads(line)
-                        if entry.get("timestamp", "") >= window_start.isoformat():
-                            if entry.get("kind") == "action":
-                                audit_actions.append(entry["payload"])
-                    except _json.JSONDecodeError:
-                        continue
+                        store = WorldStore(
+                            url=config.world_db_url,
+                            username=config.world_db_username,
+                            password=config.world_db_password,
+                            key_resolver=lambda _: None,
+                        )
+                        await store.connect()
+                        self._store = store
+                    except Exception:
+                        log.warning("reflect.surrealdb_unavailable", url=config.world_db_url)
+                        return []
+                try:
+                    return await self._store.events_in_window(
+                        after=after, before=before, limit=limit
+                    )
+                except Exception:
+                    log.warning("reflect.evidence_query_failed")
+                    return []
 
-        # ── summary stats ─────────────────────────────────────────
-        ok = sum(1 for a in audit_actions if a.get("result", {}).get("status") == "ok")
-        failed = sum(1 for a in audit_actions if a.get("result", {}).get("status") in ("permanent_failure", "transient_failure"))
-        no_eff = sum(1 for a in audit_actions if a.get("result", {}).get("message") == "no_effector")
+        class BasicConditionResolver:
+            """ConditionResolver that marks everything as undetermined
+            when no SurrealDB evidence is available."""
+            async def resolve(
+                self,
+                prediction: object,
+                evidence: list,
+            ) -> tuple[str, str]:
+                if not evidence:
+                    return ("undetermined", "no world evidence available (SurrealDB offline)")
+                return ("undetermined", f"{len(evidence)} evidence events; basic resolver")
 
-        click.echo()
-        click.echo(click.style("═══ CoreMind Weekly Reflection ═══", fg="green", bold=True))
-        click.echo(f"Window: {window_start.strftime('%Y-%m-%d %H:%M')} UTC → now")
-        click.echo()
-        click.echo(click.style("Actions", fg="yellow", bold=True))
-        click.echo(f"  Total dispatched:  {len(audit_actions)}")
-        click.echo(f"  Succeeded (ok):    {ok}")
-        click.echo(f"  Failed:            {failed}")
-        click.echo(f"  No effector:       {no_eff}")
-        click.echo()
-        click.echo(click.style("Intents", fg="yellow", bold=True))
-        click.echo(f"  Total generated:   {len(recent_intents)}")
-        for status in ("approved", "pending_approval", "auto_dismissed", "failed", "executing", "pending", "expired"):
-            count = sum(1 for i in recent_intents if i.status == status)
-            if count:
-                click.echo(f"  {status:20s} {count}")
+        eval_store = InMemoryPredictionEvaluationStore()
+        history: EventHistorySource = CliEventHistorySource()
+        resolver: ConditionResolver = BasicConditionResolver()
+        prediction_evaluator = PredictionEvaluatorImpl(
+            history=history,
+            resolver=resolver,
+            store=eval_store,
+        )
 
-        ops = _Counter(a.get("operation", "?") for a in audit_actions)
-        if ops:
-            click.echo()
-            click.echo(click.style("Operations", fg="yellow", bold=True))
-            for op, count in ops.most_common(10):
-                click.echo(f"  {op:50s} {count}")
+        # -- 5. FeedbackEvaluator ----------------------------------------
+        class CliFeedbackEvaluator:
+            """Evaluates actions against user feedback from intents."""
+            async def evaluate(
+                self,
+                actions: list,
+                intents: list,
+            ) -> FeedbackEvaluationResult:
+                approved = sum(1 for i in intents if i.status == "approved")
+                rejected = sum(
+                    1 for i in intents
+                    if i.status in ("rejected", "auto_dismissed")
+                )
+                dismissed = sum(1 for i in intents if i.status == "expired")
+                reversed_count = sum(
+                    1 for a in actions
+                    if a.result is not None and a.result.reversed_by_operation is not None
+                )
+                return FeedbackEvaluationResult(
+                    evaluated=len(actions),
+                    approved=approved,
+                    rejected=rejected,
+                    reversed=reversed_count,
+                    dismissed=dismissed,
+                )
+
+        feedback_evaluator: object = CliFeedbackEvaluator()
+
+        # -- 6. CalibrationUpdater ----------------------------------------
+        cal_store = InMemoryCalibrationStore()
+        calibration_updater = Calibrator(
+            eval_store=eval_store,
+            cal_store=cal_store,
+            layer="reasoning",
+        )
+
+        # -- 7. RuleLearner ------------------------------------------------
+        class EmptyRuleSource:
+            """RuleSource returning no active rules (CLI has no procedural memory)."""
+            async def list_active_rules(self):
+                return []
+
+        rule_learner = RuleLearnerImpl(
+            rule_source=EmptyRuleSource(),
+            ledger=InMemoryCandidateLedger(),
+            proposal_store=InMemoryRuleProposalStore(),
+        )
+
+        # -- 8. ReportProducer --------------------------------------------
+        report_producer = MarkdownReportProducer(
+            proposal_store=InMemoryRuleProposalStore(),
+        )
+
+        # -- Assemble and run ---------------------------------------------
+        loop = ReflectionLoop(
+            cycle_source=cycle_source,
+            intent_source=intent_source,
+            action_feed=action_feed,
+            prediction_evaluator=prediction_evaluator,
+            feedback_evaluator=feedback_evaluator,
+            calibration_updater=calibration_updater,
+            rule_learner=rule_learner,
+            report_producer=report_producer,
+            notifier=None,
+            config=ReflectionLoopConfig(
+                window_days=window_days,
+                notify_on_cycle=False,
+            ),
+        )
+
+        report = await loop.run_cycle()
+        click.echo()
+        click.echo(report.markdown)
 
     try:
         asyncio.run(_run())
     except Exception as exc:
-        click.echo(click.style(f"Reflection failed: {exc}", fg="red"))
+        click.echo(click.style(f"Reflection failed: {exc}", fg="red"), err=True)
+        import traceback
+        click.echo(traceback.format_exc(), err=True)
