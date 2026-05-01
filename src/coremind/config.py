@@ -106,7 +106,7 @@ class LLMLayerConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    model: str = "ollama/mistral-small3.2:24b"
+    model: str = "ollama/mistral-large-3:675b-cloud"
     max_tokens: int = Field(default=2048, ge=1)
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
 
