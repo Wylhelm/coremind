@@ -111,12 +111,33 @@ class LLMLayerConfig(BaseModel):
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
 
 
+class EmbeddingLLMConfig(BaseModel):
+    """Configuration for the embedding model.
+
+    Attributes:
+        model: Model name (e.g. ``nomic-embed-text``).
+        provider: Provider name (e.g. ``ollama``).
+        url: Base URL for the embedding provider API.
+        dimension: Expected vector dimensionality.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    model: str = "nomic-embed-text"
+    provider: str = "ollama"
+    url: str = "http://10.0.0.175:11434"
+    dimension: int = 768
+
+
 class LLMConfig(BaseModel):
     """LLM routing configuration for all cognitive layers."""
 
     model_config = ConfigDict(frozen=True)
 
     intention: LLMLayerConfig = Field(default_factory=LLMLayerConfig)
+    reasoning: LLMLayerConfig = Field(default_factory=LLMLayerConfig)
+    reflection: LLMLayerConfig = Field(default_factory=LLMLayerConfig)
+    embedding: EmbeddingLLMConfig = Field(default_factory=EmbeddingLLMConfig)
 
 
 class DaemonConfig(BaseModel):

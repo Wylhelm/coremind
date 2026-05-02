@@ -8,6 +8,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added (2026-05-02 — L4 & L7 Wiring)
+- **L4 Reasoning Loop activated** — generates patterns, anomalies, predictions from world snapshot every 30 minutes
+- **L7 Reflection Loop activated** — evaluates predictions, calibrates confidence, learns procedural rules every 24 hours
+- `QdrantVectorStore` — concrete `VectorStorePort` implementation wrapping `qdrant-client`
+- `BasicConditionResolver` — simple resolution for prediction evaluation (LLM-backed resolver planned)
+- `FeedbackEvaluatorImpl` — counts approved/rejected/reversed/dismissed intents and actions
+- `ReflectionNotifier` — delivers L7 Markdown reports via notification router
+- `EmptyRuleSource` — reusable no-op rule source for reflection bring-up
+- `GmailEffector` — queries Gmail via `gog gmail search --json` (replaces gmail-imap plugin)
+- `scripts/start-all.sh` — single command to start daemon + bridge + all 6 plugins
+- `[llm.embedding]` config section for `nomic-embed-text` via Ollama
+- Symlinks for `mcporter` and `gog` in `~/.local/bin` for plugin PATH resolution
+
+### Changed
+- **Intention filtering tightened**: `min_salience` 0.25→0.45, `min_confidence` 0.50→0.55
+- **Intention cadence**: 600s→3600s (10min→1h)
+- **Quiet hours enabled**: 23h-7h America/Toronto
+- **Calendar effector** fixed: `gog calendar list` → `gog calendar events --json`
+- **LLM model**: reasoning layer uses `ollama/mistral-large-3:675b-cloud` (was deepseek-v4-flash, server overload)
+- `ARCHITECTURE.md` updated to v0.2.0 with active L4/L7 timing and model details
+
+### Fixed
+- Plugin environment: `HA_TOKEN`, `FIREFLY_TOKEN`, `INFLUXDB_TOKEN` injected for homeassistant, firefly, health plugins
+- `OLLAMA_API_BASE` set to remote Ollama instance (10.0.0.175:11434) in start script
+- `mcporter` and `gog` CLI tools now accessible from CoreMind plugin context
+
 ### Added
 - OpenClaw adapter activated: Python bridge (`openclaw_side_bridge.py`) replaces TypeScript extension
 - G-Bot heartbeat integration: CoreMind notifications delivered via JSONL queue

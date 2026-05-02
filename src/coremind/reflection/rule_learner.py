@@ -298,6 +298,17 @@ class RuleSource(Protocol):
         ...
 
 
+class EmptyRuleSource:
+    """RuleSource returning no active rules.
+
+    Used when procedural memory is not yet wired (e.g. early bring-up).
+    Mirrors the pattern used in ``coremind.cli``.
+    """
+
+    async def list_active_rules(self) -> list[Rule]:  # type: ignore[no-untyped-def]
+        return []
+
+
 class CandidateLedger(Protocol):
     """Cross-window store of candidate stats.
 

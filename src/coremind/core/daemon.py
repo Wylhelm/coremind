@@ -25,6 +25,7 @@ from coremind.action.approvals import ApprovalGate
 from coremind.action.effectors import (
     CalendarEffector,
     EffectorRegistry,
+    GmailEffector,
     HomeAssistantEffector,
     NotificationEffector,
     VikunjaEffector,
@@ -50,6 +51,7 @@ from coremind.notify.router import NotificationRouter
 from coremind.plugin_host.registry import PluginRegistry
 from coremind.plugin_host.server import PluginHostServer
 from coremind.reasoning.llm import LLM, LayerConfig, LLMConfig
+from coremind.reasoning.loop import ReasoningLoop, ReasoningLoopConfig
 from coremind.reasoning.persistence import JsonlCyclePersister
 from coremind.world.model import WorldEventRecord
 from coremind.world.store import WorldStore
@@ -141,6 +143,8 @@ class CoreMindDaemon:
         self._approvals: ApprovalGate | None = None
         self._router: ActionRouter | None = None
         self._intention_loop: IntentionLoop | None = None
+        self._reasoning_loop: ReasoningLoop | None = None
+        self._reflection_loop: ReflectionLoop | None = None
         self._approval_expirer_task: asyncio.Task[None] | None = None
         self._approval_expirer_stop: asyncio.Event = asyncio.Event()
         self._approved_dispatcher_task: asyncio.Task[None] | None = None
@@ -283,6 +287,176 @@ class CoreMindDaemon:
                 interval_seconds=config.intention.interval_seconds,
             )
 
+            # ----------------------------------------------------------
+            # L4 — Reasoning Loop (30-minute cadence)
+            # ----------------------------------------------------------
+            reasoning_journal = config.audit_log_path.parent / "reasoning.log"
+            reasoning_config = ReasoningLoopConfig(
+                interval_seconds=1800,  # 30 minutes
+                layer="reasoning_heavy",
+            )
+            # Configure LLM layers for reasoning and reflection
+            if hasattr(config, "llm") and config.llm is not None:
+                if hasattr(config.llm, "reasoning") and config.llm.reasoning.model:
+                    llm_cfg.reasoning_heavy = LayerConfig(
+                        model=config.llm.reasoning.model,
+                        max_completion_tokens=getattr(config.llm.reasoning, "max_tokens", 2048),
+                    )
+                if hasattr(config.llm, "reflection") and config.llm.reflection.model:
+                    llm_cfg.reflection = LayerConfig(
+                        model=config.llm.reflection.model,
+                    )
+            # Re-create the LLM with the enriched config (now includes
+            # reasoning and reflection layers alongside intention).
+            llm_4 = LLM(llm_cfg)
+            reasoning_loop = ReasoningLoop(
+                snapshot_provider=world_store,
+                memory=None,  # Semantic memory will be added later
+                llm=llm_4,
+                persister=JsonlCyclePersister(reasoning_journal),
+                config=reasoning_config,
+            )
+            reasoning_loop.start()
+            self._reasoning_loop = reasoning_loop
+            log.info(
+                "daemon.reasoning_loop_started",
+                interval_seconds=1800,
+            )
+
+            # ----------------------------------------------------------
+            # L7 — Reflection Loop (24-hour cadence)
+            # ----------------------------------------------------------
+            from coremind.reflection.evaluator import (  # noqa: PLC0415
+                BasicConditionResolver,
+                PredictionEvaluatorImpl,
+            )
+            from coremind.reflection.feedback import (  # noqa: PLC0415
+                FeedbackEvaluatorImpl,
+            )
+            from coremind.reflection.calibration import (  # noqa: PLC0415
+                Calibrator,
+            )
+            from coremind.reflection.rule_learner import (  # noqa: PLC0415
+                InMemoryCandidateLedger,
+                InMemoryRuleProposalStore,
+                RuleLearnerImpl,
+            )
+            from coremind.reflection.report import (  # noqa: PLC0415
+                MarkdownReportProducer,
+            )
+            from coremind.reflection.loop import (  # noqa: PLC0415
+                ReflectionLoop,
+                ReflectionLoopConfig,
+            )
+            from coremind.reflection.store import (  # noqa: PLC0415
+                SurrealReflectionStore,
+            )
+
+            # Try SurrealDB-backed reflection store; fall back to
+            # in-memory stores if SurrealDB is unavailable.
+            reflection_store_ok = False
+            try:
+                reflection_store = SurrealReflectionStore(
+                    url=config.world_db_url,
+                    username=config.world_db_username,
+                    password=config.world_db_password,
+                )
+                await reflection_store.connect()
+                await reflection_store.apply_schema()
+                reflection_store_ok = True
+            except Exception as exc:
+                log.warning(
+                    "daemon.reflection_store_unavailable",
+                    detail="SurrealDB not available for reflection store; "
+                    "falling back to in-memory stores. Reflection data "
+                    "will not persist across restarts.",
+                    error=str(exc),
+                )
+                reflection_store = None  # type: ignore[assignment]
+
+            # Build prediction evaluator with BasicConditionResolver
+            # Build calibration updater
+            # (shared in-memory stores for the fallback case)
+            from coremind.reflection.evaluator import (  # noqa: PLC0415
+                InMemoryPredictionEvaluationStore,
+            )
+            from coremind.reflection.calibration import (  # noqa: PLC0415
+                InMemoryCalibrationStore,
+            )
+            _in_memory_eval_store = InMemoryPredictionEvaluationStore()
+            _in_memory_cal_store = InMemoryCalibrationStore()
+
+            if reflection_store_ok:
+                prediction_evaluator = PredictionEvaluatorImpl(
+                    history=world_store,
+                    resolver=BasicConditionResolver(),
+                    store=reflection_store.predictions(),  # type: ignore[union-attr]
+                )
+                calibration_updater = Calibrator(
+                    eval_store=reflection_store.predictions(),  # type: ignore[union-attr]
+                    cal_store=reflection_store.calibration(),  # type: ignore[union-attr]
+                    layer="reasoning",
+                )
+            else:
+                prediction_evaluator = PredictionEvaluatorImpl(
+                    history=world_store,
+                    resolver=BasicConditionResolver(),
+                    store=_in_memory_eval_store,
+                )
+                calibration_updater = Calibrator(
+                    eval_store=_in_memory_eval_store,
+                    cal_store=_in_memory_cal_store,
+                    layer="reasoning",
+                )
+
+            # Build feedback evaluator
+            feedback_evaluator = FeedbackEvaluatorImpl()
+
+            # Build rule learner with in-memory stores (ProceduralMemory
+            # wiring is a follow-up).
+            from coremind.reflection.rule_learner import (  # noqa: PLC0415
+                EmptyRuleSource,
+            )
+
+            rule_learner = RuleLearnerImpl(
+                rule_source=EmptyRuleSource(),
+                ledger=InMemoryCandidateLedger(),
+                proposal_store=InMemoryRuleProposalStore(),
+            )
+
+            # Build report producer
+            report_producer = MarkdownReportProducer(
+                proposal_store=InMemoryRuleProposalStore(),
+            )
+
+            # Build reflection notifier (sends reports via Telegram/dashboard)
+            from coremind.reflection.notify import (  # noqa: PLC0415
+                ReflectionNotifier,
+            )
+            reflection_notifier = ReflectionNotifier(
+                port=notify_router,
+            )
+
+            reflection_loop = ReflectionLoop(
+                cycle_source=JsonlCyclePersister(reasoning_journal),
+                intent_source=intents,
+                action_feed=journal,
+                prediction_evaluator=prediction_evaluator,
+                feedback_evaluator=feedback_evaluator,
+                calibration_updater=calibration_updater,
+                rule_learner=rule_learner,
+                report_producer=report_producer,
+                notifier=reflection_notifier,
+                config=ReflectionLoopConfig(
+                    interval_seconds=86400,  # 24 hours
+                    window_days=1,
+                    notify_on_cycle=True,
+                ),
+            )
+            reflection_loop.start()
+            self._reflection_loop = reflection_loop
+            log.info("daemon.reflection_loop_started")
+
         if config.dashboard.enabled:
             dashboard_server = await _start_dashboard(
                 config=config.dashboard,
@@ -311,6 +485,14 @@ class CoreMindDaemon:
         if self._intention_loop is not None:
             await self._intention_loop.stop()
             self._intention_loop = None
+
+        if self._reasoning_loop is not None:
+            await self._reasoning_loop.stop()
+            self._reasoning_loop = None
+
+        if self._reflection_loop is not None:
+            await self._reflection_loop.stop()
+            self._reflection_loop = None
 
         if self._dashboard_server is not None:
             await self._dashboard_server.stop()
@@ -608,6 +790,16 @@ def _build_effector_registry(
             "coremind.plugin.vikunja.get_tasks",
         ],
         vikunja,
+    )
+
+    # Gmail effector (via gog CLI)
+    gmail = GmailEffector()
+    registry.register_many(
+        [
+            "coremind.plugin.gmail.fetch_unread",
+            "coremind.plugin.gmail.search_emails",
+        ],
+        gmail,
     )
 
     # Calendar effector (Google Calendar via gog)

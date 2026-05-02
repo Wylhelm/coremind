@@ -211,6 +211,60 @@ class InMemoryPredictionEvaluationStore:
 
 
 # ---------------------------------------------------------------------------
+# BasicConditionResolver — simple logic-level resolver
+# ---------------------------------------------------------------------------
+
+
+class BasicConditionResolver(ConditionResolver):
+    """Simple condition resolver that returns "undetermined" for all
+    predictions until an LLM-backed resolver is wired in.
+
+    If evidence is non-empty and the prediction has a ``falsifiable_by``
+    that is a non-empty string, the resolver returns ``"undetermined"``
+    with a count of events.  Otherwise it also returns ``"undetermined"``
+    with "no evidence".
+
+    This resolver is a placeholder for Phase 4's LLM-backed resolver.
+    It never returns ``"correct"`` or ``"wrong"`` — all predictions
+    remain ``"undetermined"`` until the horizon elapses or a smarter
+    resolver is plugged in.
+    """
+
+    async def resolve(
+        self,
+        prediction: Prediction,
+        evidence: Sequence[WorldEventRecord],
+    ) -> tuple[Verdict, str]:
+        """Resolve a prediction against evidence.
+
+        Args:
+            prediction: The prediction to evaluate.
+            evidence: Events observed within the prediction's horizon.
+
+        Returns:
+            A tuple of ``(verdict, rationale)``.  Currently always
+            returns ``("undetermined", ...)``.
+        """
+        if not evidence:
+            return ("undetermined", "no evidence available")
+
+        # If the prediction has no falsifiable_by condition, we cannot
+        # determine success or failure.
+        falsifiable_by = (prediction.falsifiable_by or "").strip()
+        if not falsifiable_by:
+            return ("undetermined", f"{len(evidence)} events observed, "
+                                    "but no falsifiable condition defined")
+
+        # TODO: wire an LLM-backed resolver that interprets the
+        # falsifiable_by condition against the evidence.
+        return (
+            "undetermined",
+            f"{len(evidence)} events in horizon, "
+            f"resolution pending LLM-backed resolver",
+        )
+
+
+# ---------------------------------------------------------------------------
 # Concrete evaluator
 # ---------------------------------------------------------------------------
 

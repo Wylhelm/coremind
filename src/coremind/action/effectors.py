@@ -589,6 +589,87 @@ class VikunjaEffector:
 
 
 # ===================================================================
+# Gmail effector (via gog CLI)
+# ===================================================================
+
+
+class GmailEffector:
+    """Queries Gmail via the ``gog`` CLI.
+
+    Operations: ``fetch_unread``, ``search_emails``
+
+    Parameter aliases: max_results / limit / count, query / q / search
+    """
+
+    async def invoke(self, action: Action) -> ActionResult:
+        params = dict(action.parameters)
+
+        query = params.get("query") or params.get("q") or params.get("search") or "is:unread"
+        max_results = max(
+            1,
+            min(20, (
+                params.get("max_results")
+                or params.get("limit")
+                or params.get("count")
+                or 5
+            )),
+        )
+
+        cmd = ["gog", "gmail", "search", "--json", f"--max={max_results}", query]
+
+        try:
+            cp = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        except FileNotFoundError:
+            return ActionResult(
+                action_id=action.id,
+                status="transient_failure",
+                message="gog CLI not installed — email queries unavailable",
+                completed_at=datetime.now(UTC),
+            )
+        except subprocess.TimeoutExpired:
+            return ActionResult(
+                action_id=action.id,
+                status="transient_failure",
+                message="email query timed out",
+                completed_at=datetime.now(UTC),
+            )
+        except Exception as exc:
+            return ActionResult(
+                action_id=action.id,
+                status="transient_failure",
+                message=f"email query failed: {exc}",
+                completed_at=datetime.now(UTC),
+            )
+
+        if cp.returncode != 0:
+            return ActionResult(
+                action_id=action.id,
+                status="transient_failure",
+                message=f"gog exited {cp.returncode}: {cp.stderr[:200]}",
+                completed_at=datetime.now(UTC),
+            )
+
+        try:
+            data = json.loads(cp.stdout)
+            threads = _normalize_gog_threads(data.get("threads", []))
+        except json.JSONDecodeError as exc:
+            return ActionResult(
+                action_id=action.id,
+                status="transient_failure",
+                message=f"failed to parse gog JSON: {exc}",
+                completed_at=datetime.now(UTC),
+            )
+
+        return ActionResult(
+            action_id=action.id,
+            status="ok",
+            message=f"retrieved {len(threads)} email threads",
+            output={"threads": threads, "total": len(threads)},
+            completed_at=datetime.now(UTC),
+        )
+
+
+# ===================================================================
 # Calendar effector
 # ===================================================================
 
@@ -614,11 +695,15 @@ class CalendarEffector:
             )),
         )
 
+        days = params.get("days")
+        cmd = ["gog", "calendar", "events", "--json", f"--max={max_results}"]
+        if days:
+            cmd.append(f"--days={days}")
+        else:
+            cmd.append("--days=7")
+
         try:
-            cp = subprocess.run(
-                ["gog", "calendar", "list", f"--limit={max_results}"],
-                capture_output=True, text=True, timeout=30,
-            )
+            cp = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         except FileNotFoundError:
             return ActionResult(
                 action_id=action.id,
@@ -649,7 +734,17 @@ class CalendarEffector:
                 completed_at=datetime.now(UTC),
             )
 
-        events = _parse_gog_table(cp.stdout)
+        try:
+            data = json.loads(cp.stdout)
+            events = _normalize_gog_events(data.get("events", []))
+        except json.JSONDecodeError as exc:
+            return ActionResult(
+                action_id=action.id,
+                status="transient_failure",
+                message=f"failed to parse calendar JSON: {exc}",
+                completed_at=datetime.now(UTC),
+            )
+
         return ActionResult(
             action_id=action.id,
             status="ok",
@@ -659,7 +754,37 @@ class CalendarEffector:
         )
 
 
+def _normalize_gog_threads(raw_threads: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Normalize gog JSON email threads into the standard effector output format."""
+    threads: list[dict[str, Any]] = []
+    for t in raw_threads:
+        threads.append({
+            "id": t.get("id", ""),
+            "subject": t.get("subject", "(no subject)"),
+            "from": t.get("from", ""),
+            "date": t.get("date", ""),
+            "labels": t.get("labels", []),
+            "messageCount": t.get("messageCount", 1),
+        })
+    return threads
+
+
+def _normalize_gog_events(raw_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Normalize gog JSON events into the standard effector output format."""
+    events: list[dict[str, Any]] = []
+    for ev in raw_events:
+        events.append({
+            "title": ev.get("summary", ev.get("subject", "(untitled)")),
+            "start": ev.get("start", {}).get("dateTime", ev.get("start", {}).get("date", "")),
+            "end": ev.get("end", {}).get("dateTime", ev.get("end", {}).get("date", "")),
+            "status": ev.get("status", ""),
+            "id": ev.get("id", ""),
+        })
+    return events
+
+
 def _parse_gog_table(stdout: str) -> list[dict[str, Any]]:
+    """Legacy parser for pre-JSON gog output. Kept for reference."""
     events: list[dict[str, Any]] = []
     for line in stdout.strip().split("\n"):
         line = line.strip()

@@ -1,7 +1,7 @@
 # CoreMind — Technical Architecture
 
-**Version:** 0.1 (Design)
-**Status:** Implemented — v0.1.0 feature-complete
+**Version:** 0.2.0 (Active)
+**Status:** All 7 layers active — L4 & L7 wired 2026-05-02
 **Audience:** Contributors, implementers, coding agents
 
 ---
@@ -110,13 +110,14 @@ Information flows primarily L1 → L7. Reflection (L7) produces updates that fee
 
 This keeps the system provably non-chaotic: reasoning cannot directly rewrite perception.
 
-### 2.3 Timing Model
+### 2.3 Timing Model (Active Configuration)
 
-CoreMind runs on three distinct clocks:
+CoreMind runs on **four** distinct clocks:
 
 - **Perception loop (L1 → L2):** event-driven, sub-second latency.
-- **Reasoning loop (L2 → L5):** periodic, 1–15 minute cadence, triggered by significant-event heuristics or timer.
-- **Reflection loop (L7):** periodic, daily → weekly, heavy compute.
+- **Reasoning loop (L4):** periodic, **30 minutes** — generates patterns, anomalies, predictions from world snapshot.
+- **Intention loop (L5):** periodic, **1 hour** (configurable) — generates intents filtered by salience (≥0.45) and confidence (≥0.55).
+- **Reflection loop (L7):** periodic, **24 hours** — evaluates predictions, calibrates confidence, learns procedural rules.
 
 ---
 
@@ -169,9 +170,11 @@ CoreMind runs on three distinct clocks:
 
 **Compression:** L3 is where compression happens. Raw events age out of L2 into L3 summaries. The working graph never grows unbounded.
 
-### 3.4 L4 — Reasoning
+### 3.4 L4 — Reasoning ✅ ACTIVE (30-min cadence)
 
 **Responsibility:** Given a snapshot of the World Model + relevant memory, produce structured interpretations.
+
+**Status:** Wired into the daemon since 2026-05-02. Runs every 30 minutes against `ollama/mistral-large-3:675b-cloud`. Outputs written to `reasoning.log` JSONL journal, consumed by L5 and L7.
 
 **Input contract:**
 ```json
@@ -260,11 +263,13 @@ All actions — even at high confidence — trigger the approval gate if they to
 }
 ```
 
-### 3.7 L7 — Reflection
+### 3.7 L7 — Reflection ✅ ACTIVE (24h cadence)
 
-**Responsibility:** Meta-cognition. Periodically evaluate the system's own effectiveness and update its behavior.
+**Responsibility:** Meta-cognition. Evaluate the system's own effectiveness and update its behavior.
 
-**Weekly questions:**
+**Status:** Wired into the daemon since 2026-05-02. Runs every 24 hours. Evaluates predictions from L4 against reality, calibrates model confidence, and learns procedural rules from outcomes. Produces a Markdown report delivered via Telegram.
+
+**Daily questions:**
 - Which predictions from L4 materialized? Which didn't?
 - Which intents from L5 got executed? Which were dismissed by the user?
 - Which patterns did I miss?
@@ -570,12 +575,11 @@ Switching from local GLM to remote Claude Opus is a one-line config change.
 
 Different layers can use different models:
 
-| Layer | Typical model class | Rationale |
+| Layer | Active Model | Cadence |
 |---|---|---|
-| L4 Reasoning (heavy) | Claude Opus / GLM-5 | Needs strong reasoning, runs every 15 min |
-| L4 Reasoning (fast) | Ollama Gemma / Llama 3.3 | Light patterns, every event |
-| L5 Intention | Claude Opus / GPT-4o | Quality > speed, deep prompting |
-| L7 Reflection | Claude Opus / local Qwen 2.5 72B | Once a week, budget allows heavy |
+| L4 Reasoning | `ollama/mistral-large-3:675b-cloud` | 30 min — patterns, anomalies, predictions |
+| L5 Intention | `ollama/mistral-large-3:675b-cloud` | 1h — filtered by salience ≥0.45 |
+| L7 Reflection | `ollama/mistral-large-3:675b-cloud` | 24h — evaluates predictions + learns rules |
 
 ### 8.3 Structured Outputs
 

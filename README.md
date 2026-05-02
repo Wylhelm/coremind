@@ -65,19 +65,15 @@ CoreMind is not:
 
 ## Project status
 
-✅ **v0.1.0 feature-complete** — all roadmap phases delivered. See [`CHANGELOG.md`](CHANGELOG.md).
+✅ **v0.2.0 — All 7 layers active** (2026-05-02). See [`CHANGELOG.md`](CHANGELOG.md).
 
-- [x] Conceptual architecture validated
-- [x] Executive summary written → [`docs/EXECUTIVE_SUMMARY.md`](docs/EXECUTIVE_SUMMARY.md)
-- [x] Detailed architecture written → [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
-- [x] Phase-by-phase implementation guide → [`docs/phases/`](docs/phases/)
-- [x] Integrations strategy → [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md)
-- [x] Phase 0: Foundation & specs
-- [x] Phase 1: Core daemon + World Model
-- [x] Phase 2: Memory + Reasoning
-- [x] Phase 2.5: OpenClaw adapter *(optional)*
-- [x] Phase 3: Intention + Action
-- [x] Phase 4: Reflection + ecosystem
+- [x] All 7 cognitive layers operational
+- [x] L4 Reasoning loop generating patterns, anomalies, predictions (30-min cadence)
+- [x] L7 Reflection loop evaluating outcomes + learning rules (24h cadence)
+- [x] 7 production plugins: weather, homeassistant, firefly, health, vikunja, email, calendar
+- [x] Gog-powered email (gog gmail) and calendar (gog calendar) effectors
+- [x] Gmail effector replacing the gmail-imap plugin
+- [x] Quiet hours (23h-7h America/Toronto) + intent filtering (salience ≥0.45)
 
 ---
 
