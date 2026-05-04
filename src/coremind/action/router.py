@@ -95,5 +95,8 @@ class ActionRouter:
         if intent.category == "suggest":
             await self._executor.execute_with_grace(intent)
             return
+        if intent.category == "conversation":
+            await self._executor.start_conversation(intent)
+            return
         # ask
         await self._approvals.request(intent)

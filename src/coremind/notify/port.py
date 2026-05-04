@@ -23,7 +23,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
-type NotificationCategory = Literal["info", "suggest", "ask"]
+type NotificationCategory = Literal["info", "suggest", "ask", "conversation"]
 
 
 class ApprovalAction(BaseModel):

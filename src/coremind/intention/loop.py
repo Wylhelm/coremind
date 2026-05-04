@@ -285,6 +285,9 @@ class IntentionLoop:
                 confidence,
                 raw.proposed_action.action_class if raw.proposed_action else None,
             )
+            # High-salience suggests become conversation openers
+            if category == "suggest" and salience >= 0.70:
+                category = "conversation"
             intent = Intent(
                 id=uuid.uuid4().hex,
                 created_at=now,

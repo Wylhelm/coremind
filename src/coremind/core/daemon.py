@@ -262,11 +262,8 @@ class CoreMindDaemon:
             name="coremind.approvals.dispatcher",
         )
 
-        self._response_listener_stop = asyncio.Event()
-        self._response_listener_task = asyncio.create_task(
-            self._response_listener_loop(notify_router, approvals),
-            name="coremind.approvals.listener",
-        )
+        # Response listener REMOVED — merged into _conversation_listener_loop
+        # which uses subscribe_all() to avoid poll_offset race.
 
         if config.intention.enabled:
             reasoning_journal = config.audit_log_path.parent / "reasoning.log"
@@ -356,11 +353,11 @@ class CoreMindDaemon:
             self._conversation_handler = ConversationHandler(
                 llm=llm_4,
                 store=conv_store,
-                get_narrative=lambda: narrative_memory.current_text() if narrative_memory else "",
+                get_narrative=lambda: narrative_memory._render_for_prompt() if narrative_memory else "",
             )
             self._conversation_listener_stop = asyncio.Event()
             self._conversation_listener_task = asyncio.create_task(
-                self._conversation_listener_loop(notify_router, self._conversation_handler),
+                self._conversation_listener_loop(notify_router, self._conversation_handler, approvals),
                 name="coremind.conversation.listener",
             )
             log.info("daemon.conversation_handler_started")
@@ -759,45 +756,54 @@ class CoreMindDaemon:
         self,
         notify_router: NotificationRouter,
         conversation_handler: ConversationHandler,
+        approvals,
     ) -> None:
-        """Listen for text messages and route them to the conversation handler.
+        """Single Telegram listener: dispatches both text messages AND approval responses.
 
-        Text messages arriving via Telegram (and eventually other channels)
-        are forwarded to the ConversationHandler, which generates an LLM
-        response and sends it back through the notification router.
-
-        Runs until cancelled or :attr:`_conversation_listener_stop` is set.
+        Uses subscribe_all() to avoid poll_offset race between the old
+        response_listener and conversation_listener.
         """
-        # Find the Telegram port from the router's ports
+        from coremind.conversation.schemas import InboundTextMessage
+
+        # Find the Telegram port
         telegram_port = None
         for port in [notify_router._primary] + notify_router._fallbacks:
-            if hasattr(port, "subscribe_text_messages"):
+            if hasattr(port, "subscribe_all"):
                 telegram_port = port
                 break
 
         if telegram_port is None:
-            log.warning("conversation.no_text_port_found")
+            log.warning("conversation.no_telegram_port_found")
             return
 
-        async for text_msg in telegram_port.subscribe_text_messages():
+        async for update in telegram_port.subscribe_all():
             if self._conversation_listener_stop.is_set():
                 break
             try:
-                response_text, _conv = await conversation_handler.handle_message(
-                    text_msg.text,
-                    conversation_id=text_msg.conversation_id,
-                    user_id=text_msg.responder,
-                )
-                # Send the response back through the notification router
-                await notify_router.notify(
-                    message=response_text,
-                    category="info",
-                )
+                if isinstance(update, InboundTextMessage):
+                    # Text message → conversation handler
+                    response_text, _conv = await conversation_handler.handle_message(
+                        update.text,
+                        conversation_id=update.conversation_id,
+                        user_id=update.responder,
+                    )
+                    await notify_router.notify(
+                        message=response_text,
+                        category="info",
+                        actions=None,
+                        intent_id=None,
+                    )
+                else:
+                    # ApprovalResponse → approval gate
+                    try:
+                        await approvals.handle_response(update)
+                    except Exception:
+                        log.exception(
+                            "approvals.handle_response_failed",
+                            intent_id=update.intent_id,
+                        )
             except Exception:
-                log.exception(
-                    "conversation.handle_message_failed",
-                    responder=text_msg.responder,
-                )
+                log.exception("conversation.listener_error")
 
     async def _approved_dispatcher_loop(self, approvals: ApprovalGate) -> None:
         """Periodically dispatch intents that have been approved.

@@ -2,6 +2,8 @@
 # Captures snapshots from Tapo C225 via RTSP every 5 min and emits WorldEvents
 
 import asyncio
+import base64
+import json
 import os
 import subprocess
 import tomllib
@@ -36,7 +38,13 @@ TAPO_PASSWORD: str = os.environ.get("TAPO_PASSWORD", "")
 RTSP_PORT: int = 554
 STREAM_PATH: str = "/stream1"
 
+# Gemini Vision API
+GEMINI_API_KEY: str = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_VISION_MODEL: str = "gemini-2.5-flash"
+VISION_ENABLED: bool = True  # Set to False to disable vision analysis
+
 CONFIDENCE: float = 0.85
+CONFIDENCE_VISION: float = 0.75  # Lower confidence for vision analysis
 
 
 def load_config() -> dict:
@@ -86,6 +94,7 @@ def build_signed_event(
     attribute: str,
     value: float | str | bool,
     unit: str | None = None,
+    confidence: float = CONFIDENCE,
 ) -> plugin_pb2.WorldEvent:
     event_id = uuid.uuid4().hex
     ts = _make_timestamp(datetime.now(UTC))
@@ -107,7 +116,7 @@ def build_signed_event(
         entity=plugin_pb2.EntityRef(type="camera", entity_id="tapo_living_room"),
         attribute=attribute,
         value=pb_value,
-        confidence=CONFIDENCE,
+        confidence=confidence,
     )
     if unit:
         unsigned.unit = unit
@@ -117,6 +126,59 @@ def build_signed_event(
     payload = canonical_json(unsigned_dict)
     unsigned.signature = sign(payload, private_key)
     return unsigned
+
+
+async def analyze_image_gemini(image_path: Path) -> dict[str, str | bool]:
+    """Analyze a snapshot using Gemini Vision API.
+
+    Returns a dict with vision attributes or empty dict on failure.
+    """
+    if not GEMINI_API_KEY:
+        return {}
+
+    try:
+        image_bytes = image_path.read_bytes()
+        image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+
+        prompt = (
+            "Describe this room in JSON: "
+            '{"person_present": true/false, "activity": "what person is doing, or empty room"}'
+        )
+
+        url = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{GEMINI_VISION_MODEL}:generateContent?key={GEMINI_API_KEY}"
+        )
+        payload = {
+            "contents": [{
+                "parts": [
+                    {"text": prompt},
+                    {"inline_data": {"mime_type": "image/jpeg", "data": image_b64}},
+                ]
+            }],
+            "generationConfig": {"maxOutputTokens": 300, "temperature": 0.1},
+        }
+
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                if resp.status != 200:
+                    log.warning("tapo.vision_api_error", status=resp.status)
+                    return {}
+                data = await resp.json()
+
+        text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+        # Extract JSON from response
+        start = text.find("{")
+        end = text.rfind("}") + 1
+        if start >= 0 and end > start:
+            result = json.loads(text[start:end])
+            log.info("tapo.vision_analysis", result=result)
+            return result
+        return {}
+    except Exception as exc:
+        log.warning("tapo.vision_failed", error=str(exc))
+        return {}
 
 
 async def run() -> None:
@@ -176,6 +238,24 @@ async def run() -> None:
                     pass
 
             log.info("tapo.snapshot_captured", success=success, size=size_bytes)
+
+            # Vision analysis via Gemini
+            if success and VISION_ENABLED:
+                vision = await analyze_image_gemini(snap_path)
+                if vision:
+                    for attr, val in vision.items():
+                        event_v = build_signed_event(
+                            private_key,
+                            attribute=attr,
+                            value=val,
+                            confidence=CONFIDENCE_VISION,
+                        )
+                        try:
+                            await stub.EmitEvent(event_v, metadata=metadata)
+                            log.info("tapo.vision_emitted", attribute=attr, value=val)
+                        except grpc.RpcError:
+                            pass
+
             await asyncio.sleep(interval)
 
 

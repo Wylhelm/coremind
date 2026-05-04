@@ -129,53 +129,41 @@ class TelegramNotificationPort:
             sent_at=datetime.now(UTC),
         )
 
-    async def subscribe_responses(self) -> AsyncIterator[ApprovalResponse]:
-        """Yield approval responses collected via ``getUpdates`` long-polling."""
+    async def subscribe_all(
+        self,
+    ) -> AsyncIterator[ApprovalResponse | InboundTextMessage]:
+        """Yield ALL updates — both approval responses and text messages.
+
+        Uses a SINGLE getUpdates long-poll so callbacks and text messages
+        don't race on the shared poll_offset.
+        """
         while True:
-            params: dict[str, Any] = {"timeout": 25}
+            params: dict[str, Any] = {"timeout": 25, "allowed_updates": ["message", "callback_query"]}
             if self._poll_offset is not None:
                 params["offset"] = self._poll_offset
 
             try:
                 data = await self._call("getUpdates", params)
             except NotificationError:
-                # Brief back-off so a stuck network does not pin the loop.
                 await asyncio.sleep(5.0)
                 continue
 
             for update in data.get("result", []):
                 self._poll_offset = int(update["update_id"]) + 1
+
+                # 1) Callback queries (approval buttons)
                 cq_id = _callback_query_id(update)
                 response = _update_to_response(update, resolve_token=self._token_to_intent.get)
                 if response is not None:
-                    # Acknowledge the callback so the button stops spinning.
                     if cq_id is not None:
                         await self._answer_callback(cq_id, response.decision)
                     yield response
-                elif cq_id is not None:
-                    # Callback on a non-ask message (stale/unknown) — still
-                    # dismiss the spinner so it doesn't hang forever.
+                    continue
+                if cq_id is not None:
                     await self._answer_callback(cq_id, "unknown")
+                    continue
 
-    async def subscribe_text_messages(self) -> AsyncIterator[InboundTextMessage]:
-        """Yield text messages from the user via ``getUpdates`` long-polling.
-
-        Separate from ``subscribe_responses()`` so plain-text messages
-        route to ConversationHandler, not the ApprovalGate.
-        """
-        while True:
-            params: dict[str, Any] = {"timeout": 25, "allowed_updates": ["message"]}
-            if self._poll_offset is not None:
-                params["offset"] = self._poll_offset
-
-            try:
-                data = await self._call("getUpdates", params)
-            except NotificationError:
-                await asyncio.sleep(5.0)
-                continue
-
-            for update in data.get("result", []):
-                self._poll_offset = int(update["update_id"]) + 1
+                # 2) Text messages
                 msg = update.get("message")
                 if msg is None:
                     continue

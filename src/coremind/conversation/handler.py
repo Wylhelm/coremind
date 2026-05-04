@@ -198,13 +198,11 @@ class ConversationHandler:
         try:
             from pydantic import BaseModel, Field
 
-            from coremind.reasoning.llm import Layer
-
             class TextResponse(BaseModel):
                 response: str = Field(min_length=1)
 
             result = await self._llm.complete_structured(
-                layer=Layer.REASONING_LIGHT,
+                layer="reasoning_fast",
                 system=CONVERSATION_SYSTEM_PROMPT,
                 user=prompt,
                 response_model=TextResponse,

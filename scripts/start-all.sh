@@ -9,6 +9,10 @@ COREMIND_VENV=$COREMIND_HOME/.venv/bin
 export OLLAMA_API_BASE="http://10.0.0.175:11434"
 
 # --- Secrets ---
+export COREMIND_TELEGRAM_BOT_TOKEN=$(cat /home/guillaume/.coremind/secrets/telegram_bot_token)
+export TAPO_USERNAME=$(cat /home/guillaume/.coremind/secrets/camera_username 2>/dev/null || echo 'admin')
+export TAPO_PASSWORD=$(cat /home/guillaume/.coremind/secrets/camera_password 2>/dev/null || echo '')
+export GEMINI_API_KEY=$(python3 -c "import json; c=json.load(open('$HOME/.opencode/config.json')); print(c['providers']['google']['apiKey'])" 2>/dev/null || echo '')
 export HA_TOKEN=$(cat /home/guillaume/.openclaw/secrets/ha-token)
 export FIREFLY_URL="http://localhost:8080"
 export FIREFLY_TOKEN=$(cat /home/guillaume/.openclaw/secrets/firefly-token)

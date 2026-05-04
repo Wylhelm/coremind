@@ -163,6 +163,29 @@ class Executor:
         )
         return action
 
+    async def start_conversation(self, intent: Intent) -> str | None:
+        """Open a conversation about this intent — no buttons, no grace window.
+
+        Sends the intent as an open-ended message inviting a text response.
+        The conversation handler will link the user's reply to this intent_id.
+
+        Returns:
+            The conversation_id if sent, None if no notification port.
+        """
+        if self._notify is None:
+            return None
+        await self._intents.save(intent)
+        conv_id = f"conv_{intent.id[:20]}"
+        message = _format_conversation(intent)
+        await self._notify.notify(
+            message=message,
+            category="conversation",
+            actions=None,
+            intent_id=intent.id,
+        )
+        log.info("executor.conversation_started", intent_id=intent.id, conv_id=conv_id)
+        return conv_id
+
     async def execute_with_grace(
         self,
         intent: Intent,
@@ -363,6 +386,15 @@ def _build_action(intent: Intent, now: datetime) -> Action:
         reversal=proposal.reversal,
         confidence=intent.confidence,
     )
+
+
+def _format_conversation(intent: Intent) -> str:
+    """Render an intent as an open-ended conversation starter."""
+    text = intent.question.text
+    proposal = intent.proposed_action
+    if proposal and proposal.expected_outcome:
+        text += f"\n\n{proposal.expected_outcome}"
+    return text
 
 
 def _format_suggest(intent: Intent, grace_seconds: int) -> str:
