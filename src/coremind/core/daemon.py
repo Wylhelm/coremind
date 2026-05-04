@@ -13,6 +13,7 @@ logic lives here.
 from __future__ import annotations
 
 import asyncio
+import json
 import contextlib
 import os
 import signal
@@ -55,6 +56,7 @@ from coremind.reasoning.loop import ReasoningLoop, ReasoningLoopConfig
 from coremind.reasoning.persistence import JsonlCyclePersister
 from coremind.world.model import WorldEventRecord
 from coremind.world.store import WorldStore
+from coremind.memory.procedural import ProceduralMemory
 
 log = structlog.get_logger(__name__)
 
@@ -145,6 +147,7 @@ class CoreMindDaemon:
         self._intention_loop: IntentionLoop | None = None
         self._reasoning_loop: ReasoningLoop | None = None
         self._reflection_loop: ReflectionLoop | None = None
+        self._anomaly_checker_task: asyncio.Task | None = None
         self._approval_expirer_task: asyncio.Task[None] | None = None
         self._approval_expirer_stop: asyncio.Event = asyncio.Event()
         self._approved_dispatcher_task: asyncio.Task[None] | None = None
@@ -309,9 +312,23 @@ class CoreMindDaemon:
             # Re-create the LLM with the enriched config (now includes
             # reasoning and reflection layers alongside intention).
             llm_4 = LLM(llm_cfg)
+# Create semantic memory (Qdrant + Ollama embeddings)
+            from coremind.memory.qdrant_store import QdrantVectorStore
+            from coremind.memory.semantic import SemanticMemory
+            from coremind.memory.embeddings import OllamaEmbedder
+            try:
+                embedder = OllamaEmbedder(endpoint="http://10.0.0.175:11434", model="nomic-embed-text")
+                qdrant_store = QdrantVectorStore()
+                semantic_memory = SemanticMemory(qdrant_store, embedder, vector_size=384)
+                await semantic_memory.initialise()
+                log.info("daemon.semantic_memory_initialised")
+            except Exception as exc:
+                log.warning("daemon.semantic_memory_unavailable", error=str(exc))
+                semantic_memory = None
+
             reasoning_loop = ReasoningLoop(
                 snapshot_provider=world_store,
-                memory=None,  # Semantic memory will be added later
+                memory=semantic_memory,
                 llm=llm_4,
                 persister=JsonlCyclePersister(reasoning_journal),
                 config=reasoning_config,
@@ -321,6 +338,47 @@ class CoreMindDaemon:
             log.info(
                 "daemon.reasoning_loop_started",
                 interval_seconds=1800,
+            )
+
+            # Schedule anomaly alert checker — runs 5s after each reasoning
+            # cycle to push high-severity anomalies to Telegram.
+            reasoning_journal_path = reasoning_journal
+
+            async def _check_anomalies() -> None:
+                """Watch reasoning.log for high-severity anomalies and alert."""
+                import json as _json
+                _last_pos = 0
+                while True:
+                    try:
+                        if reasoning_journal_path.exists():
+                            with open(reasoning_journal_path) as _f:
+                                _f.seek(_last_pos)
+                                for _line in _f:
+                                    try:
+                                        _cycle = _json.loads(_line)
+                                    except _json.JSONDecodeError:
+                                        continue
+                                    for _a in _cycle.get("anomalies", []):
+                                        if _a.get("severity") == "high":
+                                            await notify_router.notify(
+                                                message=(
+                                                    f"🚨 **High-Severity Anomaly**\n\n"
+                                                    f"{_a['description']}\n\n"
+                                                    f"Baseline: {_a.get('baseline_description', 'N/A')}\n"
+                                                    f"Cycle: `{_cycle.get('cycle_id', '?')[:16]}`"
+                                                ),
+                                                category="suggest",
+                                                action_class="anomaly_alert",
+                                            )
+                                _last_pos = _f.tell()
+                        await asyncio.sleep(15)
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:
+                        await asyncio.sleep(30)
+
+            self._anomaly_checker_task = asyncio.create_task(
+                _check_anomalies(), name="coremind.anomaly_checker"
             )
 
             # ----------------------------------------------------------
@@ -341,6 +399,12 @@ class CoreMindDaemon:
                 InMemoryRuleProposalStore,
                 RuleLearnerImpl,
             )
+
+            # Wire procedural memory (hash-chained rule store)
+            procedural_store_path = config.audit_log_path.parent / "procedural.jsonl"
+            procedural_memory = ProceduralMemory(procedural_store_path)
+            await procedural_memory.load()
+            log.info("daemon.procedural_memory_loaded", path=str(procedural_store_path))
             from coremind.reflection.report import (  # noqa: PLC0415
                 MarkdownReportProducer,
             )
@@ -414,12 +478,8 @@ class CoreMindDaemon:
 
             # Build rule learner with in-memory stores (ProceduralMemory
             # wiring is a follow-up).
-            from coremind.reflection.rule_learner import (  # noqa: PLC0415
-                EmptyRuleSource,
-            )
-
             rule_learner = RuleLearnerImpl(
-                rule_source=EmptyRuleSource(),
+                rule_source=procedural_memory,
                 ledger=InMemoryCandidateLedger(),
                 proposal_store=InMemoryRuleProposalStore(),
             )
@@ -493,6 +553,12 @@ class CoreMindDaemon:
         if self._reflection_loop is not None:
             await self._reflection_loop.stop()
             self._reflection_loop = None
+
+        if self._anomaly_checker_task is not None:
+            self._anomaly_checker_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._anomaly_checker_task
+            self._anomaly_checker_task = None
 
         if self._dashboard_server is not None:
             await self._dashboard_server.stop()

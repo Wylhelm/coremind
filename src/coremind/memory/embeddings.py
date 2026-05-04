@@ -169,9 +169,15 @@ class OllamaEmbedder:
     async def embed(self, text: str) -> list[float]:
         """Call the Ollama embedding endpoint.
 
+        Returns a zero-vector of the expected dimension for empty input;
+        some models (e.g. nomic-embed-text) reject empty strings.
+
         Raises:
             EmbeddingError: On HTTP failure or malformed response.
         """
+        if not text.strip():
+            return [0.0] * self._dimension
+
         url = f"{self._endpoint}/api/embeddings"
         payload = {"model": self._model, "prompt": text}
         try:

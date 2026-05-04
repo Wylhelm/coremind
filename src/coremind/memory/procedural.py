@@ -459,6 +459,23 @@ class ProceduralMemory:
             await self._append("add", payload)
             log.info("procedural.rule.added", rule_id=rule.id, source=rule.source)
 
+    async def list_active_rules(self) -> list[Rule]:
+        """Return all currently active (non-deprecated) rules.
+
+        Satisfies the :class:`coremind.reflection.rule_learner.RuleSource`
+        protocol so the reflection layer can read procedural rules without
+        depending on the memory module directly.
+
+        Returns:
+            Active rules, highest confidence first.
+        """
+        async with self._lock:
+            active = [
+                r for rid, r in self._rules.items() if rid not in self._deprecated
+            ]
+            active.sort(key=lambda r: r.confidence, reverse=True)
+            return active
+
     async def match(self, context: dict[str, JsonValue]) -> list[Rule]:
         """Return all active rules whose trigger matches the given context.
 
