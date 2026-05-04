@@ -115,6 +115,9 @@ class ConversationHandler:
         conversation.add_message(user_msg)
 
         # Build context
+        from datetime import datetime as dt
+
+        current_time = dt.now().strftime("%A %d %B %Y, %H:%M (%Z)")
         narrative_text = ""
         if self._get_narrative:
             try:
@@ -134,6 +137,7 @@ class ConversationHandler:
             history = conversation.conversation_text(max_messages=self._max_context)
             narrative_block = narrative_text if narrative_text else "(no current narrative context)"
             prompt = CONVERSATION_CONTEXT_PROMPT.format(
+                current_time=current_time,
                 system_prompt=CONVERSATION_SYSTEM_PROMPT,
                 narrative_context=narrative_block,
                 conversation_history=history,

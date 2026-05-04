@@ -349,10 +349,16 @@ class CoreMindDaemon:
                 interval_seconds=1800,
             )
 
-            # Conversation layer (Pillar #1 — Natural Conversation)
+            # Conversation layer (Pillar #1) — use Gemini Flash for reliability
+            conv_llm = LLM(LLMConfig(
+                reasoning_fast=LayerConfig(
+                    model="gemini-3-flash-preview:latest",
+                    max_completion_tokens=500,
+                )
+            ))
             conv_store = ConversationStore()
             self._conversation_handler = ConversationHandler(
-                llm=llm_4,
+                llm=conv_llm,
                 store=conv_store,
                 get_narrative=lambda: narrative_memory._render_for_prompt() if narrative_memory else "",
             )
