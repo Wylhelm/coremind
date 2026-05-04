@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg curl \
 WORKDIR /app
 
 # Install CoreMind and all plugins
-COPY pyproject.toml .
+COPY pyproject.toml README.md ./
 RUN pip install --no-cache-dir --editable .
 
 COPY src/ src/
@@ -19,6 +19,7 @@ RUN for p in plugins/*/; do pip install --no-cache-dir --editable "$p" 2>/dev/nu
 RUN mkdir -p /root/.coremind/run /root/.coremind/keys /root/.coremind/snapshots /root/.coremind/secrets /root/.coremind/faces /root/.coremind/conversations
 
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app/src:/app/plugins:/app/integrations
 
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
