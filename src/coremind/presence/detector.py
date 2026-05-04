@@ -71,14 +71,9 @@ class PresenceDetector:
 
         # Find the tapo camera entity
         tapo = None
-        for entity in (snapshot.entities if hasattr(snapshot, 'entities') else snapshot):
-            if hasattr(entity, 'entity_id'):
-                eid = entity.entity_id
-            elif isinstance(entity, dict):
-                eid = entity.get('entity_id', '')
-            else:
-                continue
-            if 'tapo' in str(eid):
+        for entity in snapshot.entities:
+            name = getattr(entity, 'display_name', '') or str(entity)
+            if 'tapo' in str(name):
                 tapo = entity
                 break
 
@@ -86,11 +81,7 @@ class PresenceDetector:
             return
 
         # Get properties
-        props = (
-            tapo.properties
-            if hasattr(tapo, 'properties')
-            else tapo.get('properties', {}) if isinstance(tapo, dict) else {}
-        )
+        props = getattr(tapo, 'properties', {}) or {}
 
         person_present = props.get('person_present')
         person_name = props.get('person_name', 'unknown')
@@ -104,12 +95,8 @@ class PresenceDetector:
         desk_keywords = ['desk', 'computer', 'working', 'bureau', 'ordinateur', 'travail']
         is_at_desk = any(kw in str(activity).lower() for kw in desk_keywords)
 
-        # Time since entity was created (first observation)
-        created = (
-            tapo.created_at
-            if hasattr(tapo, 'created_at')
-            else tapo.get('created_at') if isinstance(tapo, dict) else None
-        )
+        # Time since entity was created
+        created = getattr(tapo, 'created_at', None)
         if created is None:
             return
 
