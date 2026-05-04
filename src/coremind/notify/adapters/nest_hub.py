@@ -24,7 +24,7 @@ from coremind.notify.port import (
 
 log = structlog.get_logger(__name__)
 
-DEFAULT_TTS_SCRIPT = os.path.expanduser("~/workspace/home-assistant/scripts/gbot-say.sh")
+DEFAULT_TTS_SCRIPT = os.path.expanduser("~/.openclaw/workspace/home-assistant/scripts/gbot-say.sh")
 DEFAULT_CAST_SCRIPT = os.path.expanduser("~/workspace/home-assistant/scripts/cast-dashboard.sh")
 
 

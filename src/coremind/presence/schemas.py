@@ -33,7 +33,7 @@ class PresenceConfig(BaseModel):
     """Configuration for the presence scheduler."""
 
     enabled: bool = True
-    tts_script: str = "~/workspace/home-assistant/scripts/gbot-say.sh"
+    tts_script: str = "~/.openclaw/workspace/home-assistant/scripts/gbot-say.sh"
     cast_script: str = "~/workspace/home-assistant/scripts/cast-dashboard.sh"
     morning_greeting: bool = True
     morning_time: str = "08:00"
