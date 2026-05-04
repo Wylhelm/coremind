@@ -269,10 +269,6 @@ class IntentionLoop:
         """Score raw intents, persist them, and dispatch through the router."""
         out: list[Intent] = []
         for raw in batch.questions[: self._config.max_questions]:
-            # Skip roborock/vacuum intents — these are noise
-            if _text_contains_any(raw.question.text, ["roborock", "vacuum", "robot vacuum", "s7_max"]):
-                log.debug("intention.roborock_skipped")
-                continue
             if _is_duplicate(raw, recent_intents):
                 log.debug("intention.duplicate_skipped", question=raw.question.text)
                 continue
@@ -386,12 +382,6 @@ def _snapshot_context(snapshot: WorldSnapshot) -> dict[str, JsonValue]:
     for ev in snapshot.recent_events[:20]:
         ctx[f"{ev.entity.type}.{ev.attribute}"] = ev.value
     return ctx
-
-
-def _text_contains_any(text: str, keywords: list[str]) -> bool:
-    """Check if text contains any of the given keywords (case-insensitive)."""
-    lower = text.lower()
-    return any(kw.lower() in lower for kw in keywords)
 
 
 def _is_duplicate(raw: RawIntent, recent_intents: list[Intent]) -> bool:
