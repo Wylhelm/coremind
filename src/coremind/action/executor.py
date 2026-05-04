@@ -398,15 +398,18 @@ def _format_conversation(intent: Intent) -> str:
 
 
 def _format_suggest(intent: Intent, grace_seconds: int) -> str:
-    """Render a suggest-category notification message."""
+    """Render a suggest-category notification — friendly, no buttons."""
     proposal = intent.proposed_action
-    if proposal is None:  # pragma: no cover — caller ensures
+    if proposal is None:
         raise ActionError(f"intent {intent.id!r} has no proposed_action")
+    why = intent.question.text
+    # Strip the "Should we..." prefix, make it conversational
+    if why.startswith("Should we "):
+        why = why[10:].strip()
     return (
-        f"CoreMind will execute in {grace_seconds}s (reply to cancel):\n"
-        f"• operation: {proposal.operation}\n"
-        f"• why:       {intent.question.text}\n"
-        f"• expected:  {proposal.expected_outcome}"
+        f"{why}\n\n"
+        f"Je vais vérifier ça automatiquement. "
+        f"Dis-moi si tu veux que j'annule."
     )
 
 

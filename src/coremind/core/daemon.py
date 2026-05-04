@@ -321,9 +321,9 @@ class CoreMindDaemon:
             from coremind.memory.semantic import SemanticMemory
             from coremind.memory.embeddings import OllamaEmbedder
             try:
-                embedder = OllamaEmbedder(endpoint="http://10.0.0.175:11434", model="nomic-embed-text")
+                embedder = OllamaEmbedder(endpoint="http://10.0.0.175:11434", model="nomic-embed-text", dimension=768)
                 qdrant_store = QdrantVectorStore()
-                semantic_memory = SemanticMemory(qdrant_store, embedder, vector_size=384)
+                semantic_memory = SemanticMemory(qdrant_store, embedder, vector_size=768)
                 await semantic_memory.initialise()
                 log.info("daemon.semantic_memory_initialised")
             except Exception as exc:
@@ -368,7 +368,8 @@ class CoreMindDaemon:
 
             presence_detector = PresenceDetector(
                 world_store, intents, router,
-                alert_minutes=60,  # Alert after 1 hour of continuous presence
+                alert_minutes=15,  # Alert after 15 min (testing, prod=60)
+                check_interval=120,  # Check every 2 min (testing)
             )
             self._presence_detector_task = asyncio.create_task(
                 presence_detector.run(),
