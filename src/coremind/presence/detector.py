@@ -47,6 +47,7 @@ class PresenceDetector:
         self._alert_minutes = alert_minutes
         self._interval = check_interval
         self._last_alert: datetime | None = None
+        self._first_seen_at: datetime | None = None
 
     async def run(self) -> None:
         """Main loop: periodically check for presence patterns."""
@@ -88,21 +89,18 @@ class PresenceDetector:
         activity = props.get('activity', 'unknown')
 
         if person_present is not True:
+            self._first_seen_at = None
             self._last_alert = None
             return
 
-        # Check if activity suggests prolonged presence
-        desk_keywords = ['desk', 'computer', 'working', 'bureau', 'ordinateur', 'travail']
-        is_at_desk = any(kw in str(activity).lower() for kw in desk_keywords)
-
-        # Time since entity was created
-        created = getattr(tapo, 'created_at', None)
-        if created is None:
-            return
-
+        # Track when we first saw the person continuously present
         now = datetime.now(UTC)
-        elapsed = now - created
-        elapsed_minutes = elapsed.total_seconds() / 60
+        if self._first_seen_at is None:
+            self._first_seen_at = now
+            return  # Wait for next check to confirm presence
+
+        # Time since first detection
+        elapsed_minutes = (now - self._first_seen_at).total_seconds() / 60
 
         if elapsed_minutes < self._alert_minutes:
             return
@@ -111,9 +109,11 @@ class PresenceDetector:
         if self._last_alert and (now - self._last_alert).total_seconds() < 3600:
             return
 
-        # Generate intent!
+        # Generate intent
         hours = int(elapsed_minutes / 60)
         minutes = int(elapsed_minutes % 60)
+        desk_keywords = ['desk', 'computer', 'working', 'bureau', 'ordinateur', 'travail']
+        is_at_desk = any(kw in str(activity).lower() for kw in desk_keywords)
 
         if is_at_desk:
             name_str = f" ({person_name})" if person_name and person_name != "unknown" else ""

@@ -273,6 +273,10 @@ class IntentionLoop:
                 log.debug("intention.duplicate_skipped", question=raw.question.text)
                 continue
             salience = score_salience(raw, snapshot, recent_intents)
+            # Skip intents about stale entities (data > 12h old)
+            if _references_stale_entities(raw, snapshot):
+                log.debug("intention.stale_entity_skipped", question=raw.question.text[:80])
+                continue
             rule_matches = 0
             if self._rules is not None:
                 context = _snapshot_context(snapshot)
@@ -374,6 +378,27 @@ def _recent_intents_summary(intents: list[Intent]) -> str:
         return "(no recent intents)"
     lines = [f"- [{i.status}] {i.question.text}" for i in intents[:10]]
     return "\n".join(lines)
+
+
+def _references_stale_entities(raw: RawIntent, snapshot: WorldSnapshot) -> bool:
+    """Check if intent references entities whose data hasn't been updated in 12h."""
+    max_age = timedelta(hours=12)
+    now = datetime.now(UTC)
+    ref_entities = set()
+
+    # Extract entity references from the question text (or grounding)
+    for e in snapshot.entities:
+        name = getattr(e, 'display_name', '')
+        if name and name in raw.question.text:
+            ref_entities.add(name)
+
+    for e in snapshot.entities:
+        name = getattr(e, 'display_name', '')
+        if name in ref_entities:
+            updated = getattr(e, 'updated_at', None)
+            if updated and (now - updated) > max_age:
+                return True
+    return False
 
 
 def _snapshot_context(snapshot: WorldSnapshot) -> dict[str, JsonValue]:
