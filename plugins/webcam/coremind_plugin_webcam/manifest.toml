@@ -1,0 +1,6 @@
+[plugin]
+id = "coremind.plugin.webcam"
+version = "0.1.0"
+type = "sensor"
+description = "USB Webcam sensor — captures frames and detects motion"
+entry_point = "coremind_plugin_webcam.main:main"

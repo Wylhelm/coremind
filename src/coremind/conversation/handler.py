@@ -9,9 +9,8 @@ This is the core of Pillar #1 (Natural Conversation) for CoreMind v0.3.0.
 
 from __future__ import annotations
 
-import asyncio
 import uuid
-from collections.abc import Callable, Awaitable
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 
 import structlog
@@ -197,9 +196,9 @@ class ConversationHandler:
     async def _generate_response(self, prompt: str) -> str:
         """Call the LLM to generate a conversational response."""
         try:
-            from coremind.reasoning.llm import Layer
-            from coremind.conversation.schemas import Conversation
             from pydantic import BaseModel, Field
+
+            from coremind.reasoning.llm import Layer
 
             class TextResponse(BaseModel):
                 response: str = Field(min_length=1)

@@ -7,6 +7,7 @@ exchanges with CoreMind.
 """
 
 from coremind.conversation.handler import ConversationHandler
+from coremind.conversation.prompts import CONVERSATION_SYSTEM_PROMPT
 from coremind.conversation.schemas import (
     Conversation,
     ConversationContext,
@@ -14,14 +15,13 @@ from coremind.conversation.schemas import (
     MessageRole,
 )
 from coremind.conversation.store import ConversationStore
-from coremind.conversation.prompts import CONVERSATION_SYSTEM_PROMPT
 
 __all__ = [
+    "CONVERSATION_SYSTEM_PROMPT",
     "Conversation",
     "ConversationContext",
     "ConversationHandler",
     "ConversationStore",
-    "CONVERSATION_SYSTEM_PROMPT",
     "Message",
     "MessageRole",
 ]

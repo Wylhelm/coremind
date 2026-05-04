@@ -33,7 +33,7 @@ nohup $COREMIND_VENV/python3 "$COREMIND_HOME/integrations/openclaw-adapter/openc
 echo "Bridge PID: $!"
 
 # --- Start plugins ---
-for plugin in homeassistant firefly health openclaw-adapter weather vikunja; do
+for plugin in homeassistant firefly health openclaw-adapter weather vikunja tapo webcam; do
     nohup $COREMIND_VENV/coremind-plugin-$plugin > /tmp/coremind-plugin-$plugin.log 2>&1 &
     echo "Plugin $plugin PID: $!"
 done

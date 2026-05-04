@@ -1,0 +1,4 @@
+[webcam]
+device = "/dev/video0"
+poll_interval_seconds = 600
+motion_threshold = 0.05

@@ -1,0 +1,6 @@
+[plugin]
+id = "coremind.plugin.tapo"
+version = "0.1.0"
+type = "sensor"
+description = "Tapo C225 camera sensor — captures snapshots via RTSP"
+entry_point = "coremind_plugin_tapo.main:main"

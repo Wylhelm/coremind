@@ -1,0 +1,9 @@
+[tapo]
+# Tapo C225 camera configuration
+ip = "10.0.0.131"
+rtsp_port = 554
+stream_path = "/stream1"
+poll_interval_seconds = 300
+
+# Credentials loaded from environment variables:
+# TAPO_USERNAME, TAPO_PASSWORD, TAPO_IP
