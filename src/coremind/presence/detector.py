@@ -93,6 +93,7 @@ class PresenceDetector:
         )
 
         person_present = props.get('person_present')
+        person_name = props.get('person_name', 'unknown')
         activity = props.get('activity', 'unknown')
 
         if person_present is not True:
@@ -128,8 +129,9 @@ class PresenceDetector:
         minutes = int(elapsed_minutes % 60)
 
         if is_at_desk:
+            name_str = f" ({person_name})" if person_name and person_name != "unknown" else ""
             question_text = (
-                f"Hey Guillaume, tu es à ton bureau depuis {hours}h{minutes:02d}. "
+                f"Hey{name_str}, tu es à ton bureau depuis {hours}h{minutes:02d}. "
                 f"Une petite pause ? ☕"
             )
         else:

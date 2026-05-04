@@ -155,11 +155,16 @@ async def analyze_image_vision(image_path: Path) -> dict[str, str | bool]:
                 "role": "user",
                 "content": (
                     "Describe this room in JSON: "
-                    "person_present (boolean), activity (string, what the person is doing), "
+                    "person_present (boolean), person_name (string — identify who you see. "
+                    "Guillaume is a man in his 40s with short brown hair, often in a t-shirt. "
+                    "Aurélie is a young woman in her 20s with long dark hair. "
+                    "If you cannot identify the person, use 'unknown'), "
+                    "activity (string, what the person is doing), "
                     "pets_visible (boolean), pet_description (string, describe what pets you see — "
-                    "there are 3 black cats named Poukie, Timimi, and Minuit). "
-                    "Example: {\"person_present\": true, \"activity\": \"at desk\", "
-                    "\"pets_visible\": true, \"pet_description\": \"a black cat on the couch\"}"
+                    "there are 3 black cats named Poukie (black, medium), Timimi (black/caramel, larger), and Minuit (black). "
+                    "Try to identify which cat is which by size/position). "
+                    "Example: {\"person_present\": true, \"person_name\": \"Guillaume\", \"activity\": \"at desk\", "
+                    "\"pets_visible\": true, \"pet_description\": \"Timimi on the couch\"}"
                 ),
                 "images": [img_bytes],
             }],
