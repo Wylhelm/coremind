@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from coremind.world.model import EntityRef, JsonValue
 
-type IntentCategory = Literal["safe", "suggest", "ask"]
+type IntentCategory = Literal["safe", "suggest", "ask", "conversation"]
 type IntentStatus = Literal[
     "pending",
     "pending_approval",
