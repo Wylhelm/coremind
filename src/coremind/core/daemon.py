@@ -159,6 +159,7 @@ class CoreMindDaemon:
         self._response_listener_stop: asyncio.Event = asyncio.Event()
         self._conversation_listener_stop: asyncio.Event = asyncio.Event()
         self._conversation_listener_task: asyncio.Task[None] | None = None
+        self._presence_detector_task: asyncio.Task[None] | None = None
         self._conversation_handler: ConversationHandler | None = None
 
     async def start(self) -> None:
@@ -361,6 +362,19 @@ class CoreMindDaemon:
                 name="coremind.conversation.listener",
             )
             log.info("daemon.conversation_handler_started")
+
+            # Presence detector (Pillar #2 — Temporal Patterns)
+            from coremind.presence.detector import PresenceDetector
+
+            presence_detector = PresenceDetector(
+                world_store, intents, router,
+                alert_minutes=60,  # Alert after 1 hour of continuous presence
+            )
+            self._presence_detector_task = asyncio.create_task(
+                presence_detector.run(),
+                name="coremind.presence.detector",
+            )
+            log.info("daemon.presence_detector_started")
 
             # Schedule anomaly alert checker — runs 5s after each reasoning
             # cycle to push high-severity anomalies to Telegram.
@@ -615,6 +629,12 @@ class CoreMindDaemon:
             with contextlib.suppress(asyncio.CancelledError):
                 await self._conversation_listener_task
             self._conversation_listener_task = None
+
+        if self._presence_detector_task is not None:
+            self._presence_detector_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._presence_detector_task
+            self._presence_detector_task = None
 
         if self._approved_dispatcher_task is not None:
             self._approved_dispatcher_stop.set()

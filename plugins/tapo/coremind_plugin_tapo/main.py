@@ -154,11 +154,12 @@ async def analyze_image_vision(image_path: Path) -> dict[str, str | bool]:
             messages=[{
                 "role": "user",
                 "content": (
-                    "Describe this room in JSON with these keys: "
-                    "person_present (boolean), activity (string), "
-                    "pets_visible (boolean), pet_description (string). "
-                    "Example: {\"person_present\": true, \"activity\": \"working at desk\", "
-                    "\"pets_visible\": false, \"pet_description\": \"\"}"
+                    "Describe this room in JSON: "
+                    "person_present (boolean), activity (string, what the person is doing), "
+                    "pets_visible (boolean), pet_description (string, describe what pets you see — "
+                    "there are 3 black cats named Poukie, Timimi, and Minuit). "
+                    "Example: {\"person_present\": true, \"activity\": \"at desk\", "
+                    "\"pets_visible\": true, \"pet_description\": \"a black cat on the couch\"}"
                 ),
                 "images": [img_bytes],
             }],
