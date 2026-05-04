@@ -118,12 +118,12 @@ class PresenceDetector:
         if is_at_desk:
             name_str = f" ({person_name})" if person_name and person_name != "unknown" else ""
             question_text = (
-                f"Hey{name_str}, tu es à ton bureau depuis {hours}h{minutes:02d}. "
+                f"Hey{name_str}, ça fait {hours}h{minutes:02d} que tu es à ton bureau. "
                 f"Une petite pause ? ☕"
             )
         else:
             question_text = (
-                f"Je remarque que tu es dans la pièce depuis {hours}h{minutes:02d}. "
+                f"Je te vois dans la pièce depuis {hours}h{minutes:02d}. "
                 f"Tout va bien ?"
             )
 
