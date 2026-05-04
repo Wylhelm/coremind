@@ -131,14 +131,14 @@ class PresenceDetector:
             id=uuid.uuid4().hex,
             created_at=now,
             question=InternalQuestion(
+                id=uuid.uuid4().hex,
                 text=question_text,
-                entities=["camera:tapo_living_room"],
             ),
             proposed_action=ActionProposal(
                 operation="notify_user",
-                action_class="presence_alert",
+                parameters={"message": question_text},
                 expected_outcome=f"User receives a friendly presence alert after {hours}h{minutes:02d}",
-                params={"message": question_text},
+                action_class="presence_alert",
             ),
             salience=0.88,
             confidence=0.82,
