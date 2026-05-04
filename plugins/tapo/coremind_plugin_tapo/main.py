@@ -2,8 +2,7 @@
 # Captures snapshots from Tapo C225 via RTSP every 5 min and emits WorldEvents
 
 import asyncio
-import base64
-import json
+import io
 import os
 import subprocess
 import tomllib
@@ -38,13 +37,13 @@ TAPO_PASSWORD: str = os.environ.get("TAPO_PASSWORD", "")
 RTSP_PORT: int = 554
 STREAM_PATH: str = "/stream1"
 
-# Gemini Vision API
-GEMINI_API_KEY: str = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_VISION_MODEL: str = "gemini-2.5-flash"
-VISION_ENABLED: bool = True  # Set to False to disable vision analysis
+# Ollama Vision (Mistral Large 3)
+OLLAMA_HOST: str = os.environ.get("OLLAMA_API_BASE", "http://10.0.0.175:11434")
+VISION_MODEL: str = "mistral-large-3:675b-cloud"
+VISION_ENABLED: bool = True
 
 CONFIDENCE: float = 0.85
-CONFIDENCE_VISION: float = 0.75  # Lower confidence for vision analysis
+CONFIDENCE_VISION: float = 0.75
 
 
 def load_config() -> dict:
@@ -128,47 +127,46 @@ def build_signed_event(
     return unsigned
 
 
-async def analyze_image_gemini(image_path: Path) -> dict[str, str | bool]:
-    """Analyze a snapshot using Gemini Vision API.
-
-    Returns a dict with vision attributes or empty dict on failure.
-    """
-    if not GEMINI_API_KEY:
-        return {}
-
+async def analyze_image_vision(image_path: Path) -> dict[str, str | bool]:
+    """Analyze a snapshot using Mistral Large 3 vision via Ollama."""
     try:
-        image_bytes = image_path.read_bytes()
-        image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+        from PIL import Image
 
-        prompt = (
-            "Describe this room in JSON: "
-            '{"person_present": true/false, "activity": "what person is doing, or empty room"}'
-        )
+        import ollama
 
-        url = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{GEMINI_VISION_MODEL}:generateContent?key={GEMINI_API_KEY}"
-        )
-        payload = {
-            "contents": [{
-                "parts": [
-                    {"text": prompt},
-                    {"inline_data": {"mime_type": "image/jpeg", "data": image_b64}},
-                ]
+        img = Image.open(image_path)
+        img.thumbnail((512, 512))
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=70)
+        img_bytes = buf.getvalue()
+
+        host = OLLAMA_HOST.replace("http://", "").replace("https://", "").rstrip("/")
+        if ":" in host:
+            host_parts = host.split(":")
+            host = host_parts[0]
+            port = int(host_parts[1])
+        else:
+            port = 11434
+        client = ollama.Client(host=f"http://{host}:{port}")
+
+        resp = client.chat(
+            model=VISION_MODEL,
+            messages=[{
+                "role": "user",
+                "content": (
+                    "Describe this room in JSON with these keys: "
+                    "person_present (boolean), activity (string), "
+                    "pets_visible (boolean), pet_description (string). "
+                    "Example: {\"person_present\": true, \"activity\": \"working at desk\", "
+                    "\"pets_visible\": false, \"pet_description\": \"\"}"
+                ),
+                "images": [img_bytes],
             }],
-            "generationConfig": {"maxOutputTokens": 300, "temperature": 0.1},
-        }
-
-        import aiohttp
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=15)) as resp:
-                if resp.status != 200:
-                    log.warning("tapo.vision_api_error", status=resp.status)
-                    return {}
-                data = await resp.json()
-
-        text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+        )
+        text = resp["message"]["content"]
         # Extract JSON from response
+        import json
+
         start = text.find("{")
         end = text.rfind("}") + 1
         if start >= 0 and end > start:
@@ -241,7 +239,7 @@ async def run() -> None:
 
             # Vision analysis via Gemini
             if success and VISION_ENABLED:
-                vision = await analyze_image_gemini(snap_path)
+                vision = await analyze_image_vision(snap_path)
                 if vision:
                     for attr, val in vision.items():
                         event_v = build_signed_event(
