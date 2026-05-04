@@ -37,10 +37,14 @@ TAPO_PASSWORD: str = os.environ.get("TAPO_PASSWORD", "")
 RTSP_PORT: int = 554
 STREAM_PATH: str = "/stream1"
 
-# Ollama Vision (Mistral Large 3)
+# Ollama Vision (Mistral Large 3) — used for face matching only
 OLLAMA_HOST: str = os.environ.get("OLLAMA_API_BASE", "http://10.0.0.175:11434")
 VISION_MODEL: str = "mistral-large-3:675b-cloud"
 VISION_ENABLED: bool = True
+
+# Gemini Vision (scene analysis — primary, direct API, no Ollama)
+GEMINI_API_KEY: str = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_MODEL: str = "gemini-2.5-flash"
 
 CONFIDENCE: float = 0.85
 CONFIDENCE_VISION: float = 0.75
@@ -127,12 +131,70 @@ def build_signed_event(
     return unsigned
 
 
-async def analyze_image_vision(image_path: Path) -> dict[str, str | bool]:
-    """Analyze a snapshot using Mistral Large 3 vision via Ollama."""
+async def analyze_scene_gemini(image_path: Path) -> dict[str, str | bool]:
+    """Analyze a snapshot using Gemini 2.5 Flash (direct API, fast & reliable)."""
+    if not GEMINI_API_KEY:
+        return {}
+
+    try:
+        import aiohttp, base64, json as _json
+
+        image_b64 = base64.b64encode(image_path.read_bytes()).decode("utf-8")
+        url = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+        )
+        prompt = (
+            "Describe this room in JSON: "
+            "person_present (boolean), person_name (string — identify who you see. "
+            "Guillaume is a man in his late 40s with short brown hair, often in a t-shirt. "
+            "Aurélie is a young woman in her 20s with long dark hair. "
+            "Julie is a woman in her 40s with brown hair. "
+            "Jeff is a man in his 40s, bald or shaved head. "
+            "If you cannot identify confidently, use 'unknown'), "
+            "activity (string), "
+            "pets_visible (boolean), pet_description (string — "
+            "3 black cats: Poukie (medium), Timimi (larger, caramel hints), Minuit (small). "
+            "Identify cats by size/position if visible). "
+            "Example: {\"person_present\": true, \"person_name\": \"Guillaume\", "
+            "\"activity\": \"working at desk\", \"pets_visible\": true, "
+            "\"pet_description\": \"Timimi on the couch\"}"
+        )
+        payload = {
+            "contents": [{
+                "parts": [
+                    {"text": prompt},
+                    {"inline_data": {"mime_type": "image/jpeg", "data": image_b64}},
+                ]
+            }],
+            "generationConfig": {"maxOutputTokens": 200, "temperature": 0.1},
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                if resp.status != 200:
+                    log.warning("tapo.gemini_api_error", status=resp.status)
+                    return {}
+                data = await resp.json()
+
+        text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+        start = text.find("{")
+        end = text.rfind("}") + 1
+        if start >= 0 and end > start:
+            result = _json.loads(text[start:end])
+            log.info("tapo.gemini_analysis", result=result)
+            return result
+        return {}
+    except Exception as exc:
+        log.warning("tapo.gemini_failed", error=str(exc))
+        return {}
+
+
+async def analyze_scene_mistral(image_path: Path) -> dict[str, str | bool]:
+    """Fallback scene analysis using Mistral Large 3 via Ollama."""
     try:
         from PIL import Image
-
-        import ollama
+        import ollama, json as _json
 
         img = Image.open(image_path)
         img.thumbnail((512, 512))
@@ -323,9 +385,11 @@ async def run() -> None:
 
             log.info("tapo.snapshot_captured", success=success, size=size_bytes)
 
-            # Vision analysis via Mistral Large 3
+            # Vision analysis: Gemini (primary) → Mistral (fallback)
             if success and VISION_ENABLED:
-                vision = await analyze_image_vision(snap_path)
+                vision = await analyze_scene_gemini(snap_path)
+                if not vision:
+                    vision = await analyze_scene_mistral(snap_path)
                 if vision:
                     # If person is present but unidentified, try Immich face matching
                     if vision.get("person_present") and vision.get("person_name") == "unknown":
