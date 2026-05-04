@@ -189,6 +189,82 @@ async def analyze_image_vision(image_path: Path) -> dict[str, str | bool]:
         return {}
 
 
+async def match_face_with_immich(
+    image_path: Path,
+    faces_dir: Path = Path.home() / ".coremind" / "faces",
+) -> str | None:
+    """Match a person in the image against Immich reference faces.
+
+    Uses Mistral vision to compare the snapshot against reference face
+    photos extracted from Immich. Called as fallback when text-based
+    identification returns 'unknown'.
+
+    Returns the person name or None.
+    """
+    if not faces_dir.exists():
+        return None
+
+    face_files = sorted(faces_dir.glob("*.jpg"))
+    if not face_files:
+        return None
+
+    try:
+        from PIL import Image
+        import ollama, json as _json
+
+        host = OLLAMA_HOST.replace("http://", "").replace("https://", "").rstrip("/")
+        if ":" in host:
+            hp = host.split(":")
+            client = ollama.Client(host=f"http://{hp[0]}:{int(hp[1])}")
+        else:
+            client = ollama.Client(host=f"http://{host}:11434")
+
+        # Load snapshot
+        snap = Image.open(image_path)
+        snap.thumbnail((512, 512))
+        buf = io.BytesIO()
+        snap.save(buf, format="JPEG", quality=70)
+
+        # Batch reference faces (max 7 per call = 1 snapshot + 7 refs = 8 total)
+        batch_size = 7
+        for i in range(0, len(face_files), batch_size):
+            batch = face_files[i:i + batch_size]
+            ref_imgs = []
+            names = []
+            for f in batch:
+                img = Image.open(f)
+                b = io.BytesIO()
+                img.save(b, format="JPEG", quality=85)
+                ref_imgs.append(b.getvalue())
+                names.append(f.stem)
+
+            content = (
+                f"Reference faces: {', '.join(names)}. "
+                "Who is in the room photo? Answer JSON: {\"person_name\": \"name or unknown\"}"
+            )
+            messages = [{
+                "role": "user",
+                "content": content,
+                "images": [buf.getvalue()] + ref_imgs,
+            }]
+
+            resp = client.chat(model=VISION_MODEL, messages=messages)
+            text = resp["message"]["content"]
+            start = text.find("{")
+            end = text.rfind("}") + 1
+            if start >= 0 and end > start:
+                result = _json.loads(text[start:end])
+                name = result.get("person_name", "unknown")
+                if name != "unknown" and name in names:
+                    log.info("tapo.face_matched", name=name, batch=i)
+                    return name
+
+        return None
+    except Exception as exc:
+        log.warning("tapo.face_match_failed", error=str(exc))
+        return None
+
+
 async def run() -> None:
     cfg = load_config()
     username = cfg.get("username", TAPO_USERNAME)
@@ -247,10 +323,17 @@ async def run() -> None:
 
             log.info("tapo.snapshot_captured", success=success, size=size_bytes)
 
-            # Vision analysis via Gemini
+            # Vision analysis via Mistral Large 3
             if success and VISION_ENABLED:
                 vision = await analyze_image_vision(snap_path)
                 if vision:
+                    # If person is present but unidentified, try Immich face matching
+                    if vision.get("person_present") and vision.get("person_name") == "unknown":
+                        matched_name = await match_face_with_immich(snap_path)
+                        if matched_name:
+                            vision["person_name"] = matched_name
+                            log.info("tapo.face_identified", name=matched_name)
+
                     for attr, val in vision.items():
                         event_v = build_signed_event(
                             private_key,
