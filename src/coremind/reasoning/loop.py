@@ -124,6 +124,8 @@ class ReasoningLoop:
             semantic memory is not yet initialised.
         llm: LLM wrapper for structured completions.
         persister: Destination for completed cycles.
+        narrative: Optional narrative identity store for injecting persistent
+            user context into each reasoning cycle.
         config: Scheduler parameters.
         clock: Injectable clock for deterministic tests.
     """
@@ -135,6 +137,7 @@ class ReasoningLoop:
         llm: LLM,
         persister: CyclePersister,
         *,
+        narrative: object | None = None,
         config: ReasoningLoopConfig | None = None,
         clock: Clock = _utc_now,
     ) -> None:
@@ -142,6 +145,7 @@ class ReasoningLoop:
         self._memory = memory
         self._llm = llm
         self._persister = persister
+        self._narrative = narrative
         self._config = config or ReasoningLoopConfig()
         self._clock = clock
         self._task: asyncio.Task[None] | None = None
@@ -214,6 +218,7 @@ class ReasoningLoop:
             raise ReasoningError("failed to collect world snapshot") from exc
 
         memory_excerpt = await self._build_memory_excerpt(snapshot)
+        narrative_context = await self._build_narrative_context()
         snapshot_json = _snapshot_to_prompt_json(snapshot, self._config.max_entities_in_prompt)
         schema_json = json.dumps(ReasoningOutput.model_json_schema(), indent=2)
 
@@ -222,6 +227,7 @@ class ReasoningLoop:
             self._config.template_user,
             snapshot_json=snapshot_json,
             memory_excerpt=memory_excerpt,
+            narrative_context=narrative_context,
             schema_json=schema_json,
         )
 
@@ -254,6 +260,8 @@ class ReasoningLoop:
             await self._persister.persist_cycle(output)
         except Exception as exc:
             raise ReasoningError(f"failed to persist cycle {cycle_id}") from exc
+
+        await self._add_narrative_observation(output)
 
         log.info(
             "reasoning.cycle.done",
@@ -304,6 +312,53 @@ class ReasoningLoop:
         if not lines:
             return ""
         return "\n".join(lines[: max_entities * k])
+
+    async def _build_narrative_context(self) -> str:
+        """Render the current narrative state as a prompt snippet.
+
+        Returns:
+            A markdown-formatted narrative context string, or an empty
+            string if no narrative store is configured.
+        """
+        if self._narrative is None:
+            return ""
+        try:
+            narrative_module = self._narrative
+            return narrative_module._render_for_prompt()  # type: ignore[attr-defined, no-any-return]
+        except Exception:
+            log.warning("reasoning.narrative_context_failed", exc_info=True)
+            return ""
+
+    async def _add_narrative_observation(self, output: ReasoningOutput) -> None:
+        """Append a key insight from this reasoning cycle to the narrative.
+
+        Extracts the highest-confidence pattern or anomaly description as
+        the observation text.
+        """
+        if self._narrative is None:
+            return
+        insight = self._extract_key_insight(output)
+        if not insight:
+            return
+        try:
+            await self._narrative.add_observation(insight)  # type: ignore[attr-defined]
+        except Exception:
+            log.warning("reasoning.narrative_observation_failed", exc_info=True)
+
+    @staticmethod
+    def _extract_key_insight(output: ReasoningOutput) -> str:
+        """Extract the most salient insight from a reasoning cycle output.
+
+        Priority: high-severity anomaly > highest-confidence pattern > None.
+        """
+        if output.anomalies:
+            high = [a for a in output.anomalies if a.severity == "high"]
+            if high:
+                return high[0].description
+        if output.patterns:
+            best = max(output.patterns, key=lambda p: p.confidence)
+            return best.description
+        return ""
 
 
 # ---------------------------------------------------------------------------

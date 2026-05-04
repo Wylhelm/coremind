@@ -24,6 +24,7 @@ from typing import Any
 import aiohttp
 import structlog
 
+from coremind.conversation.schemas import InboundTextMessage
 from coremind.errors import NotificationError
 from coremind.notify.port import (
     ApprovalAction,
@@ -155,6 +156,40 @@ class TelegramNotificationPort:
                     # Callback on a non-ask message (stale/unknown) — still
                     # dismiss the spinner so it doesn't hang forever.
                     await self._answer_callback(cq_id, "unknown")
+
+    async def subscribe_text_messages(self) -> AsyncIterator[InboundTextMessage]:
+        """Yield text messages from the user via ``getUpdates`` long-polling.
+
+        Separate from ``subscribe_responses()`` so plain-text messages
+        route to ConversationHandler, not the ApprovalGate.
+        """
+        while True:
+            params: dict[str, Any] = {"timeout": 25, "allowed_updates": ["message"]}
+            if self._poll_offset is not None:
+                params["offset"] = self._poll_offset
+
+            try:
+                data = await self._call("getUpdates", params)
+            except NotificationError:
+                await asyncio.sleep(5.0)
+                continue
+
+            for update in data.get("result", []):
+                self._poll_offset = int(update["update_id"]) + 1
+                msg = update.get("message")
+                if msg is None:
+                    continue
+                text = msg.get("text")
+                if not text:
+                    continue
+                from_user = msg.get("from", {})
+                reply_msg = msg.get("reply_to_message")
+                yield InboundTextMessage(
+                    text=text,
+                    responder=str(from_user.get("id", "")),
+                    channel="telegram",
+                    reply_to_message_id=str(reply_msg.get("message_id", "")) if reply_msg else None,
+                )
 
     # ------------------------------------------------------------------
     # Internal HTTP helper

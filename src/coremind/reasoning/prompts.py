@@ -66,6 +66,18 @@ Output VALID JSON ONLY, matching the provided schema. No prose, no markdown fenc
 """
 
 _USER_V1 = """\
+## Current Narrative Context
+
+This is your persistent understanding of the user's current life situation.  Use it
+to give continuity to your interpretation.  The state is refreshed by the reflection
+loop (L7) every 24 hours and observations accumulate from previous reasoning cycles.
+
+{% if narrative_context is defined and narrative_context %}
+{{ narrative_context }}
+{% else %}
+(no narrative context yet)
+{% endif %}
+
 ## World snapshot (JSON)
 
 ```json

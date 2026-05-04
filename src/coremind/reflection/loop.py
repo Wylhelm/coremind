@@ -49,6 +49,17 @@ from coremind.reflection.schemas import (
 
 log = structlog.get_logger(__name__)
 
+
+class _NarrativeRefreshOutput(BaseModel):
+    """LLM output schema for narrative state refresh."""
+
+    model_config = ConfigDict(frozen=True)
+
+    user_mood_trend: str = Field(default="stable")
+    recent_patterns: list[str] = Field(default_factory=list)
+    active_concerns: list[str] = Field(default_factory=list)
+    relationship_notes: str = Field(default="")
+
 type Clock = Callable[[], datetime]
 
 
@@ -277,6 +288,11 @@ class ReflectionLoop:
         report_producer: Port that renders Markdown reports.
         notifier: Optional notification port; when ``None`` the report is
             still produced but not delivered.
+        narrative_state: Optional narrative identity store.  When provided,
+            every reflection cycle asks the narrative LLM to refresh the
+            user's persistent life context.
+        narrative_llm: Optional LLM for narrative refresh.  Used together
+            with ``narrative_state``.
         config: Scheduler parameters.
         clock: Injectable clock for deterministic tests.
     """
@@ -293,6 +309,8 @@ class ReflectionLoop:
         report_producer: ReportProducer,
         *,
         notifier: ReportNotifier | None = None,
+        narrative_state: object | None = None,
+        narrative_llm: object | None = None,
         config: ReflectionLoopConfig | None = None,
         clock: Clock = _utc_now,
     ) -> None:
@@ -305,6 +323,8 @@ class ReflectionLoop:
         self._rules = rule_learner
         self._report = report_producer
         self._notifier = notifier
+        self._narrative_state = narrative_state
+        self._narrative_llm = narrative_llm
         self._config = config or ReflectionLoopConfig()
         self._clock = clock
         self._task: asyncio.Task[None] | None = None
@@ -393,6 +413,7 @@ class ReflectionLoop:
                 window_end=now,
             )
             rule_result = await self._rules.learn(cycles, intents, actions)
+            await self._refresh_narrative(cycles, intents, actions)
             markdown = await self._report.produce(
                 window_start=window_start,
                 window_end=now,
@@ -444,6 +465,97 @@ class ReflectionLoop:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    async def _refresh_narrative(
+        self,
+        cycles: list[ReasoningOutput],
+        intents: list[Intent],
+        actions: list[Action],
+    ) -> None:
+        """Ask the narrative LLM to refresh the user's persistent narrative state.
+
+        Builds a prompt from the current narrative and this week's data,
+        then updates the narrative store with the LLM's response.
+        No-op if narrative_state or narrative_llm is not configured.
+        """
+        if self._narrative_state is None or self._narrative_llm is None:
+            return
+
+        narrative_module = self._narrative_state
+        try:
+            current = narrative_module.get_current()  # type: ignore[attr-defined]
+        except Exception:
+            log.warning("reflection.narrative_read_failed", exc_info=True)
+            return
+
+        patterns_summary = "\n".join(
+            f"- {p.description}"
+            for c in (cycles[-10:] if cycles else [])[:20]
+            for p in c.patterns
+        )
+        anomalies_summary = "\n".join(
+            f"- {a.description} (severity: {a.severity})"
+            for c in (cycles[-10:] if cycles else [])[:20]
+            for a in c.anomalies
+        )[:2000]
+        predictions_summary = "\n".join(
+            f"- {p.hypothesis} (confidence: {p.confidence})"
+            for c in (cycles[-10:] if cycles else [])[:20]
+            for p in c.predictions
+        )[:2000]
+
+        prompt = (
+            f"Based on this week's data, update the narrative state describing "
+            f"the user's current life context.\n\n"
+            "## Current Narrative State\n"
+            f"- Mood trend: {current.user_mood_trend}\n"
+            "- Recent patterns:\n"
+            + "\n".join(f"  - {p.text}" for p in (current.recent_patterns or [])[:10])
+            + "\n- Active concerns:\n"
+            + "\n".join(f"  - {c.text}" for c in (current.active_concerns or [])[:10])
+            + f"\n- Relationship notes: {current.relationship_notes or '(none)'}\n\n"
+            "## This Week's Observations\n"
+            f"### Patterns detected\n{patterns_summary or '(none)'}\n\n"
+            f"### Anomalies detected\n{anomalies_summary or '(none)'}\n\n"
+            f"### Predictions made\n{predictions_summary or '(none)'}\n\n"
+            f"### Intents formed\n{len(intents)} intents\n\n"
+            f"### Actions executed\n{len(actions)} actions\n\n"
+            "Update the narrative state: has mood trend changed? "
+            "What new patterns or concerns have emerged? "
+            "Update relationship notes if relevant. "
+            "Keep patterns and concerns lists to at most 10 items each, "
+            "pruning stale ones. Retain important long-term context.\n\n"
+            "Output a JSON object with these fields: "
+            "user_mood_trend, recent_patterns (list), active_concerns (list), "
+            "relationship_notes."
+        )
+
+        try:
+            result = await self._narrative_llm.complete_structured(  # type: ignore[attr-defined]
+                layer="reflection",
+                system=(
+                    "You are the narrative identity layer of CoreMind. "
+                    "You maintain a persistent summary of the user's life context. "
+                    "Be concise, specific, and grounded in the data provided. "
+                    "Output valid JSON only."
+                ),
+                user=prompt,
+                response_model=_NarrativeRefreshOutput,
+            )
+        except Exception:
+            log.warning("reflection.narrative_llm_failed", exc_info=True)
+            return
+
+        try:
+            await narrative_module.update(  # type: ignore[attr-defined]
+                user_mood_trend=result.user_mood_trend,
+                recent_patterns=result.recent_patterns,
+                active_concerns=result.active_concerns,
+                relationship_notes=result.relationship_notes,
+            )
+            log.info("reflection.narrative_refreshed")
+        except Exception:
+            log.warning("reflection.narrative_update_failed", exc_info=True)
 
     async def _collect(
         self,

@@ -35,6 +35,8 @@ from coremind.action.executor import Executor
 from coremind.action.journal import ActionJournal
 from coremind.action.router import ActionRouter
 from coremind.config import DaemonConfig, DashboardConfig, load_config
+from coremind.conversation.handler import ConversationHandler
+from coremind.conversation.store import ConversationStore
 from coremind.core.event_bus import EventBus
 from coremind.crypto.signatures import ensure_daemon_keypair
 from coremind.dashboard import (
@@ -56,6 +58,7 @@ from coremind.reasoning.loop import ReasoningLoop, ReasoningLoopConfig
 from coremind.reasoning.persistence import JsonlCyclePersister
 from coremind.world.model import WorldEventRecord
 from coremind.world.store import WorldStore
+from coremind.memory.narrative import NarrativeMemory
 from coremind.memory.procedural import ProceduralMemory
 
 log = structlog.get_logger(__name__)
@@ -154,6 +157,9 @@ class CoreMindDaemon:
         self._approved_dispatcher_stop: asyncio.Event = asyncio.Event()
         self._response_listener_task: asyncio.Task[None] | None = None
         self._response_listener_stop: asyncio.Event = asyncio.Event()
+        self._conversation_listener_stop: asyncio.Event = asyncio.Event()
+        self._conversation_listener_task: asyncio.Task[None] | None = None
+        self._conversation_handler: ConversationHandler | None = None
 
     async def start(self) -> None:
         """Initialise all subsystems and begin the ingest loop.
@@ -326,11 +332,16 @@ class CoreMindDaemon:
                 log.warning("daemon.semantic_memory_unavailable", error=str(exc))
                 semantic_memory = None
 
+            narrative_memory = NarrativeMemory()
+            await narrative_memory.load()
+            log.info("daemon.narrative_memory_loaded")
+
             reasoning_loop = ReasoningLoop(
                 snapshot_provider=world_store,
                 memory=semantic_memory,
                 llm=llm_4,
                 persister=JsonlCyclePersister(reasoning_journal),
+                narrative=narrative_memory,
                 config=reasoning_config,
             )
             reasoning_loop.start()
@@ -339,6 +350,20 @@ class CoreMindDaemon:
                 "daemon.reasoning_loop_started",
                 interval_seconds=1800,
             )
+
+            # Conversation layer (Pillar #1 — Natural Conversation)
+            conv_store = ConversationStore()
+            self._conversation_handler = ConversationHandler(
+                llm=llm_4,
+                store=conv_store,
+                get_narrative=lambda: narrative_memory.current_text() if narrative_memory else "",
+            )
+            self._conversation_listener_stop = asyncio.Event()
+            self._conversation_listener_task = asyncio.create_task(
+                self._conversation_listener_loop(notify_router, self._conversation_handler),
+                name="coremind.conversation.listener",
+            )
+            log.info("daemon.conversation_handler_started")
 
             # Schedule anomaly alert checker — runs 5s after each reasoning
             # cycle to push high-severity anomalies to Telegram.
@@ -507,6 +532,8 @@ class CoreMindDaemon:
                 rule_learner=rule_learner,
                 report_producer=report_producer,
                 notifier=reflection_notifier,
+                narrative_state=narrative_memory,
+                narrative_llm=llm_4,
                 config=ReflectionLoopConfig(
                     interval_seconds=86400,  # 24 hours
                     window_days=1,
@@ -577,6 +604,20 @@ class CoreMindDaemon:
             with contextlib.suppress(asyncio.CancelledError):
                 await self._response_listener_task
             self._response_listener_task = None
+
+        if self._response_listener_task is not None:
+            self._response_listener_stop.set()
+            self._response_listener_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._response_listener_task
+            self._response_listener_task = None
+
+        if self._conversation_listener_task is not None:
+            self._conversation_listener_stop.set()
+            self._conversation_listener_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._conversation_listener_task
+            self._conversation_listener_task = None
 
         if self._approved_dispatcher_task is not None:
             self._approved_dispatcher_stop.set()
@@ -712,6 +753,50 @@ class CoreMindDaemon:
                     intent_id=response.intent_id,
                     decision=response.decision,
                     responder=response.responder.id,
+                )
+
+    async def _conversation_listener_loop(
+        self,
+        notify_router: NotificationRouter,
+        conversation_handler: ConversationHandler,
+    ) -> None:
+        """Listen for text messages and route them to the conversation handler.
+
+        Text messages arriving via Telegram (and eventually other channels)
+        are forwarded to the ConversationHandler, which generates an LLM
+        response and sends it back through the notification router.
+
+        Runs until cancelled or :attr:`_conversation_listener_stop` is set.
+        """
+        # Find the Telegram port from the router's ports
+        telegram_port = None
+        for port in [notify_router._primary] + notify_router._fallbacks:
+            if hasattr(port, "subscribe_text_messages"):
+                telegram_port = port
+                break
+
+        if telegram_port is None:
+            log.warning("conversation.no_text_port_found")
+            return
+
+        async for text_msg in telegram_port.subscribe_text_messages():
+            if self._conversation_listener_stop.is_set():
+                break
+            try:
+                response_text, _conv = await conversation_handler.handle_message(
+                    text_msg.text,
+                    conversation_id=text_msg.conversation_id,
+                    user_id=text_msg.responder,
+                )
+                # Send the response back through the notification router
+                await notify_router.notify(
+                    message=response_text,
+                    category="info",
+                )
+            except Exception:
+                log.exception(
+                    "conversation.handle_message_failed",
+                    responder=text_msg.responder,
                 )
 
     async def _approved_dispatcher_loop(self, approvals: ApprovalGate) -> None:
