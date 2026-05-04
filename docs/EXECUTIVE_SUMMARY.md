@@ -1,8 +1,8 @@
 # CoreMind — Executive Summary
 
-**Version:** 0.1 (Design)
-**Date:** April 2026
-**Status:** Pre-implementation
+**Version:** 0.3.0 (Living Intelligence)
+**Date:** May 2026
+**Status:** Active — running in production at Guillaume's home
 
 ---
 

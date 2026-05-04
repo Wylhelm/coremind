@@ -6,6 +6,56 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.3.0] — 2026-05-04
+
+### Added — Pillar 1: Natural Conversation
+- `coremind/conversation/` module: `ConversationHandler`, `ConversationStore`, prompts, schemas
+- Two-way Telegram text message handling via unified `subscribe_all()` (prevents poll_offset race)
+- Conversation starters: high-salience intents (≥0.70) become open-ended messages instead of approval prompts
+- `InboundTextMessage` schema for text capture from notification channels
+- `"conversation"` notification category — messages without buttons, inviting text reply
+
+### Added — Pillar 2: Vision (Camera Sensors)
+- **Tapo C225 plugin** (`plugins/tapo/`): RTSP snapshot capture every 5 min
+- **Webcam plugin** (`plugins/webcam/`): USB camera frame capture + motion detection
+- **Vision analysis via Ollama Pro**: Gemini 3 Flash (primary) + Mistral Large 3 (fallback)
+  - Scene attributes: `person_present`, `person_name`, `activity`
+  - Pet detection: `pets_visible`, `pet_description` with cat name identification
+- **Immich face recognition**: 13 reference face thumbnails extracted via Immich v2 API
+  - Two-pass system: text description → face matching with reference images if "unknown"
+  - Batched comparison (7 faces per Ollama call, max 8 images)
+
+### Added — Pillar 3: Physical Presence (Nest Hub)
+- `notify/adapters/nest_hub.py`: `NestHubAdapter` using gbot-say.sh + PyChromecast
+- `presence/` module: `PresenceScheduler` for ambient interactions
+- Morning greetings, URL casting to Nest Hub display
+
+### Added — Pillar 4: Narrative Identity
+- `memory/narrative.py`: `NarrativeMemory` with JSON persistence and auto-decay
+- Narrative context injected into reasoning prompts and reflection cycles
+- Observations accumulate from reasoning output, decay after 7 days
+
+### Added — Presence Detection
+- `presence/detector.py`: `PresenceDetector` — monitors camera events for prolonged presence
+- Generates conversation intents after 1h of continuous desk activity
+- Personalized alerts with person name from vision pipeline
+
+### Changed
+- **Vision**: switched from Google direct API to Ollama Pro (Gemini 3 Flash)
+- **Telegram**: `subscribe_all()` merged dispatches both text messages and approval callbacks
+- **Reasoning prompts**: temporal pattern detection for camera presence events
+- **Conversation threshold**: 0.85→0.70 for more proactive initiation
+- **Tapo plugin**: added `ollama`, `Pillow` dependencies
+- **start-all.sh**: `COREMIND_TELEGRAM_BOT_TOKEN`, `TAPO_USERNAME`, `TAPO_PASSWORD` exports
+
+### Fixed
+- `subscribe_text_messages` / `subscribe_responses` poll_offset race condition
+- `NotificationPort.notify()` missing required `actions`/`intent_id` kwargs
+- Narrative memory `_render_for_prompt()` method name in daemon wiring
+- Nest Hub adapter pointing to correct gbot-say.sh path
+
+---
+
 ## [Unreleased]
 
 ### Added (2026-05-02 — L4 & L7 Wiring)

@@ -24,7 +24,7 @@ CoreMind is an open-source framework for **continuous personal intelligence**. 7
 
 Update this line when starting a new phase:
 
-> **All phases complete — v0.1.0 feature-complete.** New work belongs in a post-v0.1.0 milestone (see deferred items in `CHANGELOG.md`).
+> **v0.3.0 complete — Living Intelligence.** Conversation, vision, physical presence, and narrative identity pillars active. Next milestone: G-Bot ↔ CoreMind fusion (v0.4.0).
 
 Do not implement anything outside the active phase.
 

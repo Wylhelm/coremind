@@ -9,7 +9,7 @@ Integration** VS Code extension or on [diagrams.net](https://app.diagrams.net).
 | [01-system-overview.drawio](01-system-overview.drawio) | The seven cognitive layers, forward data path L1→L7, and the single L7→L2/L3 feedback edge. | §2.1, §3 |
 | [02-process-topology.drawio](02-process-topology.drawio) | Daemon process, plugin host (gRPC), event bus, in-process layer tasks, and persistent stores (SurrealDB, Qdrant, audit journal). | §6, §7 |
 | [03-data-model.drawio](03-data-model.drawio) | The core types — `WorldEvent`, `Entity`, `Relationship`, `Intent`, `Action` — and how they reference each other. | §4 |
-| [04-graduated-agency.drawio](04-graduated-agency.drawio) | L5 → L6 routing: forced-approval classes, confidence bands (Safe / Suggest / Ask), approval gate, signed audit journal. | §3.6, §9 |
+| [04-graduated-agency.drawio](04-graduated-agency.drawio) | L5 → L6 routing: forced-approval classes, confidence bands (Safe / Suggest / Ask / Conversation), approval gate, signed audit journal. v0.3.0 added Conversation category. | §3.6, §9 |
 | [05-openclaw-integration.drawio](05-openclaw-integration.drawio) | The OpenClaw adapter pattern: bidirectional plugin, what crosses the boundary, what each side keeps. | §14 |
 
 ## Editing

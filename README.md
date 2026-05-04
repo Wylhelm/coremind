@@ -65,15 +65,17 @@ CoreMind is not:
 
 ## Project status
 
-✅ **v0.2.0 — All 7 layers active** (2026-05-02). See [`CHANGELOG.md`](CHANGELOG.md).
+✅ **v0.3.0 — Living Intelligence** (2026-05-04). See [`CHANGELOG.md`](CHANGELOG.md).
 
-- [x] All 7 cognitive layers operational
-- [x] L4 Reasoning loop generating patterns, anomalies, predictions (30-min cadence)
-- [x] L7 Reflection loop evaluating outcomes + learning rules (24h cadence)
-- [x] 7 production plugins: weather, homeassistant, firefly, health, vikunja, email, calendar
-- [x] Gog-powered email (gog gmail) and calendar (gog calendar) effectors
-- [x] Gmail effector replacing the gmail-imap plugin
-- [x] Quiet hours (23h-7h America/Toronto) + intent filtering (salience ≥0.45)
+- [x] 4 new pillars: Conversation, Vision, Physical Presence, Narrative Identity
+- [x] Gemini 3 Flash + Mistral Large 3 vision via Ollama Pro
+- [x] 13-person face recognition via Immich reference faces
+- [x] Tapo camera + webcam plugins with real-time vision analysis
+- [x] Two-way Telegram conversations (no more approval buttons)
+- [x] Presence detector: alerts after 1h of desk activity
+- [x] Nest Hub ambient speech via PyChromecast
+- [x] 7 cognitive layers operational + 9 production plugins
+- [x] All 566 tests passing
 
 ---
 

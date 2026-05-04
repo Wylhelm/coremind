@@ -1,7 +1,7 @@
 # CoreMind — Technical Architecture
 
-**Version:** 0.2.0 (Active)
-**Status:** All 7 layers active — L4 & L7 wired 2026-05-02
+**Version:** 0.3.0 (Active — Living Intelligence)
+**Status:** All 7 layers + 4 new pillars active — vision, conversation, presence, narrative
 **Audience:** Contributors, implementers, coding agents
 
 ---
