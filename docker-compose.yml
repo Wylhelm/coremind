@@ -1,7 +1,58 @@
+# CoreMind — docker-compose.yml
+# Start: docker compose up -d
+# Logs:  docker compose logs -f coremind
+
 services:
+  # ── Backing stores ──
   surrealdb:
     image: surrealdb/surrealdb:latest
     command: start --user root --pass root memory
     ports:
       - "127.0.0.1:8001:8000"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "127.0.0.1:6333:6333"
+      - "127.0.0.1:6334:6334"
+    restart: unless-stopped
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  # ── CoreMind application ──
+  coremind:
+    build: .
+    container_name: coremind
+    restart: unless-stopped
+    depends_on:
+      surrealdb:
+        condition: service_healthy
+    environment:
+      - OLLAMA_API_BASE=${OLLAMA_API_BASE:-http://host.docker.internal:11434}
+      - COREMIND_TELEGRAM_BOT_TOKEN=${COREMIND_TELEGRAM_BOT_TOKEN}
+      - HA_TOKEN=${HA_TOKEN}
+      - FIREFLY_TOKEN=${FIREFLY_TOKEN:-}
+      - FIREFLY_URL=${FIREFLY_URL:-http://host.docker.internal:8080}
+      - INFLUXDB_URL=${INFLUXDB_URL:-http://host.docker.internal:8086}
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN:-}
+      - INFLUXDB_ORG=${INFLUXDB_ORG:-health}
+      - INFLUXDB_BUCKET=${INFLUXDB_BUCKET:-apple_health}
+      - TAPO_USERNAME=${TAPO_USERNAME}
+      - TAPO_PASSWORD=${TAPO_PASSWORD}
+      - TAPO_IP=${TAPO_IP:-10.0.0.131}
+      - TZ=${TZ:-America/Toronto}
+    volumes:
+      - coremind_data:/root/.coremind
+      - ${HOME}/.coremind/secrets:/root/.coremind/secrets:ro
+      - ${HOME}/.coremind/faces:/root/.coremind/faces:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  qdrant_data:
+  coremind_data:

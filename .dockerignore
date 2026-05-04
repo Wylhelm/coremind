@@ -1,0 +1,12 @@
+.venv
+__pycache__
+*.pyc
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.cursor
+.vscode
+.git
+*.log
+tmp/
+.coverage

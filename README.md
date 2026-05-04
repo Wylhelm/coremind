@@ -188,7 +188,20 @@ Building your own plugin: implement the gRPC service in [`spec/plugin.proto`](sp
 
 ---
 
-## Installation
+## Docker (recommended)
+
+```bash
+cp .env.example .env
+# Edit .env with your secrets
+
+docker compose up -d
+```
+
+That's it. Daemon + all plugins + SurrealDB + Qdrant in one command.
+
+---
+
+## Installation (manual)
 
 ### Prerequisites
 
