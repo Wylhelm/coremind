@@ -182,7 +182,7 @@ echo ""
 echo "=== Status ==="
 "$COREMIND_VENV/coremind" daemon status 2>&1 | head -4
 echo ""
-echo "Running plugins: $(ps aux | grep -E 'coremind-plugin' | grep -v grep | wc -l)/${#PLUGINS[@]}"
+echo "Running plugins: $(ps aux | grep -E 'coremind-plugin-[a-z]' | grep -v grep | wc -l)/${#PLUGINS[@]}"
 echo ""
 echo "Logs: $LOG_DIR/"
 echo "Watchdog: active (PID $WATCHDOG_PID, check interval 60s)"
