@@ -190,15 +190,17 @@ class Executor:
         if action is None:
             log.info("executor.conversation_action_cancelled", intent_id=intent.id)
         elif action.result and action.result.status in ("ok", "noop"):
-            # Send the result back to the user
-            result_msg = _format_action_result(intent, action)
-            if result_msg and self._notify is not None:
-                await self._notify.notify(
-                    message=result_msg,
-                    category="info",
-                    actions=None,
-                    intent_id=intent.id,
-                )
+            # Only send result for query-type actions, not simple notifications
+            action_class = intent.proposed_action.action_class if intent.proposed_action else ""
+            if action_class not in ("notification", "presence_alert", "health_nudge"):
+                result_msg = _format_action_result(intent, action)
+                if result_msg and self._notify is not None:
+                    await self._notify.notify(
+                        message=result_msg,
+                        category="info",
+                        actions=None,
+                        intent_id=intent.id,
+                    )
             log.info("executor.conversation_action_executed", intent_id=intent.id)
         else:
             # Action failed — tell the user
