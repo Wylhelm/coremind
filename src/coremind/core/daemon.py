@@ -297,8 +297,11 @@ class CoreMindDaemon:
                 intent_store=intents,
                 llm=llm,
                 router=router,
+                event_bus=event_bus,
                 config=IntentionLoopConfig(
+                    event_driven=config.intention.event_driven,
                     interval_seconds=config.intention.interval_seconds,
+                    routine_interval_seconds=config.intention.routine_interval_seconds,
                     max_questions=config.intention.max_questions,
                     min_salience=config.intention.min_salience,
                     min_confidence=config.intention.min_confidence,
@@ -308,7 +311,9 @@ class CoreMindDaemon:
             self._intention_loop = intention_loop
             log.info(
                 "daemon.intention_loop_started",
+                event_driven=config.intention.event_driven,
                 interval_seconds=config.intention.interval_seconds,
+                routine_interval_seconds=config.intention.routine_interval_seconds,
             )
 
             # ----------------------------------------------------------

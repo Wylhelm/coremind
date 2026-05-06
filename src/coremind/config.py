@@ -28,7 +28,13 @@ class IntentionConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     enabled: bool = False
+    event_driven: bool = Field(default=True, description="Enable event-driven mode")
     interval_seconds: int = Field(default=600, ge=10)
+    routine_interval_seconds: int = Field(
+        default=14400,
+        ge=60,
+        description="Interval for routine cycles in event-driven mode (default 4h)",
+    )
     max_questions: int = Field(default=5, ge=1)
     user_ask_classes: list[str] = Field(default_factory=list)
     min_salience: float = Field(default=0.0, ge=0.0, le=1.0)

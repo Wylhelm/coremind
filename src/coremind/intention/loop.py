@@ -28,6 +28,7 @@ import structlog
 from pydantic import BaseModel, Field
 
 from coremind.action.router import ActionRouter
+from coremind.core.event_bus import EventBus
 from coremind.errors import IntentionError, LLMError
 from coremind.intention.persistence import IntentStore
 from coremind.intention.prompts import render_prompt
@@ -43,7 +44,7 @@ from coremind.intention.schemas import (
 )
 from coremind.reasoning.llm import LLM
 from coremind.reasoning.schemas import ReasoningOutput
-from coremind.world.model import JsonValue, WorldSnapshot
+from coremind.world.model import JsonValue, WorldEventRecord, WorldSnapshot
 
 log = structlog.get_logger(__name__)
 
@@ -66,7 +67,13 @@ def _utc_now() -> datetime:
 class IntentionLoopConfig(BaseModel):
     """Scheduler configuration for the intention loop."""
 
+    event_driven: bool = Field(default=True, description="Enable event-driven mode")
     interval_seconds: int = Field(default=600, ge=10)
+    routine_interval_seconds: int = Field(
+        default=14400,
+        ge=60,
+        description="Interval for routine cycles in event-driven mode (default 4h)",
+    )
     template_system: str = "intention.system.v1"
     template_user: str = "intention.user.v1"
     max_entities_in_prompt: int = Field(default=40, ge=1)
@@ -136,6 +143,7 @@ class IntentionLoop:
         router: Action router for dispatching freshly formed intents.
         patterns: Optional procedural-pattern summary provider.
         rule_matcher: Optional rule-match counter for confidence.
+        event_bus: Optional EventBus for event-driven mode.
         config: Scheduler parameters.
         clock: Injectable clock.
     """
@@ -150,6 +158,7 @@ class IntentionLoop:
         *,
         patterns: PatternProvider | None = None,
         rule_matcher: RuleMatcher | None = None,
+        event_bus: EventBus | None = None,
         config: IntentionLoopConfig | None = None,
         clock: Clock = _utc_now,
     ) -> None:
@@ -160,10 +169,15 @@ class IntentionLoop:
         self._router = router
         self._patterns = patterns
         self._rules = rule_matcher
+        self._event_bus = event_bus
         self._config = config or IntentionLoopConfig()
         self._clock = clock
         self._task: asyncio.Task[None] | None = None
         self._stop_event = asyncio.Event()
+        self._event_subscription_task: asyncio.Task[None] | None = None
+        self._pending_observations: list[WorldEventRecord] = []
+        self._observation_threshold = 10
+        self._last_routine_cycle: datetime | None = None
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -174,21 +188,36 @@ class IntentionLoop:
         if self._task is not None and not self._task.done():
             return
         self._stop_event.clear()
+        if self._config.event_driven and self._event_bus is not None:
+            self._event_subscription_task = asyncio.create_task(
+                self._event_listener(), name="coremind.intention.event_listener"
+            )
         self._task = asyncio.create_task(self._scheduler(), name="coremind.intention")
 
     async def stop(self) -> None:
         """Stop the scheduler."""
         self._stop_event.set()
-        if self._task is not None:
+        if self._event_subscription_task is not None:
+            self._event_subscription_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
-                await self._task
+                await asyncio.wait_for(self._event_subscription_task, timeout=2.0)
+            self._event_subscription_task = None
+        if self._task is not None:
+            self._task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await asyncio.wait_for(self._task, timeout=2.0)
             self._task = None
 
     async def _scheduler(self) -> None:
         """Run cycles until :meth:`stop` is called."""
-        interval = self._config.interval_seconds
+        if self._config.event_driven:
+            interval = self._config.routine_interval_seconds
+        else:
+            interval = self._config.interval_seconds
         # Startup grace: wait one full interval before first cycle
-        log.info("intention.startup_grace", seconds=interval)
+        log.info(
+            "intention.startup_grace", seconds=interval, event_driven=self._config.event_driven
+        )
         with contextlib.suppress(TimeoutError):
             await asyncio.wait_for(self._stop_event.wait(), timeout=interval)
 
@@ -212,6 +241,83 @@ class IntentionLoop:
     # ------------------------------------------------------------------
     # Cycle execution
     # ------------------------------------------------------------------
+
+    async def _event_listener(self) -> None:
+        """Listen to EventBus and accumulate observations."""
+        if self._event_bus is None:
+            return
+
+        subscription = self._event_bus.subscribe()
+        try:
+            async for event in subscription:
+                if self._stop_event.is_set():
+                    break
+                # Skip meta-events
+                if event.signature is None:
+                    continue
+                # Filter for significant events
+                if self._is_significant_event(event):
+                    self._pending_observations.append(event)
+                    log.debug(
+                        "intention.observation_buffered",
+                        event_id=event.id,
+                        buffer_size=len(self._pending_observations),
+                    )
+                    # Trigger cycle if threshold crossed
+                    if len(self._pending_observations) >= self._observation_threshold:
+                        log.info(
+                            "intention.threshold_crossed",
+                            buffer_size=len(self._pending_observations),
+                            threshold=self._observation_threshold,
+                        )
+                        try:
+                            await self.run_cycle()
+                        except IntentionError:
+                            log.error("intention.event_cycle_failed", exc_info=True)
+                        except asyncio.CancelledError:
+                            raise
+                        except Exception:
+                            log.exception("intention.event_cycle_unexpected")
+                        self._pending_observations.clear()
+        finally:
+            with contextlib.suppress(Exception):
+                await subscription.aclose()
+
+    def _is_significant_event(self, event: WorldEventRecord) -> bool:
+        """Determine if an event is significant enough to buffer.
+
+        Args:
+            event: The event to evaluate.
+
+        Returns:
+            True if the event should be buffered, False otherwise.
+        """
+        # Filter for high-confidence events
+        if event.confidence < 0.7:
+            return False
+
+        # Filter for specific entity types that are typically significant
+        significant_types = {
+            "health",
+            "sensor",
+            "camera",
+            "anomaly",
+            "alert",
+        }
+        if event.entity.type.lower() in significant_types:
+            return True
+
+        # Filter for specific attributes that are typically significant
+        significant_attributes = {
+            "anomaly",
+            "alert",
+            "error",
+            "warning",
+            "failure",
+            "motion",
+            "presence",
+        }
+        return event.attribute.lower() in significant_attributes
 
     async def run_cycle(self) -> list[Intent]:
         """Execute a single intention cycle.
