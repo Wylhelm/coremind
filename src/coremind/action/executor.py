@@ -123,7 +123,10 @@ class Executor:
         if not self._notify_journal.should_send(message, intent_id or ""):
             return False
         await self._notify.notify(
-            message=message, category=category, actions=actions, intent_id=intent_id  # type: ignore[arg-type]
+            message=message,
+            category=category,  # type: ignore[arg-type]
+            actions=actions,  # type: ignore[arg-type]
+            intent_id=intent_id,
         )
         return True
 

@@ -90,8 +90,8 @@ async def wired(tmp_path: Path, keypair: tuple[Ed25519PrivateKey, Ed25519PublicK
         intents,
         resolver,
         notify_port=port,
-        suggest_grace=timedelta(milliseconds=10),
         notify_journal=NotificationJournal(tmp_path / "notify_journal.jsonl"),
+        suggest_grace=timedelta(milliseconds=10),
     )
     approvals = ApprovalGate(port, intents, journal, executor)
     router = ActionRouter(executor, approvals, intents, journal)
@@ -139,8 +139,8 @@ async def test_suggest_intent_cancelled_in_grace(
         intents,
         lambda _op: effector,
         notify_port=port,
-        suggest_grace=timedelta(milliseconds=50),
         notify_journal=NotificationJournal(tmp_path / "notify_journal.jsonl"),
+        suggest_grace=timedelta(milliseconds=50),
     )
     approvals = ApprovalGate(port, intents, journal, executor)
     router = ActionRouter(executor, approvals, intents, journal)
@@ -230,8 +230,8 @@ async def test_reverse_dispatches_reversal_operation(
         intents,
         lambda _op: effector,
         notify_port=port,
-        suggest_grace=timedelta(milliseconds=10),
         notify_journal=NotificationJournal(tmp_path / "notify_journal.jsonl"),
+        suggest_grace=timedelta(milliseconds=10),
     )
     approvals = ApprovalGate(port, intents, journal, executor)
     router = ActionRouter(executor, approvals, intents, journal)
