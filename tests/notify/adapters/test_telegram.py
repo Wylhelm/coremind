@@ -155,11 +155,13 @@ async def test_subscribe_responses_yields_parsed_callbacks(
         ]
     )
     port = await _make_port(fake, server, monkeypatch=monkeypatch)
+    stream: object = None
     try:
         stream = port.subscribe_responses()
         response = await anext(stream)
     finally:
-        await stream.aclose()  # type: ignore[attr-defined]
+        if stream is not None:
+            await stream.aclose()  # type: ignore[attr-defined]
         await port.close()
 
     assert response.intent_id == "i1"
