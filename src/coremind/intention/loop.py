@@ -388,14 +388,14 @@ def _references_stale_entities(raw: RawIntent, snapshot: WorldSnapshot) -> bool:
 
     # Extract entity references from the question text (or grounding)
     for e in snapshot.entities:
-        name = getattr(e, 'display_name', '')
+        name = getattr(e, "display_name", "")
         if name and name in raw.question.text:
             ref_entities.add(name)
 
     for e in snapshot.entities:
-        name = getattr(e, 'display_name', '')
+        name = getattr(e, "display_name", "")
         if name in ref_entities:
-            updated = getattr(e, 'updated_at', None)
+            updated = getattr(e, "updated_at", None)
             if updated and (now - updated) > max_age:
                 return True
     return False

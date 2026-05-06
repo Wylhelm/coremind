@@ -185,7 +185,7 @@ async def run() -> None:
     """Main event loop: query health metrics periodically, emit to CoreMind."""
     private_key = ensure_plugin_keypair(KEY_STORE_ID)
     channel_addr = f"unix://{DEFAULT_SOCKET_PATH}"
-    RECONNECT_DELAY = 10
+    reconnect_delay = 10
 
     log.info("health.starting", plugin_id=PLUGIN_ID, interval=POLL_INTERVAL_SECONDS)
 
@@ -200,7 +200,9 @@ async def run() -> None:
                     try:
                         await _emit_metrics(stub, private_key)
                     except grpc.RpcError as exc:
-                        log.warning("health.rpc_error_reconnecting", error=exc.details(), exc_info=False)
+                        log.warning(
+                            "health.rpc_error_reconnecting", error=exc.details(), exc_info=False
+                        )
                         break
 
                     await asyncio.sleep(POLL_INTERVAL_SECONDS)
@@ -210,7 +212,7 @@ async def run() -> None:
         except Exception:
             log.exception("health.connection_lost_reconnecting")
 
-        await asyncio.sleep(RECONNECT_DELAY)
+        await asyncio.sleep(reconnect_delay)
 
 
 def main() -> None:

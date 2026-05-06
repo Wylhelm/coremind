@@ -93,7 +93,7 @@ async def robust_plugin_loop(
                         log.warning(
                             "plugin.rpc_error_reconnecting",
                             plugin_id=plugin_id,
-                            error=exc.details() if hasattr(exc, 'details') else str(exc),
+                            error=exc.details() if hasattr(exc, "details") else str(exc),
                         )
                         break  # Break inner loop → reconnect
                     except Exception:

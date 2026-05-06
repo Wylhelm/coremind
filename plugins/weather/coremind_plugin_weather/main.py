@@ -65,7 +65,7 @@ def build_signed_event(key, entity_type, entity_id, attribute, value, unit=None)
 async def run():
     key = ensure_plugin_keypair(KEY_STORE_ID)
     ch = f"unix://{DEFAULT_SOCKET_PATH}"
-    RECONNECT_DELAY = 10
+    reconnect_delay = 10
 
     log.info("weather.starting", plugin_id=PLUGIN_ID)
 
@@ -89,7 +89,9 @@ async def run():
                                 await stub.EmitEvent(ev, metadata=meta)
                                 log.info("weather.emitted", attribute=attr, value=v)
                     except grpc.RpcError as exc:
-                        log.warning("weather.rpc_error_reconnecting", error=exc.details(), exc_info=False)
+                        log.warning(
+                            "weather.rpc_error_reconnecting", error=exc.details(), exc_info=False
+                        )
                         break
                     except Exception as e:
                         log.warning("weather.error", error=str(e))
@@ -101,7 +103,7 @@ async def run():
         except Exception:
             log.exception("weather.connection_lost_reconnecting")
 
-        await asyncio.sleep(RECONNECT_DELAY)
+        await asyncio.sleep(reconnect_delay)
 
 
 def main():

@@ -66,7 +66,7 @@ def build_signed_event(key, entity_type, entity_id, attribute, value, unit=None)
 async def run():
     key = ensure_plugin_keypair(KEY_STORE_ID)
     ch = f"unix://{DEFAULT_SOCKET_PATH}"
-    RECONNECT_DELAY = 10
+    reconnect_delay = 10
 
     log.info("vikunja.starting", plugin_id=PLUGIN_ID)
 
@@ -108,20 +108,33 @@ async def run():
                             )
                         # Global stats
                         await stub.EmitEvent(
-                            build_signed_event(key, "task_manager", "vikunja", "open_tasks", total_open),
+                            build_signed_event(
+                                key, "task_manager", "vikunja", "open_tasks", total_open
+                            ),
                             metadata=meta,
                         )
                         await stub.EmitEvent(
-                            build_signed_event(key, "task_manager", "vikunja", "completed_tasks", total_done),
+                            build_signed_event(
+                                key, "task_manager", "vikunja", "completed_tasks", total_done
+                            ),
                             metadata=meta,
                         )
                         await stub.EmitEvent(
-                            build_signed_event(key, "task_manager", "vikunja", "overdue_tasks", total_overdue),
+                            build_signed_event(
+                                key, "task_manager", "vikunja", "overdue_tasks", total_overdue
+                            ),
                             metadata=meta,
                         )
-                        log.info("vikunja.cycle_done", open=total_open, done=total_done, overdue=total_overdue)
+                        log.info(
+                            "vikunja.cycle_done",
+                            open=total_open,
+                            done=total_done,
+                            overdue=total_overdue,
+                        )
                     except grpc.RpcError as exc:
-                        log.warning("vikunja.rpc_error_reconnecting", error=exc.details(), exc_info=False)
+                        log.warning(
+                            "vikunja.rpc_error_reconnecting", error=exc.details(), exc_info=False
+                        )
                         break
                     except Exception as e:
                         log.warning("vikunja.error", error=str(e))
@@ -133,7 +146,7 @@ async def run():
         except Exception:
             log.exception("vikunja.connection_lost_reconnecting")
 
-        await asyncio.sleep(RECONNECT_DELAY)
+        await asyncio.sleep(reconnect_delay)
 
 
 def main():

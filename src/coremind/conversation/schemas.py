@@ -69,7 +69,8 @@ class Conversation(BaseModel):
             prefix = (
                 "👤 User"
                 if msg.role == MessageRole.USER
-                else "🤖 CoreMind" if msg.role == MessageRole.COREMIND
+                else "🤖 CoreMind"
+                if msg.role == MessageRole.COREMIND
                 else "📋"
             )
             lines.append(f"{prefix}: {msg.text}")

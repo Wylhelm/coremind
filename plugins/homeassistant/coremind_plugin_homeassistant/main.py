@@ -271,7 +271,7 @@ async def run(
     private_key = ensure_plugin_keypair(KEY_STORE_ID)
     channel_addr = f"unix://{socket_path}"
     ws_url = _ws_url(cfg.base_url)
-    RECONNECT_DELAY = 10
+    reconnect_delay = 10
 
     log.info(
         "homeassistant.starting",
@@ -291,7 +291,9 @@ async def run(
                 log.info("homeassistant.connected", plugin_id=PLUGIN_ID)
 
                 try:
-                    async for payload in ha_state_changes(session, ws_url, token, cfg.entity_prefixes):
+                    async for payload in ha_state_changes(
+                        session, ws_url, token, cfg.entity_prefixes
+                    ):
                         try:
                             await _emit_state_change(stub, private_key, payload)
                         except grpc.RpcError:
@@ -306,7 +308,7 @@ async def run(
         except Exception:
             log.exception("homeassistant.connection_lost_reconnecting")
 
-        await asyncio.sleep(RECONNECT_DELAY)
+        await asyncio.sleep(reconnect_delay)
 
 
 def main() -> None:

@@ -115,21 +115,26 @@ ignore = [
     "S603",
     "S607",
 ] # CLI scripts are allowed to print and shell out
+"scripts/build_pptx.py" = ["ALL"]  # presentation builder, not production code
 "integrations/openclaw-adapter/openclaw_side_bridge.py" = [
     "N802", "ANN", "ASYNC230", "PTH123", "F401", "I001", "E501",
 ]  # gRPC bridge: CamelCase methods, JSONL queue I/O
 "plugins/**/*.py" = [
     "ANN", "E501", "E401", "E701", "E702", "E722",
     "F401", "PLR2004", "ASYNC210", "N802", "E741", "I001", "PTH123",
-]  # plugin code predates strict lint rules
+    "PLR0912", "PLR0915", "S603", "PLW1510", "B008", "ASYNC240", "PLC0415", "S112",
+]  # plugin code predates strict lint rules; retry loops add complexity
 "src/coremind/dashboard/views.py" = ["E402", "I001"]
 "src/coremind/plugin_host/server.py" = ["B008", "PLC0415"]
-"src/coremind/intention/loop.py" = ["E501"]
-"src/coremind/core/daemon.py" = ["PLR0915"]
+"src/coremind/intention/loop.py" = ["E501", "PLR2004"]
+"src/coremind/core/daemon.py" = [
+    "PLR0915", "PLR0912", "PLC0415", "ANN001", "ANN202", "PTH123", "E501", "ASYNC230",
+]
 "src/coremind/action/effectors.py" = [
     "PLC0415", "PLR0911", "S603", "S607", "PLW1510",
     "PLW2901", "PLR2004", "ASYNC221",
 ]
+"src/coremind/action/executor.py" = ["E501"]
 "src/coremind/cli/__init__.py" = [
     "PLC0415", "PLR0915", "ANN202",
 ]
@@ -137,6 +142,15 @@ ignore = [
     "PLC0415", "PLR0915", "ANN202",
 ]
 "src/coremind/intention/prompts.py" = ["E501"]
+"src/coremind/reasoning/loop.py" = ["PTH123", "PTH103", "PTH120", "PTH111", "PLC0415", "S110", "PLR2004", "E401", "I001"]
+"src/coremind/reasoning/prompts.py" = ["E501"]
+"src/coremind/reasoning/schemas.py" = ["E501"]
+"src/coremind/reflection/loop.py" = ["E501"]
+"src/coremind/conversation/handler.py" = ["PLC0415", "DTZ005"]
+"src/coremind/presence/detector.py" = ["PLR0911", "PLR0912", "PLR2004", "E501"]
+"src/coremind/presence/scheduler.py" = ["DTZ005", "PLR2004"]
+"src/coremind/notify/adapters/nest_hub.py" = ["PTH123", "PTH111"]
+"src/coremind/plugin_helpers.py" = ["PLC0415"]
 
 [tool.ruff.format]
 quote-style = "double"

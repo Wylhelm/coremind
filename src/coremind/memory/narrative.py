@@ -72,9 +72,7 @@ class NarrativeMemory:
             if not self._path.exists():
                 return
             try:
-                content = await asyncio.to_thread(
-                    self._path.read_text, encoding="utf-8"
-                )
+                content = await asyncio.to_thread(self._path.read_text, encoding="utf-8")
                 self._state = NarrativeState.model_validate_json(content)
                 log.info("narrative.loaded", version=self._state.version)
             except (OSError, ValueError) as exc:
@@ -88,9 +86,7 @@ class NarrativeMemory:
         self._path.parent.mkdir(parents=True, exist_ok=True)
 
         def _write() -> None:
-            self._path.write_text(
-                self._state.model_dump_json(indent=2), encoding="utf-8"
-            )
+            self._path.write_text(self._state.model_dump_json(indent=2), encoding="utf-8")
 
         await asyncio.to_thread(_write)
 

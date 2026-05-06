@@ -10,14 +10,14 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 import structlog
 
-from coremind.world.store import WorldStore
-from coremind.intention.persistence import IntentStore
-from coremind.intention.schemas import Intent, InternalQuestion, ActionProposal
 from coremind.action.router import ActionRouter
+from coremind.intention.persistence import IntentStore
+from coremind.intention.schemas import ActionProposal, Intent, InternalQuestion
+from coremind.world.store import WorldStore
 
 log = structlog.get_logger(__name__)
 
@@ -76,8 +76,8 @@ class PresenceDetector:
         # Find the tapo camera entity
         tapo = None
         for entity in snapshot.entities:
-            name = getattr(entity, 'display_name', '') or str(entity)
-            if 'tapo' in str(name):
+            name = getattr(entity, "display_name", "") or str(entity)
+            if "tapo" in str(name):
                 tapo = entity
                 break
 
@@ -85,7 +85,7 @@ class PresenceDetector:
             return
 
         # --- Staleness check: ignore data from a dead/crashed plugin ---
-        updated_at = getattr(tapo, 'updated_at', None)
+        updated_at = getattr(tapo, "updated_at", None)
         now = datetime.now(UTC)
         if updated_at is not None:
             age_seconds = (now - updated_at).total_seconds()
@@ -103,11 +103,11 @@ class PresenceDetector:
                 return
 
         # Get properties
-        props = getattr(tapo, 'properties', {}) or {}
+        props = getattr(tapo, "properties", {}) or {}
 
-        person_present = props.get('person_present')
-        person_name = props.get('person_name', 'unknown')
-        activity = props.get('activity', 'unknown')
+        person_present = props.get("person_present")
+        person_name = props.get("person_name", "unknown")
+        activity = props.get("activity", "unknown")
 
         if person_present is not True:
             self._first_seen_at = None
@@ -133,7 +133,7 @@ class PresenceDetector:
         # The camera is in the living room and cannot determine actual room.
         hours = int(elapsed_minutes / 60)
         minutes = int(elapsed_minutes % 60)
-        desk_keywords = ['desk', 'computer', 'working', 'bureau', 'ordinateur', 'travail']
+        desk_keywords = ["desk", "computer", "working", "bureau", "ordinateur", "travail"]
         is_at_desk = any(kw in str(activity).lower() for kw in desk_keywords)
 
         if is_at_desk:
@@ -143,10 +143,7 @@ class PresenceDetector:
                 f"Une petite pause ? ☕"
             )
         else:
-            question_text = (
-                f"Je te vois dans le salon depuis {hours}h{minutes:02d}. "
-                f"Tout va bien ?"
-            )
+            question_text = f"Je te vois dans le salon depuis {hours}h{minutes:02d}. Tout va bien ?"
 
         intent = Intent(
             id=uuid.uuid4().hex,

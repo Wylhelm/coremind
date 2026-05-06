@@ -138,7 +138,10 @@ class TelegramNotificationPort:
         don't race on the shared poll_offset.
         """
         while True:
-            params: dict[str, Any] = {"timeout": 25, "allowed_updates": ["message", "callback_query"]}
+            params: dict[str, Any] = {
+                "timeout": 25,
+                "allowed_updates": ["message", "callback_query"],
+            }
             if self._poll_offset is not None:
                 params["offset"] = self._poll_offset
 

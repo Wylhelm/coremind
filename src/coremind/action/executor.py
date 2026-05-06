@@ -406,7 +406,7 @@ def _format_conversation(intent: Intent) -> str:
     # Remove robotic "User receives..." prefix if present
     for prefix in ("User receives ", "User will receive ", "Guillaume receives "):
         if outcome.lower().startswith(prefix.lower()):
-            outcome = outcome[len(prefix):]
+            outcome = outcome[len(prefix) :]
             break
     return outcome.strip()
 
@@ -418,16 +418,17 @@ def _format_suggest(intent: Intent, grace_seconds: int) -> str:
         raise ActionError(f"intent {intent.id!r} has no proposed_action")
     why = proposal.expected_outcome or intent.question.text
     # Clean up robotic phrasing
-    for prefix in ("User receives ", "User will receive ", "Guillaume receives ",
-                    "The user gets ", "Guillaume gets "):
+    for prefix in (
+        "User receives ",
+        "User will receive ",
+        "Guillaume receives ",
+        "The user gets ",
+        "Guillaume gets ",
+    ):
         if why.lower().startswith(prefix.lower()):
-            why = why[len(prefix):]
+            why = why[len(prefix) :]
             break
-    return (
-        f"{why.strip()}\n\n"
-        f"Je vais vérifier ça automatiquement. "
-        f"Dis-moi si tu veux que j'annule."
-    )
+    return f"{why.strip()}\n\nJe vais vérifier ça automatiquement. Dis-moi si tu veux que j'annule."
 
 
 def _format_execution_summary(action: Action, intent: Intent) -> str:

@@ -136,8 +136,7 @@ class QdrantVectorStore:
             await asyncio.to_thread(_upsert)
         except UnexpectedResponse as exc:
             raise SemanticMemoryError(
-                f"Qdrant upsert failed in collection {collection!r} for "
-                f"point {point_id!r}: {exc}"
+                f"Qdrant upsert failed in collection {collection!r} for point {point_id!r}: {exc}"
             ) from exc
 
     async def search(
@@ -168,7 +167,7 @@ class QdrantVectorStore:
                 must=[
                     FieldCondition(
                         key="tags",
-                        match=MatchAny(any=[t for t in tag_filter]),
+                        match=MatchAny(any=list(tag_filter)),
                     )
                 ]
             )
@@ -227,6 +226,5 @@ class QdrantVectorStore:
             return await asyncio.to_thread(_delete)
         except UnexpectedResponse as exc:
             raise SemanticMemoryError(
-                f"Qdrant delete failed in collection {collection!r} for "
-                f"point {point_id!r}: {exc}"
+                f"Qdrant delete failed in collection {collection!r} for point {point_id!r}: {exc}"
             ) from exc

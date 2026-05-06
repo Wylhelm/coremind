@@ -1332,6 +1332,7 @@ def reflect_now(window_days: int) -> None:
 
         class CliEventHistorySource:
             """EventHistorySource that tries SurrealDB and falls back gracefully."""
+
             def __init__(self) -> None:
                 self._store: WorldStore | None = None
 
@@ -1365,6 +1366,7 @@ def reflect_now(window_days: int) -> None:
         class BasicConditionResolver:
             """ConditionResolver that marks everything as undetermined
             when no SurrealDB evidence is available."""
+
             async def resolve(
                 self,
                 prediction: object,
@@ -1386,19 +1388,18 @@ def reflect_now(window_days: int) -> None:
         # -- 5. FeedbackEvaluator ----------------------------------------
         class CliFeedbackEvaluator:
             """Evaluates actions against user feedback from intents."""
+
             async def evaluate(
                 self,
                 actions: list,  # type: ignore[type-arg]
                 intents: list,  # type: ignore[type-arg]
             ) -> FeedbackEvaluationResult:
                 approved = sum(1 for i in intents if i.status == "approved")
-                rejected = sum(
-                    1 for i in intents
-                    if i.status in ("rejected", "auto_dismissed")
-                )
+                rejected = sum(1 for i in intents if i.status in ("rejected", "auto_dismissed"))
                 dismissed = sum(1 for i in intents if i.status == "expired")
                 reversed_count = sum(
-                    1 for a in actions
+                    1
+                    for a in actions
                     if a.result is not None and a.result.reversed_by_operation is not None
                 )
                 return FeedbackEvaluationResult(
@@ -1422,6 +1423,7 @@ def reflect_now(window_days: int) -> None:
         # -- 7. RuleLearner ------------------------------------------------
         class EmptyRuleSource:
             """RuleSource returning no active rules (CLI has no procedural memory)."""
+
             async def list_active_rules(self):  # type: ignore[no-untyped-def]
                 return []
 
@@ -1462,4 +1464,5 @@ def reflect_now(window_days: int) -> None:
     except Exception as exc:
         click.echo(click.style(f"Reflection failed: {exc}", fg="red"), err=True)
         import traceback
+
         click.echo(traceback.format_exc(), err=True)

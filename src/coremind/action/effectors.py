@@ -89,12 +89,7 @@ class NotificationEffector:
             or params.get("content")
             or ""
         )
-        title = (
-            params.get("title")
-            or params.get("subject")
-            or params.get("heading")
-            or ""
-        )
+        title = params.get("title") or params.get("subject") or params.get("heading") or ""
 
         if not message and not title:
             # Degenerate: intent has nothing to say.  Succeed silently so
@@ -441,11 +436,13 @@ class HomeAssistantEffector:
             )
 
         try:
-            payload = json.dumps({
-                "alias": name,
-                "trigger": [trigger],
-                "action": [ha_action],
-            })
+            payload = json.dumps(
+                {
+                    "alias": name,
+                    "trigger": [trigger],
+                    "action": [ha_action],
+                }
+            )
             result = _ha_mcp("ha_config_set_automation", f"data={payload}")
             return ActionResult(
                 action_id=action.id,
@@ -486,18 +483,8 @@ class VikunjaEffector:
         params = dict(action.parameters)
 
         # Normalise parameter names
-        project = (
-            params.get("project")
-            or params.get("project_id")
-            or params.get("list")
-            or ""
-        )
-        filter_type = (
-            params.get("filter")
-            or params.get("status")
-            or params.get("kind")
-            or "all"
-        )
+        project = params.get("project") or params.get("project_id") or params.get("list") or ""
+        filter_type = params.get("filter") or params.get("status") or params.get("kind") or "all"
 
         token = self._read_token()
         if not token:
@@ -545,7 +532,8 @@ class VikunjaEffector:
         if filter_type == "overdue":
             now = datetime.now(UTC)
             tasks = [
-                t for t in tasks
+                t
+                for t in tasks
                 if t.get("due_date")
                 and t.get("due_date") != "0001-01-01T00:00:00Z"
                 and t["due_date"] < now.isoformat()
@@ -554,7 +542,8 @@ class VikunjaEffector:
         elif project:
             match = project.lower()
             tasks = [
-                t for t in tasks
+                t
+                for t in tasks
                 if match in str(t.get("title", "")).lower()
                 or match in str(t.get("project_id", "")).lower()
             ]
@@ -607,12 +596,7 @@ class GmailEffector:
         query = params.get("query") or params.get("q") or params.get("search") or "is:unread"
         max_results = max(
             1,
-            min(20, (
-                params.get("max_results")
-                or params.get("limit")
-                or params.get("count")
-                or 5
-            )),
+            min(20, (params.get("max_results") or params.get("limit") or params.get("count") or 5)),
         )
 
         cmd = ["gog", "gmail", "search", "--json", f"--max={max_results}", query]
@@ -687,12 +671,7 @@ class CalendarEffector:
 
         max_results = max(
             1,
-            min(50, (
-                params.get("max_results")
-                or params.get("limit")
-                or params.get("count")
-                or 5
-            )),
+            min(50, (params.get("max_results") or params.get("limit") or params.get("count") or 5)),
         )
 
         days = params.get("days")
@@ -758,14 +737,16 @@ def _normalize_gog_threads(raw_threads: list[dict[str, Any]]) -> list[dict[str, 
     """Normalize gog JSON email threads into the standard effector output format."""
     threads: list[dict[str, Any]] = []
     for t in raw_threads:
-        threads.append({
-            "id": t.get("id", ""),
-            "subject": t.get("subject", "(no subject)"),
-            "from": t.get("from", ""),
-            "date": t.get("date", ""),
-            "labels": t.get("labels", []),
-            "messageCount": t.get("messageCount", 1),
-        })
+        threads.append(
+            {
+                "id": t.get("id", ""),
+                "subject": t.get("subject", "(no subject)"),
+                "from": t.get("from", ""),
+                "date": t.get("date", ""),
+                "labels": t.get("labels", []),
+                "messageCount": t.get("messageCount", 1),
+            }
+        )
     return threads
 
 
@@ -773,13 +754,15 @@ def _normalize_gog_events(raw_events: list[dict[str, Any]]) -> list[dict[str, An
     """Normalize gog JSON events into the standard effector output format."""
     events: list[dict[str, Any]] = []
     for ev in raw_events:
-        events.append({
-            "title": ev.get("summary", ev.get("subject", "(untitled)")),
-            "start": ev.get("start", {}).get("dateTime", ev.get("start", {}).get("date", "")),
-            "end": ev.get("end", {}).get("dateTime", ev.get("end", {}).get("date", "")),
-            "status": ev.get("status", ""),
-            "id": ev.get("id", ""),
-        })
+        events.append(
+            {
+                "title": ev.get("summary", ev.get("subject", "(untitled)")),
+                "start": ev.get("start", {}).get("dateTime", ev.get("start", {}).get("date", "")),
+                "end": ev.get("end", {}).get("dateTime", ev.get("end", {}).get("date", "")),
+                "status": ev.get("status", ""),
+                "id": ev.get("id", ""),
+            }
+        )
     return events
 
 
@@ -793,11 +776,13 @@ def _parse_gog_table(stdout: str) -> list[dict[str, Any]]:
         if "│" in line:
             parts = [p.strip() for p in line.split("│")][1:-1]
             if len(parts) >= 3:
-                events.append({
-                    "title": parts[0],
-                    "start": parts[1],
-                    "end": parts[2],
-                })
+                events.append(
+                    {
+                        "title": parts[0],
+                        "start": parts[1],
+                        "end": parts[2],
+                    }
+                )
     return events
 
 

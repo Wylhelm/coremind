@@ -86,7 +86,9 @@ class Investigation(BaseModel):
 
     id: str = Field(min_length=1)
     question: str = Field(min_length=1, description="What am I trying to understand?")
-    cross_domains: list[str] = Field(default_factory=list, description="e.g. ['health', 'home', 'finance']")
+    cross_domains: list[str] = Field(
+        default_factory=list, description="e.g. ['health', 'home', 'finance']"
+    )
     data_needed: str = Field(default="", description="What data would answer this?")
     timeframe_hours: int = Field(default=168, ge=1, description="How long to track?")
     confidence: float = Field(ge=0.0, le=1.0)

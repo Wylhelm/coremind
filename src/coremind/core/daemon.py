@@ -13,7 +13,6 @@ logic lives here.
 from __future__ import annotations
 
 import asyncio
-import json
 import contextlib
 import os
 import signal
@@ -47,6 +46,8 @@ from coremind.dashboard import (
 from coremind.errors import SignatureError, StoreError
 from coremind.intention.loop import IntentionLoop, IntentionLoopConfig
 from coremind.intention.persistence import IntentStore
+from coremind.memory.narrative import NarrativeMemory
+from coremind.memory.procedural import ProceduralMemory
 from coremind.notify.adapters.dashboard import DashboardNotificationPort
 from coremind.notify.port import NotificationPort, UserRef
 from coremind.notify.quiet_hours import QuietHoursFilter, QuietHoursPolicy
@@ -58,8 +59,6 @@ from coremind.reasoning.loop import ReasoningLoop, ReasoningLoopConfig
 from coremind.reasoning.persistence import JsonlCyclePersister
 from coremind.world.model import WorldEventRecord
 from coremind.world.store import WorldStore
-from coremind.memory.narrative import NarrativeMemory
-from coremind.memory.procedural import ProceduralMemory
 
 log = structlog.get_logger(__name__)
 
@@ -130,10 +129,12 @@ async def _handle_event(event: WorldEventRecord, world_store: _StorePort) -> Non
 
 def _make_narrative_getter(narrative_memory):
     """Return an async callable that fetches the current narrative text."""
+
     async def _get() -> str:
         if narrative_memory is None:
             return ""
         return narrative_memory._render_for_prompt()
+
     return _get
 
 
@@ -158,7 +159,7 @@ class CoreMindDaemon:
         self._router: ActionRouter | None = None
         self._intention_loop: IntentionLoop | None = None
         self._reasoning_loop: ReasoningLoop | None = None
-        self._reflection_loop: ReflectionLoop | None = None
+        self._reflection_loop: ReflectionLoop | None = None  # noqa: F821
         self._anomaly_checker_task: asyncio.Task | None = None
         self._approval_expirer_task: asyncio.Task[None] | None = None
         self._approval_expirer_stop: asyncio.Event = asyncio.Event()
@@ -278,10 +279,12 @@ class CoreMindDaemon:
         if config.intention.enabled:
             reasoning_journal = config.audit_log_path.parent / "reasoning.log"
             llm_cfg = LLMConfig()
-            if hasattr(config, 'llm') and config.llm.intention.model:
+            if hasattr(config, "llm") and config.llm.intention.model:
                 llm_cfg.intention = LayerConfig(
                     model=config.llm.intention.model,
-                    max_completion_tokens=getattr(config.llm.intention, "max_tokens", 2048) if hasattr(config.llm, "intention") else 2048,
+                    max_completion_tokens=getattr(config.llm.intention, "max_tokens", 2048)
+                    if hasattr(config.llm, "intention")
+                    else 2048,
                 )
             llm = LLM(llm_cfg)
             intention_loop = IntentionLoop(
@@ -328,12 +331,15 @@ class CoreMindDaemon:
             # Re-create the LLM with the enriched config (now includes
             # reasoning and reflection layers alongside intention).
             llm_4 = LLM(llm_cfg)
-# Create semantic memory (Qdrant + Ollama embeddings)
+            # Create semantic memory (Qdrant + Ollama embeddings)
+            from coremind.memory.embeddings import OllamaEmbedder
             from coremind.memory.qdrant_store import QdrantVectorStore
             from coremind.memory.semantic import SemanticMemory
-            from coremind.memory.embeddings import OllamaEmbedder
+
             try:
-                embedder = OllamaEmbedder(endpoint="http://10.0.0.175:11434", model="nomic-embed-text", dimension=768)
+                embedder = OllamaEmbedder(
+                    endpoint="http://10.0.0.175:11434", model="nomic-embed-text", dimension=768
+                )
                 qdrant_store = QdrantVectorStore()
                 semantic_memory = SemanticMemory(qdrant_store, embedder, vector_size=768)
                 await semantic_memory.initialise()
@@ -362,12 +368,14 @@ class CoreMindDaemon:
             )
 
             # Conversation layer (Pillar #1) — use Gemini Flash for reliability
-            conv_llm = LLM(LLMConfig(
-                reasoning_fast=LayerConfig(
-                    model="ollama/deepseek-v4-flash:cloud",
-                    max_completion_tokens=800,
+            conv_llm = LLM(
+                LLMConfig(
+                    reasoning_fast=LayerConfig(
+                        model="ollama/deepseek-v4-flash:cloud",
+                        max_completion_tokens=800,
+                    )
                 )
-            ))
+            )
             conv_store = ConversationStore()
             self._conversation_handler = ConversationHandler(
                 llm=conv_llm,
@@ -376,7 +384,9 @@ class CoreMindDaemon:
             )
             self._conversation_listener_stop = asyncio.Event()
             self._conversation_listener_task = asyncio.create_task(
-                self._conversation_listener_loop(notify_router, self._conversation_handler, approvals),
+                self._conversation_listener_loop(
+                    notify_router, self._conversation_handler, approvals
+                ),
                 name="coremind.conversation.listener",
             )
             log.info("daemon.conversation_handler_started")
@@ -385,7 +395,9 @@ class CoreMindDaemon:
             from coremind.presence.detector import PresenceDetector
 
             presence_detector = PresenceDetector(
-                world_store, intents, router,
+                world_store,
+                intents,
+                router,
                 alert_minutes=120,  # Alert after 2h of continuous presence
                 check_interval=300,  # Check every 5 min
             )
@@ -414,6 +426,7 @@ class CoreMindDaemon:
             async def _check_anomalies() -> None:
                 """Watch reasoning.log for high-severity anomalies and alert."""
                 import json as _json
+
                 _last_pos = 0
                 while True:
                     try:
@@ -451,17 +464,17 @@ class CoreMindDaemon:
             # ----------------------------------------------------------
             # L7 — Reflection Loop (24-hour cadence)
             # ----------------------------------------------------------
-            from coremind.reflection.evaluator import (  # noqa: PLC0415
+            from coremind.reflection.calibration import (
+                Calibrator,
+            )
+            from coremind.reflection.evaluator import (
                 BasicConditionResolver,
                 PredictionEvaluatorImpl,
             )
-            from coremind.reflection.feedback import (  # noqa: PLC0415
+            from coremind.reflection.feedback import (
                 FeedbackEvaluatorImpl,
             )
-            from coremind.reflection.calibration import (  # noqa: PLC0415
-                Calibrator,
-            )
-            from coremind.reflection.rule_learner import (  # noqa: PLC0415
+            from coremind.reflection.rule_learner import (
                 InMemoryCandidateLedger,
                 InMemoryRuleProposalStore,
                 RuleLearnerImpl,
@@ -472,14 +485,14 @@ class CoreMindDaemon:
             procedural_memory = ProceduralMemory(procedural_store_path)
             await procedural_memory.load()
             log.info("daemon.procedural_memory_loaded", path=str(procedural_store_path))
-            from coremind.reflection.report import (  # noqa: PLC0415
-                MarkdownReportProducer,
-            )
-            from coremind.reflection.loop import (  # noqa: PLC0415
+            from coremind.reflection.loop import (
                 ReflectionLoop,
                 ReflectionLoopConfig,
             )
-            from coremind.reflection.store import (  # noqa: PLC0415
+            from coremind.reflection.report import (
+                MarkdownReportProducer,
+            )
+            from coremind.reflection.store import (
                 SurrealReflectionStore,
             )
 
@@ -508,12 +521,13 @@ class CoreMindDaemon:
             # Build prediction evaluator with BasicConditionResolver
             # Build calibration updater
             # (shared in-memory stores for the fallback case)
-            from coremind.reflection.evaluator import (  # noqa: PLC0415
-                InMemoryPredictionEvaluationStore,
-            )
-            from coremind.reflection.calibration import (  # noqa: PLC0415
+            from coremind.reflection.calibration import (
                 InMemoryCalibrationStore,
             )
+            from coremind.reflection.evaluator import (
+                InMemoryPredictionEvaluationStore,
+            )
+
             _in_memory_eval_store = InMemoryPredictionEvaluationStore()
             _in_memory_cal_store = InMemoryCalibrationStore()
 
@@ -557,9 +571,10 @@ class CoreMindDaemon:
             )
 
             # Build reflection notifier (sends reports via Telegram/dashboard)
-            from coremind.reflection.notify import (  # noqa: PLC0415
+            from coremind.reflection.notify import (
                 ReflectionNotifier,
             )
+
             reflection_notifier = ReflectionNotifier(
                 port=notify_router,
             )
@@ -829,7 +844,7 @@ class CoreMindDaemon:
 
         # Find the Telegram port
         telegram_port = None
-        for port in [notify_router._primary] + notify_router._fallbacks:
+        for port in [notify_router._primary, *notify_router._fallbacks]:
             if hasattr(port, "subscribe_all"):
                 telegram_port = port
                 break
@@ -927,9 +942,9 @@ def _build_notification_router(
         # Lazy import to avoid pulling aiohttp on pure-dashboard deployments.
         # Phase 3 note: bot token resolution via SecretsStore lands in Phase 4.
         # For now operators must export COREMIND_TELEGRAM_BOT_TOKEN.
-        import os  # noqa: PLC0415
+        import os
 
-        from coremind.notify.adapters.telegram import (  # noqa: PLC0415
+        from coremind.notify.adapters.telegram import (
             TelegramNotificationPort,
         )
 
@@ -956,7 +971,7 @@ class _AllowAllFilter(QuietHoursFilter):
     """Quiet-hours filter that never defers — used when the policy is disabled."""
 
     def __init__(self) -> None:
-        from datetime import time as _time  # noqa: PLC0415
+        from datetime import time as _time
 
         super().__init__(QuietHoursPolicy(quiet_start=_time(0, 0), quiet_end=_time(0, 0)))
 

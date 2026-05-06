@@ -40,7 +40,7 @@ STREAM_PATH: str = "/stream1"
 # Vision models via Ollama Pro (no extra API costs)
 OLLAMA_HOST: str = os.environ.get("OLLAMA_API_BASE", "http://10.0.0.175:11434")
 VISION_PRIMARY: str = "gemini-3-flash-preview:latest"  # Gemini via Ollama Pro
-VISION_FALLBACK: str = "mistral-large-3:675b-cloud"     # Mistral via Ollama Pro
+VISION_FALLBACK: str = "mistral-large-3:675b-cloud"  # Mistral via Ollama Pro
 VISION_ENABLED: bool = True
 
 CONFIDENCE: float = 0.85
@@ -61,17 +61,24 @@ def _make_timestamp(dt: datetime) -> Timestamp:
     return ts
 
 
-def capture_snapshot(output_path: str, username: str, password: str, ip: str, port: int, stream: str) -> bool:
+def capture_snapshot(
+    output_path: str, username: str, password: str, ip: str, port: int, stream: str
+) -> bool:
     """Capture a single frame from the Tapo RTSP stream using ffmpeg."""
     rtsp_url = f"rtsp://{username}:{password}@{ip}:{port}{stream}"
     cmd = [
         "ffmpeg",
         "-y",
-        "-loglevel", "error",
-        "-rtsp_transport", "tcp",
-        "-i", rtsp_url,
-        "-vframes", "1",
-        "-timeout", "15000000",  # 15s in microseconds
+        "-loglevel",
+        "error",
+        "-rtsp_transport",
+        "tcp",
+        "-i",
+        rtsp_url,
+        "-vframes",
+        "1",
+        "-timeout",
+        "15000000",  # 15s in microseconds
         output_path,
     ]
     try:
@@ -159,9 +166,9 @@ async def analyze_scene(image_path: Path) -> dict[str, str | bool]:
             "pets_visible (boolean), pet_description (string — "
             "3 black cats: Poukie (medium), Timimi (larger, caramel hints), Minuit (small). "
             "Identify cats by size/position if visible). "
-            "Example: {\"person_present\": true, \"person_name\": \"Guillaume\", "
-            "\"activity\": \"working at desk\", \"pets_visible\": true, "
-            "\"pet_description\": \"Timimi on the couch\"}"
+            'Example: {"person_present": true, "person_name": "Guillaume", '
+            '"activity": "working at desk", "pets_visible": true, '
+            '"pet_description": "Timimi on the couch"}'
         )
 
         # Try Gemini Flash first (faster, more reliable)
@@ -226,7 +233,7 @@ async def match_face_with_immich(
         # Batch reference faces (max 7 per call = 1 snapshot + 7 refs = 8 total)
         batch_size = 7
         for i in range(0, len(face_files), batch_size):
-            batch = face_files[i:i + batch_size]
+            batch = face_files[i : i + batch_size]
             ref_imgs = []
             names = []
             for f in batch:
@@ -238,15 +245,17 @@ async def match_face_with_immich(
 
             content = (
                 f"Reference faces: {', '.join(names)}. "
-                "Who is in the room photo? Answer JSON: {\"person_name\": \"name or unknown\"}"
+                'Who is in the room photo? Answer JSON: {"person_name": "name or unknown"}'
             )
-            messages = [{
-                "role": "user",
-                "content": content,
-                "images": [buf.getvalue()] + ref_imgs,
-            }]
+            messages = [
+                {
+                    "role": "user",
+                    "content": content,
+                    "images": [buf.getvalue(), *ref_imgs],
+                }
+            ]
 
-            resp = client.chat(model=VISION_MODEL, messages=messages)
+            resp = client.chat(model=VISION_PRIMARY, messages=messages)
             text = resp["message"]["content"]
             start = text.find("{")
             end = text.rfind("}") + 1
@@ -280,7 +289,7 @@ async def run() -> None:
     snapshot_dir = Path.home() / ".coremind" / "snapshots"
     snapshot_dir.mkdir(parents=True, exist_ok=True)
 
-    RECONNECT_DELAY = 10  # seconds between reconnect attempts
+    reconnect_delay = 10  # seconds between reconnect attempts
 
     log.info("tapo.starting", plugin_id=PLUGIN_ID, ip=ip, interval=interval)
 
@@ -311,7 +320,9 @@ async def run() -> None:
                         try:
                             await stub.EmitEvent(event, metadata=metadata)
                         except grpc.RpcError as exc:
-                            log.warning("tapo.emit_failed_reconnecting", error=exc.details(), exc_info=False)
+                            log.warning(
+                                "tapo.emit_failed_reconnecting", error=exc.details(), exc_info=False
+                            )
                             break  # Reconnect
 
                         if success:
@@ -333,7 +344,10 @@ async def run() -> None:
                             vision = await analyze_scene(snap_path)
                             if vision:
                                 # If person is present but unidentified, try Immich face matching
-                                if vision.get("person_present") and vision.get("person_name") == "unknown":
+                                if (
+                                    vision.get("person_present")
+                                    and vision.get("person_name") == "unknown"
+                                ):
                                     matched_name = await match_face_with_immich(snap_path)
                                     if matched_name:
                                         vision["person_name"] = matched_name
@@ -353,7 +367,9 @@ async def run() -> None:
                                         break  # Reconnect on any emit failure
 
                     except grpc.RpcError as exc:
-                        log.warning("tapo.rpc_error_reconnecting", error=exc.details(), exc_info=False)
+                        log.warning(
+                            "tapo.rpc_error_reconnecting", error=exc.details(), exc_info=False
+                        )
                         break  # Inner loop → reconnect
 
                     await asyncio.sleep(interval)
@@ -363,7 +379,7 @@ async def run() -> None:
         except Exception:
             log.exception("tapo.connection_lost_reconnecting")
 
-        await asyncio.sleep(RECONNECT_DELAY)
+        await asyncio.sleep(reconnect_delay)
 
 
 def main() -> None:

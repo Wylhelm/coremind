@@ -60,6 +60,7 @@ class _NarrativeRefreshOutput(BaseModel):
     active_concerns: list[str] = Field(default_factory=list)
     relationship_notes: str = Field(default="")
 
+
 type Clock = Callable[[], datetime]
 
 
@@ -489,9 +490,7 @@ class ReflectionLoop:
             return
 
         patterns_summary = "\n".join(
-            f"- {p.description}"
-            for c in (cycles[-10:] if cycles else [])[:20]
-            for p in c.patterns
+            f"- {p.description}" for c in (cycles[-10:] if cycles else [])[:20] for p in c.patterns
         )
         anomalies_summary = "\n".join(
             f"- {a.description} (severity: {a.severity})"
@@ -545,9 +544,9 @@ class ReflectionLoop:
                     "- PATTERNS: What rhythms define their days?\n"
                     "- RELATIONSHIPS: Who matters to them? What's happening with those people?\n"
                     "- ENVIRONMENT: What's happening in their home? Their cats? Their space?\n\n"
-                    "Be specific. Use names, numbers, places. \"Sleep quality declining\" is vague. "
-                    "\"Deep sleep dropped from 1h30 to 45min this week — correlated with bedroom "
-                    "temperature staying above 25°C past midnight\" is intelligence.\n\n"
+                    'Be specific. Use names, numbers, places. "Sleep quality declining" is vague. '
+                    '"Deep sleep dropped from 1h30 to 45min this week — correlated with bedroom '
+                    'temperature staying above 25°C past midnight" is intelligence.\n\n'
                     "Prune stale information. If something hasn't been relevant for 2+ weeks, "
                     "let it go. Keep what matters NOW.\n\n"
                     "Output valid JSON only."

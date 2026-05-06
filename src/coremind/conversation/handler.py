@@ -9,6 +9,7 @@ This is the core of Pillar #1 (Natural Conversation) for CoreMind v0.3.0.
 
 from __future__ import annotations
 
+import contextlib
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
@@ -170,10 +171,8 @@ class ConversationHandler:
         active = await self._store.list_active()
         narrative = ""
         if self._get_narrative:
-            try:
+            with contextlib.suppress(Exception):
                 narrative = await self._get_narrative()
-            except Exception:
-                pass
 
         return ConversationContext(
             active_conversations=active,
@@ -190,7 +189,9 @@ class ConversationHandler:
             if age > ttl_seconds:
                 await self._store.archive(conv.conversation_id)
                 count += 1
-                log.info("conversation.auto_archived", conversation_id=conv.conversation_id, age_s=age)
+                log.info(
+                    "conversation.auto_archived", conversation_id=conv.conversation_id, age_s=age
+                )
         return count
 
     # ------------------------------------------------------------------
@@ -200,13 +201,12 @@ class ConversationHandler:
     async def _generate_response(self, prompt: str) -> str:
         """Call the LLM to generate a conversational response (free text, no JSON)."""
         try:
-            result = await self._llm.complete_text(
+            return await self._llm.complete_text(
                 layer="reasoning_fast",
                 system=CONVERSATION_SYSTEM_PROMPT,
                 user=prompt,
                 max_tokens=500,
             )
-            return result
         except Exception as exc:
             log.error("conversation.llm_error", error=str(exc))
             return (

@@ -252,15 +252,16 @@ class BasicConditionResolver(ConditionResolver):
         # determine success or failure.
         falsifiable_by = (prediction.falsifiable_by or "").strip()
         if not falsifiable_by:
-            return ("undetermined", f"{len(evidence)} events observed, "
-                                    "but no falsifiable condition defined")
+            return (
+                "undetermined",
+                f"{len(evidence)} events observed, but no falsifiable condition defined",
+            )
 
         # TODO: wire an LLM-backed resolver that interprets the
         # falsifiable_by condition against the evidence.
         return (
             "undetermined",
-            f"{len(evidence)} events in horizon, "
-            f"resolution pending LLM-backed resolver",
+            f"{len(evidence)} events in horizon, resolution pending LLM-backed resolver",
         )
 
 

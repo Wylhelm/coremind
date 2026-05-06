@@ -46,7 +46,9 @@ class PresenceScheduler:
         Only speaks if urgency meets the minimum threshold.
         """
         if event.urgency < self._config.min_urgency:
-            log.debug("presence.below_urgency", event_type=event.event_type.value, urgency=event.urgency)
+            log.debug(
+                "presence.below_urgency", event_type=event.event_type.value, urgency=event.urgency
+            )
             return False
 
         try:

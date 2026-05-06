@@ -470,9 +470,7 @@ class ProceduralMemory:
             Active rules, highest confidence first.
         """
         async with self._lock:
-            active = [
-                r for rid, r in self._rules.items() if rid not in self._deprecated
-            ]
+            active = [r for rid, r in self._rules.items() if rid not in self._deprecated]
             active.sort(key=lambda r: r.confidence, reverse=True)
             return active
 

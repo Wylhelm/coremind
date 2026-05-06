@@ -156,7 +156,7 @@ async def _emit_all(
 async def run() -> None:
     private_key = ensure_plugin_keypair(KEY_STORE_ID)
     channel_addr = f"unix://{DEFAULT_SOCKET_PATH}"
-    RECONNECT_DELAY = 10
+    reconnect_delay = 10
 
     log.info("firefly.starting", plugin_id=PLUGIN_ID, interval=POLL_INTERVAL)
 
@@ -172,7 +172,9 @@ async def run() -> None:
                         n = await _emit_all(stub, private_key)
                         log.info("firefly.cycle_done", emitted=n)
                     except grpc.RpcError as exc:
-                        log.warning("firefly.rpc_error_reconnecting", error=exc.details(), exc_info=False)
+                        log.warning(
+                            "firefly.rpc_error_reconnecting", error=exc.details(), exc_info=False
+                        )
                         break
 
                     await asyncio.sleep(POLL_INTERVAL)
@@ -182,7 +184,7 @@ async def run() -> None:
         except Exception:
             log.exception("firefly.connection_lost_reconnecting")
 
-        await asyncio.sleep(RECONNECT_DELAY)
+        await asyncio.sleep(reconnect_delay)
 
 
 def main() -> None:

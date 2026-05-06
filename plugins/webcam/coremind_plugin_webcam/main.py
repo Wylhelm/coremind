@@ -50,12 +50,18 @@ def capture_frame(output_path: str, device: str = "/dev/video0") -> bool:
     cmd = [
         "ffmpeg",
         "-y",
-        "-loglevel", "error",
-        "-f", "video4linux2",
-        "-s", "640x480",
-        "-i", device,
-        "-vframes", "1",
-        "-timeout", "10",
+        "-loglevel",
+        "error",
+        "-f",
+        "video4linux2",
+        "-s",
+        "640x480",
+        "-i",
+        device,
+        "-vframes",
+        "1",
+        "-timeout",
+        "10",
         output_path,
     ]
     try:
@@ -72,7 +78,9 @@ def capture_frame(output_path: str, device: str = "/dev/video0") -> bool:
         return False
 
 
-def detect_motion(current_frame: Path, previous_frame: Path | None, threshold: float = 0.05) -> bool:
+def detect_motion(
+    current_frame: Path, previous_frame: Path | None, threshold: float = 0.05
+) -> bool:
     """Simple motion detection by comparing file sizes (proxy for frame difference)."""
     if previous_frame is None or not previous_frame.exists():
         return False
@@ -135,7 +143,7 @@ async def run() -> None:
     channel_addr = f"unix://{DEFAULT_SOCKET_PATH}"
     frame_dir = Path.home() / ".coremind" / "webcam_frames"
     frame_dir.mkdir(parents=True, exist_ok=True)
-    RECONNECT_DELAY = 10
+    reconnect_delay = 10
 
     log.info("webcam.starting", plugin_id=PLUGIN_ID, device=device, interval=interval)
 
@@ -172,7 +180,11 @@ async def run() -> None:
                         try:
                             await stub.EmitEvent(event, metadata=metadata)
                         except grpc.RpcError as exc:
-                            log.warning("webcam.emit_failed_reconnecting", error=exc.details(), exc_info=False)
+                            log.warning(
+                                "webcam.emit_failed_reconnecting",
+                                error=exc.details(),
+                                exc_info=False,
+                            )
                             break
 
                         if success:
@@ -208,7 +220,9 @@ async def run() -> None:
                             )
 
                     except grpc.RpcError as exc:
-                        log.warning("webcam.rpc_error_reconnecting", error=exc.details(), exc_info=False)
+                        log.warning(
+                            "webcam.rpc_error_reconnecting", error=exc.details(), exc_info=False
+                        )
                         break
 
                     await asyncio.sleep(interval)
@@ -218,7 +232,7 @@ async def run() -> None:
         except Exception:
             log.exception("webcam.connection_lost_reconnecting")
 
-        await asyncio.sleep(RECONNECT_DELAY)
+        await asyncio.sleep(reconnect_delay)
 
 
 def main() -> None:

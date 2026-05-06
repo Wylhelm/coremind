@@ -75,9 +75,7 @@ class NestHubAdapter:
         # Build the spoken text
         spoken = message
         if category == "ask":
-            spoken = (
-                f"{message} — pour approuver ou refuser, regarde Telegram."
-            )
+            spoken = f"{message} — pour approuver ou refuser, regarde Telegram."
 
         try:
             await self._speak(spoken)
@@ -112,7 +110,7 @@ class NestHubAdapter:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout, stderr = await asyncio.wait_for(
+            _stdout, stderr = await asyncio.wait_for(
                 proc.communicate(), timeout=float(duration_seconds + 10)
             )
             if proc.returncode != 0:
@@ -140,9 +138,7 @@ class NestHubAdapter:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await asyncio.wait_for(
-            proc.communicate(), timeout=30.0
-        )
+        _stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30.0)
         if proc.returncode != 0:
             err = stderr.decode()[:200] if stderr else "unknown error"
             raise NotificationError(f"gbot-say.sh failed: {err}")

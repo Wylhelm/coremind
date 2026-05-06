@@ -136,11 +136,7 @@ class ConversationStore:
 
     async def _update_index(self) -> None:
         """Rebuild the active conversation index."""
-        active_ids = [
-            cid
-            for cid, conv in self._cache.items()
-            if conv.active
-        ]
+        active_ids = [cid for cid, conv in self._cache.items() if conv.active]
         self._index_path.write_text(
             json.dumps({"active": active_ids, "updated": datetime.now(UTC).isoformat()}),
             encoding="utf-8",
