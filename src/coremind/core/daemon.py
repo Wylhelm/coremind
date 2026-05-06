@@ -35,6 +35,7 @@ from coremind.action.effectors import (
 )
 from coremind.action.executor import Executor
 from coremind.action.journal import ActionJournal
+from coremind.action.notification_journal import NotificationJournal
 from coremind.action.router import ActionRouter
 from coremind.config import DaemonConfig, DashboardConfig, load_config
 from coremind.conversation.handler import ConversationHandler
@@ -422,9 +423,9 @@ class CoreMindDaemon:
             )
             log.info("daemon.presence_detector_started")
 
-            # Schedule anomaly alert checker — runs 5s after each reasoning
-            # cycle to push high-severity anomalies to Telegram.
+            # Schedule anomaly alert checker with dedup via notification journal
             reasoning_journal_path = reasoning_journal
+            notify_journal = NotificationJournal()
 
             async def _check_anomalies() -> None:
                 """Watch reasoning.log for high-severity anomalies and alert."""
@@ -443,18 +444,20 @@ class CoreMindDaemon:
                                         continue
                                     for _a in _cycle.get("anomalies", []):
                                         if _a.get("severity") == "high":
-                                            await notify_router.notify(
-                                                actions=None,
-                                                intent_id=None,
-                                                message=(
-                                                    f"🚨 **High-Severity Anomaly**\n\n"
-                                                    f"{_a['description']}\n\n"
-                                                    f"Baseline: {_a.get('baseline_description', 'N/A')}\n"
-                                                    f"Cycle: `{_cycle.get('cycle_id', '?')[:16]}`"
-                                                ),
-                                                category="suggest",
-                                                action_class="anomaly_alert",
+                                            msg = (
+                                                f"🚨 **High-Severity Anomaly**\n\n"
+                                                f"{_a['description']}\n\n"
+                                                f"Baseline: {_a.get('baseline_description', 'N/A')}\n"
+                                                f"Cycle: `{_cycle.get('cycle_id', '?')[:16]}`"
                                             )
+                                            if notify_journal.should_send(msg):
+                                                await notify_router.notify(
+                                                    actions=None,
+                                                    intent_id=None,
+                                                    message=msg,
+                                                    category="suggest",
+                                                    action_class="anomaly_alert",
+                                                )
                                 _last_pos = _f.tell()
                         await asyncio.sleep(15)
                     except asyncio.CancelledError:

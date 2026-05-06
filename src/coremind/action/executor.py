@@ -431,7 +431,7 @@ class Executor:
             return
         msg = _format_execution_summary(action, intent)
         try:
-            await self._notify.notify(
+            await self._notify_user(
                 message=msg,
                 category="info",
                 actions=None,
