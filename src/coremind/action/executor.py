@@ -99,6 +99,8 @@ class Executor:
         self._suggest_grace = suggest_grace
         self._clock = clock
         self._cancelled: set[str] = set()
+        self._last_notify_at: datetime | None = None  # Rate limiter
+        self._notify_cooldown = timedelta(seconds=120)  # Min 2 min between notifications
 
     # ------------------------------------------------------------------
     # Public API
@@ -176,6 +178,20 @@ class Executor:
         intent.status = "conversation"  # type: ignore[assignment]
         await self._intents.save(intent)
         conv_id = f"conv_{intent.id[:20]}"
+
+        # Rate limiter: max one conversation start per cooldown window
+        now = self._clock()
+        if self._last_notify_at and (now - self._last_notify_at) < self._notify_cooldown:
+            log.debug("executor.rate_limited", intent_id=intent.id)
+            # Still execute the action, just don't send the opener
+            action = await self.execute(intent, notify="silent")
+            if action is None:
+                log.info("executor.conversation_action_skipped", intent_id=intent.id)
+            else:
+                log.info("executor.conversation_action_silent", intent_id=intent.id)
+            return conv_id
+
+        self._last_notify_at = now
         message = _format_conversation(intent)
         await self._notify.notify(
             message=message,
