@@ -45,15 +45,15 @@ class NotificationJournal:
         self._path = path or Path.home() / ".coremind" / "notification_journal.jsonl"
         self._entries: list[dict[str, str]] = []
         self._cooldowns: dict[str, int] = {
-            "sommeil": 21600,  # 6h
-            "pas": 14400,  # 4h
-            "météo": 21600,  # 6h
-            "chats": 7200,  # 2h
+            "sommeil": 14400,  # 4h
+            "pas": 10800,  # 3h
+            "météo": 14400,  # 4h
+            "chats": 3600,  # 1h
             "finances": 43200,  # 12h
-            "pause": 7200,  # 2h
+            "pause": 10800,  # 3h
             "batterie": 21600,  # 6h
             "calendrier": 14400,  # 4h
-            "autre": 3600,  # 1h
+            "autre": 7200,  # 2h
         }
         self._load()
 
