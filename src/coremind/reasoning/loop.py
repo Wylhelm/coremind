@@ -163,6 +163,7 @@ class ReasoningLoop:
     def _load_about_user() -> str:
         """Load the persistent 'about user' context for reasoning prompts."""
         import os
+
         path = os.path.expanduser("~/.coremind/about_user.txt")
         try:
             with open(path) as f:
@@ -182,7 +183,7 @@ class ReasoningLoop:
     def _save_investigation_questions(self, investigations: Sequence[object]) -> None:
         """Store new investigation questions for future cycles and persist to disk."""
         for inv in investigations:
-            if hasattr(inv, 'question'):
+            if hasattr(inv, "question"):
                 self._investigation_questions.append(inv.question)
         # Keep only last 10
         if len(self._investigation_questions) > 10:
@@ -192,10 +193,11 @@ class ReasoningLoop:
     def _persist_investigations_to_disk(self) -> None:
         """Save investigation questions to a JSON file for persistence across restarts."""
         import json, os
+
         path = os.path.expanduser("~/.coremind/run/investigations.json")
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
-            with open(path, 'w') as f:
+            with open(path, "w") as f:
                 json.dump(self._investigation_questions, f, indent=2)
         except Exception:
             pass
@@ -203,6 +205,7 @@ class ReasoningLoop:
     def _load_investigations_from_disk(self) -> None:
         """Load saved investigation questions from disk."""
         import json, os
+
         path = os.path.expanduser("~/.coremind/run/investigations.json")
         try:
             with open(path) as f:
