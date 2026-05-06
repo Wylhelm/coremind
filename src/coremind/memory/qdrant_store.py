@@ -68,7 +68,7 @@ class QdrantVectorStore:
     def _db(self) -> QdrantClient:
         """Lazy-initialise the Qdrant client."""
         if self._client is None:
-            self._client = QdrantClient(url=self._url, timeout=self._timeout)
+            self._client = QdrantClient(url=self._url, timeout=int(self._timeout))
         return self._client
 
     # ------------------------------------------------------------------
@@ -173,7 +173,7 @@ class QdrantVectorStore:
             )
 
         def _search() -> list[SearchHit]:
-            results = self._db.search(
+            results = self._db.search(  # type: ignore[attr-defined]
                 collection_name=collection,
                 query_vector=vector,
                 limit=k,

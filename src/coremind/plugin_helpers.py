@@ -72,7 +72,7 @@ async def robust_plugin_loop(
         from coremind.plugin_api._generated import plugin_pb2_grpc
 
         def _default_stub(channel: Any) -> Any:
-            return plugin_pb2_grpc.CoreMindHostStub(channel)
+            return plugin_pb2_grpc.CoreMindHostStub(channel)  # type: ignore[no-untyped-call]
 
         stub_factory = _default_stub
 

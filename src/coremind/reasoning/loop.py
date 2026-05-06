@@ -21,7 +21,7 @@ import asyncio
 import contextlib
 import json
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
@@ -179,7 +179,7 @@ class ReasoningLoop:
             lines.append(f"  - {q}")
         return "\n".join(lines)
 
-    def _save_investigation_questions(self, investigations: list[object]) -> None:
+    def _save_investigation_questions(self, investigations: Sequence[object]) -> None:
         """Store new investigation questions for future cycles and persist to disk."""
         for inv in investigations:
             if hasattr(inv, 'question'):

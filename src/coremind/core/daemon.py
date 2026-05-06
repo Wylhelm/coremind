@@ -17,9 +17,12 @@ import contextlib
 import os
 import signal
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import structlog
+
+if TYPE_CHECKING:
+    from coremind.reflection.loop import ReflectionLoop
 
 from coremind.action.approvals import ApprovalGate
 from coremind.action.effectors import (
@@ -127,13 +130,13 @@ async def _handle_event(event: WorldEventRecord, world_store: _StorePort) -> Non
 # ---------------------------------------------------------------------------
 
 
-def _make_narrative_getter(narrative_memory):
+def _make_narrative_getter(narrative_memory):  # type: ignore[no-untyped-def]
     """Return an async callable that fetches the current narrative text."""
 
     async def _get() -> str:
         if narrative_memory is None:
             return ""
-        return narrative_memory._render_for_prompt()
+        return narrative_memory._render_for_prompt()  # type: ignore[no-any-return]
 
     return _get
 
@@ -159,8 +162,8 @@ class CoreMindDaemon:
         self._router: ActionRouter | None = None
         self._intention_loop: IntentionLoop | None = None
         self._reasoning_loop: ReasoningLoop | None = None
-        self._reflection_loop: ReflectionLoop | None = None  # noqa: F821
-        self._anomaly_checker_task: asyncio.Task | None = None
+        self._reflection_loop: ReflectionLoop | None = None
+        self._anomaly_checker_task: asyncio.Task[None] | None = None
         self._approval_expirer_task: asyncio.Task[None] | None = None
         self._approval_expirer_stop: asyncio.Event = asyncio.Event()
         self._approved_dispatcher_task: asyncio.Task[None] | None = None
@@ -354,7 +357,7 @@ class CoreMindDaemon:
 
             reasoning_loop = ReasoningLoop(
                 snapshot_provider=world_store,
-                memory=semantic_memory,
+                memory=semantic_memory,  # type: ignore[arg-type]
                 llm=llm_4,
                 persister=JsonlCyclePersister(reasoning_journal),
                 narrative=narrative_memory,
@@ -380,7 +383,7 @@ class CoreMindDaemon:
             self._conversation_handler = ConversationHandler(
                 llm=conv_llm,
                 store=conv_store,
-                get_narrative=_make_narrative_getter(narrative_memory),
+                get_narrative=_make_narrative_getter(narrative_memory),  # type: ignore[no-untyped-call]
             )
             self._conversation_listener_stop = asyncio.Event()
             self._conversation_listener_task = asyncio.create_task(
@@ -441,6 +444,8 @@ class CoreMindDaemon:
                                     for _a in _cycle.get("anomalies", []):
                                         if _a.get("severity") == "high":
                                             await notify_router.notify(
+                                                actions=None,
+                                                intent_id=None,
                                                 message=(
                                                     f"🚨 **High-Severity Anomaly**\n\n"
                                                     f"{_a['description']}\n\n"
@@ -516,7 +521,7 @@ class CoreMindDaemon:
                     "will not persist across restarts.",
                     error=str(exc),
                 )
-                reflection_store = None  # type: ignore[assignment]
+                reflection_store = None
 
             # Build prediction evaluator with BasicConditionResolver
             # Build calibration updater
@@ -533,7 +538,7 @@ class CoreMindDaemon:
 
             if reflection_store_ok:
                 prediction_evaluator = PredictionEvaluatorImpl(
-                    history=world_store,
+                    history=world_store,  # type: ignore[arg-type]
                     resolver=BasicConditionResolver(),
                     store=reflection_store.predictions(),  # type: ignore[union-attr]
                 )
@@ -544,7 +549,7 @@ class CoreMindDaemon:
                 )
             else:
                 prediction_evaluator = PredictionEvaluatorImpl(
-                    history=world_store,
+                    history=world_store,  # type: ignore[arg-type]
                     resolver=BasicConditionResolver(),
                     store=_in_memory_eval_store,
                 )
@@ -580,9 +585,9 @@ class CoreMindDaemon:
             )
 
             reflection_loop = ReflectionLoop(
-                cycle_source=JsonlCyclePersister(reasoning_journal),
-                intent_source=intents,
-                action_feed=journal,
+                cycle_source=JsonlCyclePersister(reasoning_journal),  # type: ignore[arg-type]
+                intent_source=intents,  # type: ignore[arg-type]
+                action_feed=journal,  # type: ignore[arg-type]
                 prediction_evaluator=prediction_evaluator,
                 feedback_evaluator=feedback_evaluator,
                 calibration_updater=calibration_updater,
@@ -833,7 +838,7 @@ class CoreMindDaemon:
         self,
         notify_router: NotificationRouter,
         conversation_handler: ConversationHandler,
-        approvals,
+        approvals: ApprovalGate,
     ) -> None:
         """Single Telegram listener: dispatches both text messages AND approval responses.
 
@@ -950,7 +955,7 @@ def _build_notification_router(
 
         token = os.environ.get("COREMIND_TELEGRAM_BOT_TOKEN", "")
         if token:
-            ports["telegram"] = TelegramNotificationPort(
+            ports["telegram"] = TelegramNotificationPort(  # type: ignore[assignment]
                 token,
                 config.notify.telegram.chat_id,
             )

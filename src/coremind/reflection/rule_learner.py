@@ -305,7 +305,7 @@ class EmptyRuleSource:
     Mirrors the pattern used in ``coremind.cli``.
     """
 
-    async def list_active_rules(self) -> list[Rule]:  # type: ignore[no-untyped-def]
+    async def list_active_rules(self) -> list[Rule]:
         return []
 
 
