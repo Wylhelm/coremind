@@ -187,6 +187,11 @@ class IntentionLoop:
     async def _scheduler(self) -> None:
         """Run cycles until :meth:`stop` is called."""
         interval = self._config.interval_seconds
+        # Startup grace: wait one full interval before first cycle
+        log.info("intention.startup_grace", seconds=interval)
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(self._stop_event.wait(), timeout=interval)
+
         while not self._stop_event.is_set():
             try:
                 await self.run_cycle()
