@@ -214,7 +214,7 @@ class ConversationHandler:
             except Exception as exc:
                 last_error = exc
                 if attempt < max_retries - 1:
-                    await asyncio.sleep(2 ** attempt)
+                    await asyncio.sleep(2**attempt)
                     log.warning(
                         "conversation.llm_retry",
                         attempt=attempt + 1,
