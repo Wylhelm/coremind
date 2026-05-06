@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -13,8 +14,10 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 from coremind.action.approvals import ApprovalGate
 from coremind.action.executor import Executor
 from coremind.action.journal import ActionJournal
+from coremind.action.notification_journal import NotificationJournal
 from coremind.action.router import ActionRouter
 from coremind.action.schemas import Action, ActionResult
+from coremind.core.event_bus import EventBus
 from coremind.intention.loop import IntentionLoop, IntentionLoopConfig
 from coremind.intention.persistence import IntentStore
 from coremind.intention.schemas import (
@@ -25,7 +28,7 @@ from coremind.intention.schemas import (
 )
 from coremind.notify.adapters.dashboard import DashboardNotificationPort
 from coremind.reasoning.schemas import ReasoningOutput
-from coremind.world.model import WorldSnapshot
+from coremind.world.model import EntityRef, WorldEventRecord, WorldSnapshot
 
 
 class _StaticSnapshot:
@@ -180,3 +183,163 @@ async def test_forced_class_in_loop_is_routed_to_ask(
     text = (tmp_path / "audit.log").read_text()
     assert "security.category.override_blocked" in text
     assert effector.calls == []
+
+
+# --- Event-driven mode tests ---
+
+
+async def test_event_driven_mode_triggers_on_threshold(
+    tmp_path: Path, keypair: tuple[Ed25519PrivateKey, Ed25519PublicKey]
+) -> None:
+    """Event-driven mode triggers a cycle when observation threshold is crossed."""
+    priv, pub = keypair
+    journal = ActionJournal(tmp_path / "audit.log", priv, pub)
+    await journal.load()
+    intents = IntentStore(tmp_path / "intents.jsonl")
+    port = DashboardNotificationPort()
+    effector = _FakeEffector()
+    executor = Executor(
+        journal,
+        intents,
+        lambda _op: effector,
+        notify_port=port,
+        suggest_grace=timedelta(milliseconds=1),
+        notify_journal=NotificationJournal(tmp_path / "notify_journal.jsonl"),
+    )
+    approvals = ApprovalGate(port, intents, journal, executor)
+    router = ActionRouter(executor, approvals, intents, journal)
+
+    batch = QuestionBatch(
+        questions=[
+            RawIntent(
+                question=InternalQuestion(id="q1", text="Should I turn on the light?"),
+                proposed_action=ActionProposal(
+                    operation="plugin.ha.turn_on",
+                    parameters={"entity_id": "light.kitchen"},
+                    action_class="light",
+                    expected_outcome="on",
+                ),
+                model_confidence=0.99,
+                model_salience=0.9,
+            ),
+        ]
+    )
+    llm = _FakeLLM(batch)
+
+    event_bus = EventBus()
+    loop = IntentionLoop(
+        _StaticSnapshot(),
+        _EmptyReasoning(),
+        intents,
+        llm,
+        router,
+        event_bus=event_bus,  # type: ignore[arg-type]
+        config=IntentionLoopConfig(event_driven=True, routine_interval_seconds=60),
+    )
+    loop._observation_threshold = 3  # Small threshold for test
+    loop.start()
+    await asyncio.sleep(0.1)
+
+    # Publish significant events to trigger the cycle
+    for i in range(5):
+        await event_bus.publish(
+            WorldEventRecord(
+                id=f"ev{i}",
+                timestamp=datetime.now(UTC),
+                source="test",
+                source_version="1.0",
+                signature=b"sig",
+                entity=EntityRef(type="health", id=f"e{i}"),
+                attribute="anomaly",
+                value={"severity": "high"},
+                confidence=0.9,
+            )
+        )
+    await asyncio.sleep(0.3)
+
+    await loop.stop()
+    assert llm.calls >= 1, "Event-driven mode should trigger at least one cycle"
+
+
+async def test_event_driven_mode_filters_insignificant_events(
+    tmp_path: Path, keypair: tuple[Ed25519PrivateKey, Ed25519PublicKey]
+) -> None:
+    """Events with low confidence or irrelevant types should not trigger cycles."""
+    priv, pub = keypair
+    journal = ActionJournal(tmp_path / "audit.log", priv, pub)
+    await journal.load()
+    intents = IntentStore(tmp_path / "intents.jsonl")
+    port = DashboardNotificationPort()
+    router = ActionRouter(
+        Executor(
+            journal,
+            intents,
+            lambda _op: _FakeEffector(),
+            notify_port=port,
+            notify_journal=NotificationJournal(tmp_path / "notify_journal.jsonl"),
+        ),
+        ApprovalGate(
+            port,
+            intents,
+            journal,
+            Executor(
+                journal,
+                intents,
+                lambda _op: _FakeEffector(),
+                notify_journal=NotificationJournal(tmp_path / "notify_journal.jsonl"),
+            ),
+        ),
+        intents,
+        journal,
+    )
+
+    llm = _FakeLLM(QuestionBatch(questions=[]))
+    event_bus = EventBus()
+    loop = IntentionLoop(
+        _StaticSnapshot(),
+        _EmptyReasoning(),
+        intents,
+        llm,
+        router,
+        event_bus=event_bus,  # type: ignore[arg-type]
+        config=IntentionLoopConfig(event_driven=True, routine_interval_seconds=60),
+    )
+    loop._observation_threshold = 3
+    loop.start()
+    await asyncio.sleep(0.1)
+
+    # Publish low-confidence events (should be filtered out)
+    for i in range(10):
+        await event_bus.publish(
+            WorldEventRecord(
+                id=f"low{i}",
+                timestamp=datetime.now(UTC),
+                source="test",
+                source_version="1.0",
+                signature=b"sig",
+                entity=EntityRef(type="health", id=f"e{i}"),
+                attribute="anomaly",
+                value={},
+                confidence=0.5,  # Below 0.7 threshold
+            )
+        )
+    await asyncio.sleep(0.2)
+
+    # Also publish irrelevant entity types
+    for i in range(10):
+        await event_bus.publish(
+            WorldEventRecord(
+                id=f"irr{i}",
+                timestamp=datetime.now(UTC),
+                source="test",
+                source_version="1.0",
+                signature=b"sig",
+                entity=EntityRef(type="calendar", id=f"e{i}"),
+                attribute="event",
+                value={},
+                confidence=0.9,
+            )
+        )
+
+    await loop.stop()
+    assert llm.calls == 0, "Irrelevant/low-confidence events should not trigger cycles"
