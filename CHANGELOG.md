@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.3.2] — 2026-05-06
+
+### Added — Intelligent Dedup & Rate Limiting
+- **NotificationJournal**: topic-aware deduplication that prevents CoreMind from
+  repeating itself. Classifies messages by topic (sleep, steps, weather, cats,
+  finance, pause, battery, calendar) and enforces per-topic cooldowns (2 h–12 h).
+  Persisted to `~/.coremind/notification_journal.jsonl`.
+- **Rate limiter**: hard 2-minute cooldown between any two conversation starters,
+  preventing bursts of 8+ messages in seconds after daemon restart.
+- **Startup grace**: the intention loop now waits a full interval (30–60 min) before
+  its first cycle, preventing stale intent replay on restart.
+- **`_notify_user()` wrapper**: all executor notifications now route through a single
+  method that checks the NotificationJournal before sending.
+- **Anomaly checker dedup**: high-severity anomaly alerts also go through the journal.
+
+### Fixed — Message Spam
+- **Intent store**: 917 accumulated pending intents cleared; store is now emptied on
+  restart to prevent replay bursts.
+- **Salience threshold**: raised from 0.30 to 0.70 — only genuinely relevant intents pass.
+- **Max questions per cycle**: reduced from 3 to 2, interval increased to 60 min.
+- **Post-result suppression**: notification-class intents no longer send a follow-up
+  "I sent you a notification" message after executing.
+- **All English eliminated**: `expected_outcome` in PresenceDetector and intention
+  prompt now require natural French exclusively.
+
 ## [0.3.1] — 2026-05-06
 
 ### Fixed — Robustness & Resilience

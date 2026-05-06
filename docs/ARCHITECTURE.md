@@ -1,7 +1,7 @@
 # CoreMind — Technical Architecture
 
-**Version:** 0.3.1 (Robust — Plugin Resilience + Natural Flow)
-**Status:** All 7 layers + 4 new pillars active — vision, conversation, presence, narrative
+**Version:** 0.3.2 (Disciplined — Intelligent Dedup + Rate Limiting)
+**Status:** All 7 layers + 4 pillars + NotificationJournal — quality over quantity
 **Audience:** Contributors, implementers, coding agents
 
 ---
@@ -262,6 +262,34 @@ All actions — even at high confidence — trigger the approval gate if they to
   "reversible_by": "action-id-or-manual-steps"
 }
 ```
+
+#### 3.6.1 NotificationJournal — Topic-Aware Dedup
+
+Instead of sending every intent as a notification, CoreMind tracks what was
+already communicated and suppresses near-duplicate messages on the same topic.
+
+- **Topic extraction**: each message is classified by keyword (sommeil, pas,
+  météo, chats, finances, pause, batterie, calendrier).
+- **Per-topic cooldowns**: sleep reminders wait 6 h, step nudges 4 h, weather
+  6 h, cat updates 2 h, finance summaries 12 h, pause suggestions 2 h.
+- **Persistence**: `~/.coremind/notification_journal.jsonl` stores the last
+  500 sent notifications with timestamps and topics.
+- **Integration**: the `_notify_user()` wrapper in the Executor checks the
+  journal before every outbound message. The anomaly checker in the daemon
+  also uses it.
+
+#### 3.6.2 Rate Limiter
+
+A hard cooldown of 2 minutes between any two notifications prevents burst spam
+when multiple intents are generated in rapid succession (e.g. after a daemon
+restart while the intention loop catches up).
+
+#### 3.6.3 Startup Grace
+
+The intention loop waits one full interval (60 min) before its first cycle
+after daemon restart. Combined with intent-store cleanup on restart, this
+eliminates the burst of stale intents that previously produced dozens of
+messages within seconds.
 
 ### 3.7 L7 — Reflection ✅ ACTIVE (24h cadence)
 

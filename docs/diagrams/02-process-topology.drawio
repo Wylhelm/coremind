@@ -1,11 +1,11 @@
 <mxfile host="app.diagrams.net" modified="2026-05-06T00:00:00.000Z" agent="coremind-docs" version="24.0.0">
   <diagram name="Process Topology" id="proc-topo">
-    <mxGraphModel dx="1400" dy="1050" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="1050" math="0" shadow="0">
+    <mxGraphModel dx="1400" dy="1150" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="1150" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
 
-        <mxCell id="title" value="CoreMind — Process Topology &amp; Storage (v0.3.1)" style="text;html=1;align=center;fontSize=20;fontStyle=1" vertex="1" parent="1">
+        <mxCell id="title" value="CoreMind — Process Topology &amp; Storage (v0.3.2)" style="text;html=1;align=center;fontSize=20;fontStyle=1" vertex="1" parent="1">
           <mxGeometry x="320" y="20" width="560" height="40" as="geometry" />
         </mxCell>
 
@@ -76,6 +76,9 @@
         </mxCell>
         <mxCell id="audit" value="Audit Journal&#xa;~/.coremind/audit.log&#xa;JSONL · hash-chained" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=11" vertex="1" parent="1">
           <mxGeometry x="60" y="430" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="notif-journal" value="Notification&#xa;Journal&#xa;(topic dedup · cooldowns)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="60" y="525" width="180" height="80" as="geometry" />
         </mxCell>
 
         <!-- REWORKED: Plugin ecosystem with watchdog -->
@@ -190,6 +193,10 @@
               <mxPoint x="100" y="485" />
             </Array>
           </mxGeometry>
+        </mxCell>
+
+        <mxCell id="d4" style="endArrow=classic;html=1;strokeWidth=2" edge="1" parent="1" source="action" target="notif-journal">
+          <mxGeometry relative="1" as="geometry" />
         </mxCell>
 
         <mxCell id="legend" value="Solid arrow = in-process call / bus event&#xa;Dashed arrow = gRPC over Unix socket&#xa;Green dash = Pillar integration&#xa;Cylinders = persistent stores&#xa;🔄 All plugins: auto-reconnect" style="rounded=0;whiteSpace=wrap;html=1;align=left;fontSize=10;fillColor=#FFFFFF;strokeColor=#999" vertex="1" parent="1">
