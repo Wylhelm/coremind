@@ -9,6 +9,7 @@ This is the core of Pillar #1 (Natural Conversation) for CoreMind v0.3.0.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import uuid
 from collections.abc import Awaitable, Callable
@@ -199,17 +200,28 @@ class ConversationHandler:
     # ------------------------------------------------------------------
 
     async def _generate_response(self, prompt: str) -> str:
-        """Call the LLM to generate a conversational response (free text, no JSON)."""
-        try:
-            return await self._llm.complete_text(
-                layer="reasoning_fast",
-                system=CONVERSATION_SYSTEM_PROMPT,
-                user=prompt,
-                max_tokens=500,
-            )
-        except Exception as exc:
-            log.error("conversation.llm_error", error=str(exc))
-            return (
-                "Désolé, j'ai du mal à formuler une réponse pour l'instant. "
-                "Peut-être qu'on peut essayer autrement?"
-            )
+        """Call the LLM to generate a conversational response. Retries on overload."""
+        last_error = None
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                return await self._llm.complete_text(
+                    layer="reasoning_fast",
+                    system=CONVERSATION_SYSTEM_PROMPT,
+                    user=prompt,
+                    max_tokens=500,
+                )
+            except Exception as exc:
+                last_error = exc
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2 ** attempt)
+                    log.warning(
+                        "conversation.llm_retry",
+                        attempt=attempt + 1,
+                        error=str(exc)[:80],
+                    )
+        log.error("conversation.llm_error", error=str(last_error))
+        return (
+            "Désolé, j'ai du mal à formuler une réponse pour l'instant. "
+            "Peut-être qu'on peut essayer autrement?"
+        )
