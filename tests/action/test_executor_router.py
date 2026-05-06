@@ -15,6 +15,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 from coremind.action.approvals import ApprovalGate
 from coremind.action.executor import EffectorPort, Executor
 from coremind.action.journal import ActionJournal
+from coremind.action.notification_journal import NotificationJournal
 from coremind.action.router import ActionRouter
 from coremind.action.schemas import Action, ActionResult
 from coremind.errors import ActionError
@@ -90,6 +91,7 @@ async def wired(tmp_path: Path, keypair: tuple[Ed25519PrivateKey, Ed25519PublicK
         resolver,
         notify_port=port,
         suggest_grace=timedelta(milliseconds=10),
+        notify_journal=NotificationJournal(tmp_path / "notify_journal.jsonl"),
     )
     approvals = ApprovalGate(port, intents, journal, executor)
     router = ActionRouter(executor, approvals, intents, journal)
@@ -138,6 +140,7 @@ async def test_suggest_intent_cancelled_in_grace(
         lambda _op: effector,
         notify_port=port,
         suggest_grace=timedelta(milliseconds=50),
+        notify_journal=NotificationJournal(tmp_path / "notify_journal.jsonl"),
     )
     approvals = ApprovalGate(port, intents, journal, executor)
     router = ActionRouter(executor, approvals, intents, journal)
@@ -228,6 +231,7 @@ async def test_reverse_dispatches_reversal_operation(
         lambda _op: effector,
         notify_port=port,
         suggest_grace=timedelta(milliseconds=10),
+        notify_journal=NotificationJournal(tmp_path / "notify_journal.jsonl"),
     )
     approvals = ApprovalGate(port, intents, journal, executor)
     router = ActionRouter(executor, approvals, intents, journal)

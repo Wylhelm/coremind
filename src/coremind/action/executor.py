@@ -24,6 +24,7 @@ from typing import Literal, Protocol
 import structlog
 
 from coremind.action.journal import ActionJournal
+from coremind.action.notification_journal import NotificationJournal
 from coremind.action.schemas import Action, ActionResult
 from coremind.errors import ActionError
 from coremind.intention.persistence import IntentStore
@@ -90,6 +91,7 @@ class Executor:
         *,
         notify_port: NotificationPort | None = None,
         suggest_grace: timedelta = _DEFAULT_SUGGEST_GRACE,
+        notify_journal: NotificationJournal | None = None,
         clock: Clock = _utc_now,
     ) -> None:
         self._journal = journal
@@ -101,10 +103,29 @@ class Executor:
         self._cancelled: set[str] = set()
         self._last_notify_at: datetime | None = None  # Rate limiter
         self._notify_cooldown = timedelta(seconds=120)  # Min 2 min between notifications
+        self._notify_journal = notify_journal or NotificationJournal()  # Topic-aware dedup
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+
+    async def _notify_user(
+        self,
+        message: str,
+        *,
+        category: str = "info",
+        actions: object = None,
+        intent_id: str | None = None,
+    ) -> bool:
+        """Send a notification if not suppressed by the notification journal."""
+        if self._notify is None:
+            return False
+        if not self._notify_journal.should_send(message, intent_id or ""):
+            return False
+        await self._notify.notify(
+            message=message, category=category, actions=actions, intent_id=intent_id  # type: ignore[arg-type]
+        )
+        return True
 
     async def execute(
         self,
@@ -193,12 +214,18 @@ class Executor:
 
         self._last_notify_at = now
         message = _format_conversation(intent)
-        await self._notify.notify(
+        # Dedup check: don't repeat the same topic within cooldown
+        sent = await self._notify_user(
             message=message,
             category="conversation",
             actions=None,
             intent_id=intent.id,
         )
+        if not sent:
+            log.debug("executor.conversation_suppressed_duplicate", intent_id=intent.id)
+            # Still execute the action silently
+            action = await self.execute(intent, notify="silent")
+            return conv_id
 
         # Execute the action after a shorter grace period (30s for approved intents)
         # The user already saw the message, so just wait a bit then execute
@@ -210,8 +237,8 @@ class Executor:
             action_class = intent.proposed_action.action_class if intent.proposed_action else ""
             if action_class not in ("notification", "presence_alert", "health_nudge"):
                 result_msg = _format_action_result(intent, action)
-                if result_msg and self._notify is not None:
-                    await self._notify.notify(
+                if result_msg:
+                    await self._notify_user(
                         message=result_msg,
                         category="info",
                         actions=None,
@@ -222,7 +249,7 @@ class Executor:
             # Action failed — tell the user
             error_msg = action.result.message if action and action.result else "Échec inconnu"
             if self._notify is not None:
-                await self._notify.notify(
+                await self._notify_user(
                     message=f"❌ Désolé, je n'ai pas réussi : {error_msg}",
                     category="info",
                     actions=None,
@@ -258,12 +285,16 @@ class Executor:
         # Notify the user now, with an implicit "cancel within N seconds" window.
         if self._notify is not None:
             grace_s = int((grace or self._suggest_grace).total_seconds())
-            await self._notify.notify(
-                message=_format_suggest(intent, grace_s),
+            msg = _format_suggest(intent, grace_s)
+            sent = await self._notify_user(
+                message=msg,
                 category="suggest",
                 actions=None,
                 intent_id=intent.id,
             )
+            if not sent:
+                # Execute silently if suppressed as duplicate
+                return await self.execute(intent, notify="silent")
 
         try:
             await asyncio.sleep((grace or self._suggest_grace).total_seconds())
