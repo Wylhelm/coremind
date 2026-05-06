@@ -69,6 +69,7 @@ proto-gen:
     touch integrations/openclaw-adapter/coremind_side/coremind_plugin_openclaw/_generated/__init__.py
     # Rewrite generated imports to avoid flat-module collisions.
     sed -i 's|^import plugin_pb2 as plugin__pb2|from coremind.plugin_api._generated import plugin_pb2 as plugin__pb2|' \
+        src/coremind/plugin_api/_generated/plugin_pb2_grpc.py \
         integrations/openclaw-adapter/coremind_side/coremind_plugin_openclaw/_generated/adapter_pb2.py \
         integrations/openclaw-adapter/coremind_side/coremind_plugin_openclaw/_generated/adapter_pb2_grpc.py
     sed -i 's|^import adapter_pb2 as adapter__pb2|from coremind_plugin_openclaw._generated import adapter_pb2 as adapter__pb2|' \

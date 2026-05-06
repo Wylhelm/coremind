@@ -105,6 +105,15 @@ Produce a JSON object with:
 - Output VALID JSON ONLY matching the schema.
 """
 
+_SYSTEM_HEAVY_V1 = """\
+You are the reasoning layer of CoreMind (L4).
+
+Analyze the provided world snapshot and semantic memory excerpt.
+Produce a structured JSON object matching the provided schema.
+
+Output VALID JSON ONLY, matching the provided schema. No prose, no markdown fences.
+"""
+
 _SYSTEM_FAST_V1 = """\
 You are the fast reasoning pass of CoreMind (L4).
 
@@ -171,6 +180,8 @@ Emit a single JSON object matching the schema. Your observations text should be 
 
 
 _TEMPLATES: dict[str, str] = {
+    "reasoning.heavy.system.v1": _SYSTEM_HEAVY_V1,
+    "reasoning.heavy.user.v1": _USER_V2,
     "reasoning.heavy.system.v2": _SYSTEM_HEAVY_V2,
     "reasoning.heavy.user.v2": _USER_V2,
     "reasoning.fast.system.v1": _SYSTEM_FAST_V1,

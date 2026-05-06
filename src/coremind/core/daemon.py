@@ -955,7 +955,7 @@ def _build_notification_router(
 
         token = os.environ.get("COREMIND_TELEGRAM_BOT_TOKEN", "")
         if token:
-            ports["telegram"] = TelegramNotificationPort(  # type: ignore[assignment]
+            ports["telegram"] = TelegramNotificationPort(
                 token,
                 config.notify.telegram.chat_id,
             )

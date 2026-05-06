@@ -129,6 +129,15 @@ class TelegramNotificationPort:
             sent_at=datetime.now(UTC),
         )
 
+    async def subscribe_responses(self) -> AsyncIterator[ApprovalResponse]:
+        """Yield only :class:`ApprovalResponse` updates (approval button callbacks).
+
+        Filters out text messages; delegates to :meth:`subscribe_all`.
+        """
+        async for update in self.subscribe_all():
+            if isinstance(update, ApprovalResponse):
+                yield update
+
     async def subscribe_all(
         self,
     ) -> AsyncIterator[ApprovalResponse | InboundTextMessage]:
