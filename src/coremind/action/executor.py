@@ -164,16 +164,16 @@ class Executor:
         return action
 
     async def start_conversation(self, intent: Intent) -> str | None:
-        """Open a conversation about this intent — no buttons, no grace window.
+        """Open a conversation about this intent AND schedule its action.
 
-        Sends the intent as an open-ended message inviting a text response.
-        The conversation handler will link the user's reply to this intent_id.
-
-        Returns:
-            The conversation_id if sent, None if no notification port.
+        Sends the question as an open-ended message, then executes the
+        proposed action after a longer grace window (2 min vs 30s for suggest).
+        The user can reply to cancel or modify.
         """
         if self._notify is None:
             return None
+
+        intent.status = "conversation"
         await self._intents.save(intent)
         conv_id = f"conv_{intent.id[:20]}"
         message = _format_conversation(intent)
@@ -183,7 +183,15 @@ class Executor:
             actions=None,
             intent_id=intent.id,
         )
-        log.info("executor.conversation_started", intent_id=intent.id, conv_id=conv_id)
+
+        # Execute the action after a longer grace period (2 min)
+        # This gives the user time to respond and cancel if needed
+        action = await self.execute_with_grace(intent, grace=timedelta(seconds=120))
+        if action is None:
+            log.info("executor.conversation_action_cancelled", intent_id=intent.id)
+        else:
+            log.info("executor.conversation_action_executed", intent_id=intent.id)
+
         return conv_id
 
     async def execute_with_grace(
@@ -389,25 +397,34 @@ def _build_action(intent: Intent, now: datetime) -> Action:
 
 
 def _format_conversation(intent: Intent) -> str:
-    """Render an intent as an open-ended conversation starter."""
-    text = intent.question.text
+    """Render a natural user-facing message from the proposed action — NOT the internal question."""
     proposal = intent.proposed_action
-    if proposal and proposal.expected_outcome:
-        text += f"\n\n{proposal.expected_outcome}"
-    return text
+    if proposal is None:
+        return intent.question.text
+    # Use expected_outcome as the user message (actions describe what will happen)
+    outcome = proposal.expected_outcome or intent.question.text
+    # Remove robotic "User receives..." prefix if present
+    for prefix in ("User receives ", "User will receive ", "Guillaume receives "):
+        if outcome.lower().startswith(prefix.lower()):
+            outcome = outcome[len(prefix):]
+            break
+    return outcome.strip()
 
 
 def _format_suggest(intent: Intent, grace_seconds: int) -> str:
-    """Render a suggest-category notification — friendly, no buttons."""
+    """Render a suggest-category notification — natural action description, not internal question."""
     proposal = intent.proposed_action
     if proposal is None:
         raise ActionError(f"intent {intent.id!r} has no proposed_action")
-    why = intent.question.text
-    # Strip the "Should we..." prefix, make it conversational
-    if why.startswith("Should we "):
-        why = why[10:].strip()
+    why = proposal.expected_outcome or intent.question.text
+    # Clean up robotic phrasing
+    for prefix in ("User receives ", "User will receive ", "Guillaume receives ",
+                    "The user gets ", "Guillaume gets "):
+        if why.lower().startswith(prefix.lower()):
+            why = why[len(prefix):]
+            break
     return (
-        f"{why}\n\n"
+        f"{why.strip()}\n\n"
         f"Je vais vérifier ça automatiquement. "
         f"Dis-moi si tu veux que j'annule."
     )

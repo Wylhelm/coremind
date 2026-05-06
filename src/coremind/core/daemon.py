@@ -128,6 +128,15 @@ async def _handle_event(event: WorldEventRecord, world_store: _StorePort) -> Non
 # ---------------------------------------------------------------------------
 
 
+def _make_narrative_getter(narrative_memory):
+    """Return an async callable that fetches the current narrative text."""
+    async def _get() -> str:
+        if narrative_memory is None:
+            return ""
+        return narrative_memory._render_for_prompt()
+    return _get
+
+
 class CoreMindDaemon:
     """Top-level orchestrator for the CoreMind cognitive daemon.
 
@@ -245,7 +254,7 @@ class CoreMindDaemon:
         self._router = router
 
         ingest_task = asyncio.create_task(
-            self._ingest_loop(event_bus, world_store),
+            self._ingest_loop_robust(event_bus, world_store),
             name="coremind.ingest",
         )
         ingest_task.add_done_callback(self._on_ingest_done)
@@ -272,6 +281,7 @@ class CoreMindDaemon:
             if hasattr(config, 'llm') and config.llm.intention.model:
                 llm_cfg.intention = LayerConfig(
                     model=config.llm.intention.model,
+                    max_completion_tokens=getattr(config.llm.intention, "max_tokens", 2048) if hasattr(config.llm, "intention") else 2048,
                 )
             llm = LLM(llm_cfg)
             intention_loop = IntentionLoop(
@@ -301,6 +311,8 @@ class CoreMindDaemon:
             reasoning_config = ReasoningLoopConfig(
                 interval_seconds=1800,  # 30 minutes
                 layer="reasoning_heavy",
+                template_system="reasoning.heavy.system.v2",
+                template_user="reasoning.heavy.user.v2",
             )
             # Configure LLM layers for reasoning and reflection
             if hasattr(config, "llm") and config.llm is not None:
@@ -352,15 +364,15 @@ class CoreMindDaemon:
             # Conversation layer (Pillar #1) — use Gemini Flash for reliability
             conv_llm = LLM(LLMConfig(
                 reasoning_fast=LayerConfig(
-                    model="gemini-3-flash-preview:latest",
-                    max_completion_tokens=500,
+                    model="ollama/deepseek-v4-flash:cloud",
+                    max_completion_tokens=800,
                 )
             ))
             conv_store = ConversationStore()
             self._conversation_handler = ConversationHandler(
                 llm=conv_llm,
                 store=conv_store,
-                get_narrative=lambda: narrative_memory._render_for_prompt() if narrative_memory else "",
+                get_narrative=_make_narrative_getter(narrative_memory),
             )
             self._conversation_listener_stop = asyncio.Event()
             self._conversation_listener_task = asyncio.create_task(
@@ -374,11 +386,23 @@ class CoreMindDaemon:
 
             presence_detector = PresenceDetector(
                 world_store, intents, router,
-                alert_minutes=15,  # Alert after 15 min (testing, prod=60)
-                check_interval=120,  # Check every 2 min (testing)
+                alert_minutes=120,  # Alert after 2h of continuous presence
+                check_interval=300,  # Check every 5 min
             )
+
+            async def _run_presence_detector() -> None:
+                """Robust wrapper: auto-restart presence detector on crash."""
+                while True:
+                    try:
+                        await presence_detector.run()
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:
+                        log.exception("presence_detector.crashed_restarting")
+                        await asyncio.sleep(30)
+
             self._presence_detector_task = asyncio.create_task(
-                presence_detector.run(),
+                _run_presence_detector(),
                 name="coremind.presence.detector",
             )
             log.info("daemon.presence_detector_started")
@@ -701,6 +725,17 @@ class CoreMindDaemon:
                 exc_info=exc,
                 detail="Ingest loop exited unexpectedly; daemon may be degraded.",
             )
+
+    async def _ingest_loop_robust(self, event_bus: EventBus, world_store: _StorePort) -> None:
+        """Robust wrapper around _ingest_loop with automatic restart on crash."""
+        while True:
+            try:
+                await self._ingest_loop(event_bus, world_store)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                log.exception("daemon.ingest_crashed_restarting")
+                await asyncio.sleep(5)
 
     async def _ingest_loop(self, event_bus: EventBus, world_store: _StorePort) -> None:
         """Drain the EventBus and persist every arriving event to the World Model.

@@ -135,64 +135,90 @@ async def run() -> None:
     channel_addr = f"unix://{DEFAULT_SOCKET_PATH}"
     frame_dir = Path.home() / ".coremind" / "webcam_frames"
     frame_dir.mkdir(parents=True, exist_ok=True)
+    RECONNECT_DELAY = 10
 
     log.info("webcam.starting", plugin_id=PLUGIN_ID, device=device, interval=interval)
 
-    async with grpc.aio.insecure_channel(channel_addr) as channel:
-        stub = plugin_pb2_grpc.CoreMindHostStub(channel)
-        metadata = (("x-plugin-id", PLUGIN_ID),)
-        previous_frame: Path | None = None
+    # Check device exists on startup (non-fatal; might appear later)
+    if not Path(device).exists():
+        log.warning("webcam.device_missing", device=device)
 
-        while True:
-            frame_path = frame_dir / f"webcam_{datetime.now(UTC):%Y%m%d_%H%M%S}.jpg"
+    # Outer loop: survive daemon restarts and connection loss
+    while True:
+        try:
+            async with grpc.aio.insecure_channel(channel_addr) as channel:
+                stub = plugin_pb2_grpc.CoreMindHostStub(channel)
+                metadata = (("x-plugin-id", PLUGIN_ID),)
+                previous_frame: Path | None = None
+                log.info("webcam.connected", plugin_id=PLUGIN_ID)
 
-            success = capture_frame(str(frame_path), device)
+                while True:
+                    try:
+                        frame_path = frame_dir / f"webcam_{datetime.now(UTC):%Y%m%d_%H%M%S}.jpg"
 
-            event = build_signed_event(
-                private_key,
-                attribute="frame_captured",
-                value=success,
-            )
-            try:
-                await stub.EmitEvent(event, metadata=metadata)
-            except grpc.RpcError as exc:
-                log.error("webcam.emit_failed", error=exc.details(), exc_info=False)
-                await asyncio.sleep(interval)
-                continue
+                        # Skip capture if device still missing (non-fatal)
+                        if not Path(device).exists():
+                            log.debug("webcam.device_still_missing", device=device)
+                            await asyncio.sleep(interval)
+                            continue
 
-            if success:
-                size = frame_path.stat().st_size if frame_path.exists() else 0
-                size_event = build_signed_event(
-                    private_key,
-                    attribute="frame_size_bytes",
-                    value=float(size),
-                    unit="bytes",
-                )
-                try:
-                    await stub.EmitEvent(size_event, metadata=metadata)
-                except grpc.RpcError:
-                    pass
+                        success = capture_frame(str(frame_path), device)
 
-                motion = detect_motion(frame_path, previous_frame)
-                motion_event = build_signed_event(
-                    private_key,
-                    attribute="motion_detected",
-                    value=motion,
-                )
-                try:
-                    await stub.EmitEvent(motion_event, metadata=metadata)
-                except grpc.RpcError:
-                    pass
+                        event = build_signed_event(
+                            private_key,
+                            attribute="frame_captured",
+                            value=success,
+                        )
+                        try:
+                            await stub.EmitEvent(event, metadata=metadata)
+                        except grpc.RpcError as exc:
+                            log.warning("webcam.emit_failed_reconnecting", error=exc.details(), exc_info=False)
+                            break
 
-                previous_frame = frame_path
+                        if success:
+                            size = frame_path.stat().st_size if frame_path.exists() else 0
+                            size_event = build_signed_event(
+                                private_key,
+                                attribute="frame_size_bytes",
+                                value=float(size),
+                                unit="bytes",
+                            )
+                            try:
+                                await stub.EmitEvent(size_event, metadata=metadata)
+                            except grpc.RpcError:
+                                break
 
-                log.info(
-                    "webcam.frame_captured",
-                    size=size,
-                    motion=motion,
-                )
+                            motion = detect_motion(frame_path, previous_frame)
+                            motion_event = build_signed_event(
+                                private_key,
+                                attribute="motion_detected",
+                                value=motion,
+                            )
+                            try:
+                                await stub.EmitEvent(motion_event, metadata=metadata)
+                            except grpc.RpcError:
+                                break
 
-            await asyncio.sleep(interval)
+                            previous_frame = frame_path
+
+                            log.info(
+                                "webcam.frame_captured",
+                                size=size,
+                                motion=motion,
+                            )
+
+                    except grpc.RpcError as exc:
+                        log.warning("webcam.rpc_error_reconnecting", error=exc.details(), exc_info=False)
+                        break
+
+                    await asyncio.sleep(interval)
+
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("webcam.connection_lost_reconnecting")
+
+        await asyncio.sleep(RECONNECT_DELAY)
 
 
 def main() -> None:

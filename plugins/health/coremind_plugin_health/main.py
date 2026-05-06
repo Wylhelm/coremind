@@ -185,14 +185,32 @@ async def run() -> None:
     """Main event loop: query health metrics periodically, emit to CoreMind."""
     private_key = ensure_plugin_keypair(KEY_STORE_ID)
     channel_addr = f"unix://{DEFAULT_SOCKET_PATH}"
+    RECONNECT_DELAY = 10
 
     log.info("health.starting", plugin_id=PLUGIN_ID, interval=POLL_INTERVAL_SECONDS)
 
-    async with grpc.aio.insecure_channel(channel_addr) as channel:
-        stub = plugin_pb2_grpc.CoreMindHostStub(channel)
-        while True:
-            await _emit_metrics(stub, private_key)
-            await asyncio.sleep(POLL_INTERVAL_SECONDS)
+    # Outer loop: survive daemon restarts and connection loss
+    while True:
+        try:
+            async with grpc.aio.insecure_channel(channel_addr) as channel:
+                stub = plugin_pb2_grpc.CoreMindHostStub(channel)
+                log.info("health.connected", plugin_id=PLUGIN_ID)
+
+                while True:
+                    try:
+                        await _emit_metrics(stub, private_key)
+                    except grpc.RpcError as exc:
+                        log.warning("health.rpc_error_reconnecting", error=exc.details(), exc_info=False)
+                        break
+
+                    await asyncio.sleep(POLL_INTERVAL_SECONDS)
+
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("health.connection_lost_reconnecting")
+
+        await asyncio.sleep(RECONNECT_DELAY)
 
 
 def main() -> None:

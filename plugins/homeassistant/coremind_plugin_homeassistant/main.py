@@ -270,6 +270,8 @@ async def run(
 
     private_key = ensure_plugin_keypair(KEY_STORE_ID)
     channel_addr = f"unix://{socket_path}"
+    ws_url = _ws_url(cfg.base_url)
+    RECONNECT_DELAY = 10
 
     log.info(
         "homeassistant.starting",
@@ -278,15 +280,33 @@ async def run(
         prefixes=cfg.entity_prefixes,
     )
 
-    async with (
-        aiohttp.ClientSession() as session,
-        grpc.aio.insecure_channel(channel_addr) as channel,
-    ):
-        stub = plugin_pb2_grpc.CoreMindHostStub(channel)  # type: ignore[no-untyped-call]
-        ws_url = _ws_url(cfg.base_url)
+    # Outer loop: survive daemon and HA restarts
+    while True:
+        try:
+            async with (
+                aiohttp.ClientSession() as session,
+                grpc.aio.insecure_channel(channel_addr) as channel,
+            ):
+                stub = plugin_pb2_grpc.CoreMindHostStub(channel)  # type: ignore[no-untyped-call]
+                log.info("homeassistant.connected", plugin_id=PLUGIN_ID)
 
-        async for payload in ha_state_changes(session, ws_url, token, cfg.entity_prefixes):
-            await _emit_state_change(stub, private_key, payload)
+                try:
+                    async for payload in ha_state_changes(session, ws_url, token, cfg.entity_prefixes):
+                        try:
+                            await _emit_state_change(stub, private_key, payload)
+                        except grpc.RpcError:
+                            log.warning("homeassistant.rpc_error_reconnecting")
+                            break  # Exit WebSocket loop → reconnect everything
+                except (aiohttp.ClientError, RuntimeError) as exc:
+                    log.warning("homeassistant.ha_connection_lost", error=str(exc))
+                    # Will reconnect via outer loop
+
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("homeassistant.connection_lost_reconnecting")
+
+        await asyncio.sleep(RECONNECT_DELAY)
 
 
 def main() -> None:

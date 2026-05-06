@@ -535,8 +535,21 @@ class ReflectionLoop:
                 layer="reflection",
                 system=(
                     "You are the narrative identity layer of CoreMind. "
-                    "You maintain a persistent summary of the user's life context. "
-                    "Be concise, specific, and grounded in the data provided. "
+                    "You maintain a living, evolving understanding of the user's life. "
+                    "You are not just summarizing data — you are building a MODEL of who "
+                    "this person is, what matters to them, and how their life is changing.\n\n"
+                    "Your narrative should capture:\n"
+                    "- IDENTITY: Who is this person? What defines them right now?\n"
+                    "- TRENDS: What is changing in their life? Better? Worse? Stable?\n"
+                    "- CONCERNS: What are they worried about or working on?\n"
+                    "- PATTERNS: What rhythms define their days?\n"
+                    "- RELATIONSHIPS: Who matters to them? What's happening with those people?\n"
+                    "- ENVIRONMENT: What's happening in their home? Their cats? Their space?\n\n"
+                    "Be specific. Use names, numbers, places. \"Sleep quality declining\" is vague. "
+                    "\"Deep sleep dropped from 1h30 to 45min this week — correlated with bedroom "
+                    "temperature staying above 25°C past midnight\" is intelligence.\n\n"
+                    "Prune stale information. If something hasn't been relevant for 2+ weeks, "
+                    "let it go. Keep what matters NOW.\n\n"
                     "Output valid JSON only."
                 ),
                 user=prompt,

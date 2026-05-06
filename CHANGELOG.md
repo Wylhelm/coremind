@@ -6,6 +6,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.3.1] — 2026-05-06
+
+### Fixed — Robustness & Resilience
+- **Plugin crash recovery**: all 8 plugins now wrap their main loop in auto-reconnect logic.
+  If the daemon restarts or the gRPC socket disappears, plugins reconnect automatically
+  with exponential backoff instead of dying silently.
+- **Race condition at startup**: `start-all.sh` now waits for the daemon socket to appear
+  before launching plugins, preventing the "socket not found" crash that killed 5/8 plugins.
+- **Watchdog auto-restart**: `start-all.sh` launches a background supervisor that checks
+  every 60s and restarts any dead plugin process. No more silent plugin deaths.
+- **Ingest loop resilience**: the critical ingest loop (EventBus → WorldStore) now
+  auto-restarts on crash instead of logging a fatal and stopping.
+- **PresenceDetector crash guard**: wrapped in a retry loop inside the daemon.
+
+### Fixed — Data Staleness (Presence Detection)
+- **Staleness check**: `PresenceDetector` now checks `entity.updated_at` and ignores
+  camera data older than 10 minutes. This prevents CoreMind from claiming someone
+  is "at their desk" for hours after the tapo plugin crashed.
+- **Message phrasing**: the presence alert now says "tu travailles" instead of
+  incorrectly claiming "tu es à ton bureau" (the camera is in the living room).
+
+### Fixed — Message Flow & Action Execution
+- **No more double messages**: the internal `InternalQuestion` is no longer sent to the
+  user. Only the action's `expected_outcome` (now required in natural French) is shown.
+- **Conversation intents now execute**: intents classified as "conversation" (high
+  salience ≥0.70) now execute their proposed action after a 2-minute grace window.
+  Previously they only sent a message and silently discarded the action.
+- **Natural French**: the intention LLM prompt now requires `expected_outcome` in
+  natural French, not third-person English ("Je te préviens si…" instead of
+  "User receives a notification about…").
+
+### Added
+- `src/coremind/plugin_helpers.py`: shared retry/reconnection utilities for plugins.
+- `scripts/healthcheck.sh`: daemon health check script used by the HEARTBEAT.
+
 ## [0.3.0] — 2026-05-04
 
 ### Added — Pillar 1: Natural Conversation

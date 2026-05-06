@@ -156,14 +156,33 @@ async def _emit_all(
 async def run() -> None:
     private_key = ensure_plugin_keypair(KEY_STORE_ID)
     channel_addr = f"unix://{DEFAULT_SOCKET_PATH}"
+    RECONNECT_DELAY = 10
+
     log.info("firefly.starting", plugin_id=PLUGIN_ID, interval=POLL_INTERVAL)
 
-    async with grpc.aio.insecure_channel(channel_addr) as channel:
-        stub = plugin_pb2_grpc.CoreMindHostStub(channel)
-        while True:
-            n = await _emit_all(stub, private_key)
-            log.info("firefly.cycle_done", emitted=n)
-            await asyncio.sleep(POLL_INTERVAL)
+    # Outer loop: survive daemon restarts and connection loss
+    while True:
+        try:
+            async with grpc.aio.insecure_channel(channel_addr) as channel:
+                stub = plugin_pb2_grpc.CoreMindHostStub(channel)
+                log.info("firefly.connected", plugin_id=PLUGIN_ID)
+
+                while True:
+                    try:
+                        n = await _emit_all(stub, private_key)
+                        log.info("firefly.cycle_done", emitted=n)
+                    except grpc.RpcError as exc:
+                        log.warning("firefly.rpc_error_reconnecting", error=exc.details(), exc_info=False)
+                        break
+
+                    await asyncio.sleep(POLL_INTERVAL)
+
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("firefly.connection_lost_reconnecting")
+
+        await asyncio.sleep(RECONNECT_DELAY)
 
 
 def main() -> None:

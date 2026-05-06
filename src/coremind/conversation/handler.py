@@ -198,21 +198,15 @@ class ConversationHandler:
     # ------------------------------------------------------------------
 
     async def _generate_response(self, prompt: str) -> str:
-        """Call the LLM to generate a conversational response."""
+        """Call the LLM to generate a conversational response (free text, no JSON)."""
         try:
-            from pydantic import BaseModel, Field
-
-            class TextResponse(BaseModel):
-                response: str = Field(min_length=1)
-
-            result = await self._llm.complete_structured(
+            result = await self._llm.complete_text(
                 layer="reasoning_fast",
                 system=CONVERSATION_SYSTEM_PROMPT,
                 user=prompt,
-                response_model=TextResponse,
-                max_tokens=300,
+                max_tokens=500,
             )
-            return result.response.strip()
+            return result
         except Exception as exc:
             log.error("conversation.llm_error", error=str(exc))
             return (

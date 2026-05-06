@@ -65,24 +65,43 @@ def build_signed_event(key, entity_type, entity_id, attribute, value, unit=None)
 async def run():
     key = ensure_plugin_keypair(KEY_STORE_ID)
     ch = f"unix://{DEFAULT_SOCKET_PATH}"
+    RECONNECT_DELAY = 10
+
     log.info("weather.starting", plugin_id=PLUGIN_ID)
-    async with grpc.aio.insecure_channel(ch) as channel:
-        stub = plugin_pb2_grpc.CoreMindHostStub(channel)
-        meta = (("x-plugin-id", PLUGIN_ID),)
-        while True:
-            try:
-                url = f"https://api.open-meteo.com/v1/forecast?latitude={LAT}&longitude={LON}&current={','.join(m[1] for m in _METRICS)}"
-                r = requests.get(url, timeout=10)
-                data = r.json().get("current", {})
-                for attr, key_name, unit in _METRICS:
-                    v = data.get(key_name)
-                    if v is not None:
-                        ev = build_signed_event(key, "location", "quebec", attr, v, unit)
-                        await stub.EmitEvent(ev, metadata=meta)
-                        log.info("weather.emitted", attribute=attr, value=v)
-            except Exception as e:
-                log.warning("weather.error", error=str(e))
-            await asyncio.sleep(POLL_INTERVAL)
+
+    # Outer loop: survive daemon restarts and connection loss
+    while True:
+        try:
+            async with grpc.aio.insecure_channel(ch) as channel:
+                stub = plugin_pb2_grpc.CoreMindHostStub(channel)
+                meta = (("x-plugin-id", PLUGIN_ID),)
+                log.info("weather.connected", plugin_id=PLUGIN_ID)
+
+                while True:
+                    try:
+                        url = f"https://api.open-meteo.com/v1/forecast?latitude={LAT}&longitude={LON}&current={','.join(m[1] for m in _METRICS)}"
+                        r = requests.get(url, timeout=10)
+                        data = r.json().get("current", {})
+                        for attr, key_name, unit in _METRICS:
+                            v = data.get(key_name)
+                            if v is not None:
+                                ev = build_signed_event(key, "location", "quebec", attr, v, unit)
+                                await stub.EmitEvent(ev, metadata=meta)
+                                log.info("weather.emitted", attribute=attr, value=v)
+                    except grpc.RpcError as exc:
+                        log.warning("weather.rpc_error_reconnecting", error=exc.details(), exc_info=False)
+                        break
+                    except Exception as e:
+                        log.warning("weather.error", error=str(e))
+
+                    await asyncio.sleep(POLL_INTERVAL)
+
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("weather.connection_lost_reconnecting")
+
+        await asyncio.sleep(RECONNECT_DELAY)
 
 
 def main():

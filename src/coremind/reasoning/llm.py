@@ -141,6 +141,10 @@ class LiteLLMBackend:
             "max_tokens": max_tokens,
             "temperature": temperature,
         }
+        # Pass Ollama base URL explicitly — LiteLLM may not read OLLAMA_API_BASE reliably
+        ollama_url = os.environ.get("OLLAMA_API_BASE")
+        if ollama_url and model.startswith("ollama/"):
+            kwargs["api_base"] = ollama_url
         if response_format is not None:
             kwargs["response_format"] = response_format
         if api_key is not None:
@@ -350,3 +354,48 @@ class LLM:
             f"LLM returned malformed structured output for layer {layer!r} "
             f"after {_MAX_RETRIES + 1} attempts: {last_error}"
         )
+
+    async def complete_text(
+        self,
+        layer: Layer,
+        system: str,
+        user: str,
+        *,
+        max_tokens: int | None = None,
+    ) -> str:
+        """Obtain a plain-text response — no JSON formatting enforced.
+
+        Use this for free-form conversation where JSON mode would degrade quality.
+        """
+        cfg = self._layer_config(layer)
+        completion_cap = max_tokens if max_tokens is not None else cfg.max_completion_tokens
+        api_key = os.environ.get(cfg.api_key_env) if cfg.api_key_env else None
+
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ]
+
+        try:
+            result = await self._backend.complete(
+                model=cfg.model,
+                messages=messages,
+                max_tokens=completion_cap,
+                temperature=0.8,  # Higher temp for creative conversation
+                response_format=None,  # No JSON — free text
+                api_key=api_key,
+            )
+        except LLMError:
+            raise
+        except Exception as exc:
+            raise LLMError(f"backend call failed for layer {layer!r}") from exc
+
+        log.info(
+            "llm.call",
+            layer=layer,
+            model=cfg.model,
+            attempt=1,
+            prompt_tokens=result.prompt_tokens,
+            completion_tokens=result.completion_tokens,
+        )
+        return result.content.strip()

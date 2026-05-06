@@ -6,12 +6,14 @@ services:
   # ── Backing stores ──
   surrealdb:
     image: surrealdb/surrealdb:latest
-    command: start --user root --pass root memory
+    command: start --user root --pass root surrealkv:/data
     ports:
       - "127.0.0.1:8001:8000"
     restart: unless-stopped
+    volumes:
+      - surrealdb_data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "/surreal", "is-ready", "--endpoint", "http://localhost:8000"]
       interval: 10s
       retries: 5
 
@@ -56,3 +58,4 @@ services:
 volumes:
   qdrant_data:
   coremind_data:
+  surrealdb_data:

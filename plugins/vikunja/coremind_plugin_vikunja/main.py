@@ -66,52 +66,74 @@ def build_signed_event(key, entity_type, entity_id, attribute, value, unit=None)
 async def run():
     key = ensure_plugin_keypair(KEY_STORE_ID)
     ch = f"unix://{DEFAULT_SOCKET_PATH}"
+    RECONNECT_DELAY = 10
+
     log.info("vikunja.starting", plugin_id=PLUGIN_ID)
-    async with grpc.aio.insecure_channel(ch) as channel:
-        stub = plugin_pb2_grpc.CoreMindHostStub(channel)
-        meta = (("x-plugin-id", PLUGIN_ID),)
-        while True:
-            # Count tasks by project
-            projects = _get("/projects")
-            total_open = 0
-            total_done = 0
-            total_overdue = 0
-            for proj in projects:
-                pid = proj.get("id")
-                tasks = _get(f"/projects/{pid}/tasks")
-                if not tasks:
-                    continue
-                open_count = sum(1 for t in tasks if not t.get("done", False))
-                done_count = sum(1 for t in tasks if t.get("done", False))
-                overdue = sum(
-                    1
-                    for t in tasks
-                    if not t.get("done")
-                    and t.get("due_date", "0") < datetime.now(UTC).strftime("%Y-%m-%d")
-                )
-                total_open += open_count
-                total_done += done_count
-                total_overdue += overdue
-                pname = proj.get("title", "?")
-                await stub.EmitEvent(
-                    build_signed_event(key, "project", pname, "open_tasks", open_count),
-                    metadata=meta,
-                )
-            # Global stats
-            await stub.EmitEvent(
-                build_signed_event(key, "task_manager", "vikunja", "open_tasks", total_open),
-                metadata=meta,
-            )
-            await stub.EmitEvent(
-                build_signed_event(key, "task_manager", "vikunja", "completed_tasks", total_done),
-                metadata=meta,
-            )
-            await stub.EmitEvent(
-                build_signed_event(key, "task_manager", "vikunja", "overdue_tasks", total_overdue),
-                metadata=meta,
-            )
-            log.info("vikunja.cycle_done", open=total_open, done=total_done, overdue=total_overdue)
-            await asyncio.sleep(POLL_INTERVAL)
+
+    # Outer loop: survive daemon restarts and connection loss
+    while True:
+        try:
+            async with grpc.aio.insecure_channel(ch) as channel:
+                stub = plugin_pb2_grpc.CoreMindHostStub(channel)
+                meta = (("x-plugin-id", PLUGIN_ID),)
+                log.info("vikunja.connected", plugin_id=PLUGIN_ID)
+
+                while True:
+                    try:
+                        # Count tasks by project
+                        projects = _get("/projects")
+                        total_open = 0
+                        total_done = 0
+                        total_overdue = 0
+                        for proj in projects:
+                            pid = proj.get("id")
+                            tasks = _get(f"/projects/{pid}/tasks")
+                            if not tasks:
+                                continue
+                            open_count = sum(1 for t in tasks if not t.get("done", False))
+                            done_count = sum(1 for t in tasks if t.get("done", False))
+                            overdue = sum(
+                                1
+                                for t in tasks
+                                if not t.get("done")
+                                and t.get("due_date", "0") < datetime.now(UTC).strftime("%Y-%m-%d")
+                            )
+                            total_open += open_count
+                            total_done += done_count
+                            total_overdue += overdue
+                            pname = proj.get("title", "?")
+                            await stub.EmitEvent(
+                                build_signed_event(key, "project", pname, "open_tasks", open_count),
+                                metadata=meta,
+                            )
+                        # Global stats
+                        await stub.EmitEvent(
+                            build_signed_event(key, "task_manager", "vikunja", "open_tasks", total_open),
+                            metadata=meta,
+                        )
+                        await stub.EmitEvent(
+                            build_signed_event(key, "task_manager", "vikunja", "completed_tasks", total_done),
+                            metadata=meta,
+                        )
+                        await stub.EmitEvent(
+                            build_signed_event(key, "task_manager", "vikunja", "overdue_tasks", total_overdue),
+                            metadata=meta,
+                        )
+                        log.info("vikunja.cycle_done", open=total_open, done=total_done, overdue=total_overdue)
+                    except grpc.RpcError as exc:
+                        log.warning("vikunja.rpc_error_reconnecting", error=exc.details(), exc_info=False)
+                        break
+                    except Exception as e:
+                        log.warning("vikunja.error", error=str(e))
+
+                    await asyncio.sleep(POLL_INTERVAL)
+
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("vikunja.connection_lost_reconnecting")
+
+        await asyncio.sleep(RECONNECT_DELAY)
 
 
 def main():

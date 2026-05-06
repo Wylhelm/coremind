@@ -75,6 +75,23 @@ class TokenUsage(BaseModel):
     total_tokens: int = Field(ge=0)
 
 
+class Investigation(BaseModel):
+    """A question the reasoning layer wants to track over future cycles.
+
+    These drive proactive curiosity — the system investigates on its own
+    rather than waiting for explicit triggers.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str = Field(min_length=1)
+    question: str = Field(min_length=1, description="What am I trying to understand?")
+    cross_domains: list[str] = Field(default_factory=list, description="e.g. ['health', 'home', 'finance']")
+    data_needed: str = Field(default="", description="What data would answer this?")
+    timeframe_hours: int = Field(default=168, ge=1, description="How long to track?")
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
 class ReasoningOutput(BaseModel):
     """The complete output of one reasoning cycle.
 
@@ -88,4 +105,5 @@ class ReasoningOutput(BaseModel):
     patterns: list[Pattern] = Field(default_factory=list)
     anomalies: list[Anomaly] = Field(default_factory=list)
     predictions: list[Prediction] = Field(default_factory=list)
+    investigations: list[Investigation] = Field(default_factory=list)
     token_usage: TokenUsage

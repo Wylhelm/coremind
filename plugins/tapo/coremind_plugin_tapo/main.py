@@ -280,72 +280,90 @@ async def run() -> None:
     snapshot_dir = Path.home() / ".coremind" / "snapshots"
     snapshot_dir.mkdir(parents=True, exist_ok=True)
 
+    RECONNECT_DELAY = 10  # seconds between reconnect attempts
+
     log.info("tapo.starting", plugin_id=PLUGIN_ID, ip=ip, interval=interval)
 
-    async with grpc.aio.insecure_channel(channel_addr) as channel:
-        stub = plugin_pb2_grpc.CoreMindHostStub(channel)
-        metadata = (("x-plugin-id", PLUGIN_ID),)
+    # Outer loop: survive daemon restarts and connection loss
+    while True:
+        try:
+            async with grpc.aio.insecure_channel(channel_addr) as channel:
+                stub = plugin_pb2_grpc.CoreMindHostStub(channel)
+                metadata = (("x-plugin-id", PLUGIN_ID),)
+                log.info("tapo.connected", plugin_id=PLUGIN_ID)
 
-        while True:
-            snap_path = snapshot_dir / f"tapo_{datetime.now(UTC):%Y%m%d_%H%M%S}.jpg"
+                # Inner loop: normal operation
+                while True:
+                    try:
+                        snap_path = snapshot_dir / f"tapo_{datetime.now(UTC):%Y%m%d_%H%M%S}.jpg"
 
-            success = capture_snapshot(
-                str(snap_path), username, password, ip, port, stream
-            )
+                        success = capture_snapshot(
+                            str(snap_path), username, password, ip, port, stream
+                        )
 
-            # Emit snapshot_taken event
-            size_bytes = snap_path.stat().st_size if snap_path.exists() else 0
-            event = build_signed_event(
-                private_key,
-                attribute="snapshot_taken",
-                value=success,
-            )
-            try:
-                await stub.EmitEvent(event, metadata=metadata)
-            except grpc.RpcError as exc:
-                log.error("tapo.emit_failed", error=exc.details(), exc_info=False)
-                await asyncio.sleep(interval)
-                continue
-
-            if success:
-                event_size = build_signed_event(
-                    private_key,
-                    attribute="snapshot_size_bytes",
-                    value=float(size_bytes),
-                    unit="bytes",
-                )
-                try:
-                    await stub.EmitEvent(event_size, metadata=metadata)
-                except grpc.RpcError:
-                    pass
-
-            log.info("tapo.snapshot_captured", success=success, size=size_bytes)
-
-            # Vision analysis: Gemini Flash (primary) → Mistral (fallback), both via Ollama
-            if success and VISION_ENABLED:
-                vision = await analyze_scene(snap_path)
-                if vision:
-                    # If person is present but unidentified, try Immich face matching
-                    if vision.get("person_present") and vision.get("person_name") == "unknown":
-                        matched_name = await match_face_with_immich(snap_path)
-                        if matched_name:
-                            vision["person_name"] = matched_name
-                            log.info("tapo.face_identified", name=matched_name)
-
-                    for attr, val in vision.items():
-                        event_v = build_signed_event(
+                        # Emit snapshot_taken event
+                        size_bytes = snap_path.stat().st_size if snap_path.exists() else 0
+                        event = build_signed_event(
                             private_key,
-                            attribute=attr,
-                            value=val,
-                            confidence=CONFIDENCE_VISION,
+                            attribute="snapshot_taken",
+                            value=success,
                         )
                         try:
-                            await stub.EmitEvent(event_v, metadata=metadata)
-                            log.info("tapo.vision_emitted", attribute=attr, value=val)
-                        except grpc.RpcError:
-                            pass
+                            await stub.EmitEvent(event, metadata=metadata)
+                        except grpc.RpcError as exc:
+                            log.warning("tapo.emit_failed_reconnecting", error=exc.details(), exc_info=False)
+                            break  # Reconnect
 
-            await asyncio.sleep(interval)
+                        if success:
+                            event_size = build_signed_event(
+                                private_key,
+                                attribute="snapshot_size_bytes",
+                                value=float(size_bytes),
+                                unit="bytes",
+                            )
+                            try:
+                                await stub.EmitEvent(event_size, metadata=metadata)
+                            except grpc.RpcError:
+                                break  # Reconnect
+
+                        log.info("tapo.snapshot_captured", success=success, size=size_bytes)
+
+                        # Vision analysis: Gemini Flash (primary) → Mistral (fallback), both via Ollama
+                        if success and VISION_ENABLED:
+                            vision = await analyze_scene(snap_path)
+                            if vision:
+                                # If person is present but unidentified, try Immich face matching
+                                if vision.get("person_present") and vision.get("person_name") == "unknown":
+                                    matched_name = await match_face_with_immich(snap_path)
+                                    if matched_name:
+                                        vision["person_name"] = matched_name
+                                        log.info("tapo.face_identified", name=matched_name)
+
+                                for attr, val in vision.items():
+                                    event_v = build_signed_event(
+                                        private_key,
+                                        attribute=attr,
+                                        value=val,
+                                        confidence=CONFIDENCE_VISION,
+                                    )
+                                    try:
+                                        await stub.EmitEvent(event_v, metadata=metadata)
+                                        log.info("tapo.vision_emitted", attribute=attr, value=val)
+                                    except grpc.RpcError:
+                                        break  # Reconnect on any emit failure
+
+                    except grpc.RpcError as exc:
+                        log.warning("tapo.rpc_error_reconnecting", error=exc.details(), exc_info=False)
+                        break  # Inner loop → reconnect
+
+                    await asyncio.sleep(interval)
+
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("tapo.connection_lost_reconnecting")
+
+        await asyncio.sleep(RECONNECT_DELAY)
 
 
 def main() -> None:

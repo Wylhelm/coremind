@@ -150,11 +150,65 @@ class ReasoningLoop:
         self._clock = clock
         self._task: asyncio.Task[None] | None = None
         self._stop_event = asyncio.Event()
+        self._investigation_questions: list[str] = []
+        self._about_user_context = self._load_about_user()
+        self._load_investigations_from_disk()
 
     @property
     def config(self) -> ReasoningLoopConfig:
         """Return the scheduler configuration."""
         return self._config
+
+    @staticmethod
+    def _load_about_user() -> str:
+        """Load the persistent 'about user' context for reasoning prompts."""
+        import os
+        path = os.path.expanduser("~/.coremind/about_user.txt")
+        try:
+            with open(path) as f:
+                return f.read().strip()
+        except Exception:
+            return ""
+
+    def _load_investigation_questions(self) -> str:
+        """Return previous investigation questions as formatted text."""
+        if not self._investigation_questions:
+            return ""
+        lines = ["Questions you were investigating:"]
+        for q in self._investigation_questions[-5:]:  # Keep last 5
+            lines.append(f"  - {q}")
+        return "\n".join(lines)
+
+    def _save_investigation_questions(self, investigations: list[object]) -> None:
+        """Store new investigation questions for future cycles and persist to disk."""
+        for inv in investigations:
+            if hasattr(inv, 'question'):
+                self._investigation_questions.append(inv.question)
+        # Keep only last 10
+        if len(self._investigation_questions) > 10:
+            self._investigation_questions = self._investigation_questions[-10:]
+        self._persist_investigations_to_disk()
+
+    def _persist_investigations_to_disk(self) -> None:
+        """Save investigation questions to a JSON file for persistence across restarts."""
+        import json, os
+        path = os.path.expanduser("~/.coremind/run/investigations.json")
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, 'w') as f:
+                json.dump(self._investigation_questions, f, indent=2)
+        except Exception:
+            pass
+
+    def _load_investigations_from_disk(self) -> None:
+        """Load saved investigation questions from disk."""
+        import json, os
+        path = os.path.expanduser("~/.coremind/run/investigations.json")
+        try:
+            with open(path) as f:
+                self._investigation_questions = json.load(f)
+        except Exception:
+            self._investigation_questions = []
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -229,6 +283,8 @@ class ReasoningLoop:
             memory_excerpt=memory_excerpt,
             narrative_context=narrative_context,
             schema_json=schema_json,
+            about_user=self._about_user_context,
+            previous_questions=self._load_investigation_questions(),
         )
 
         layer = self._config.layer
@@ -263,12 +319,16 @@ class ReasoningLoop:
 
         await self._add_narrative_observation(output)
 
+        # Save investigation questions for future cycles (curiosity loop)
+        self._save_investigation_questions(output.investigations)
+
         log.info(
             "reasoning.cycle.done",
             cycle_id=cycle_id,
             patterns=len(output.patterns),
             anomalies=len(output.anomalies),
             predictions=len(output.predictions),
+            investigations=len(output.investigations),
         )
         return output
 
