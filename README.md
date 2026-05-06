@@ -65,7 +65,7 @@ CoreMind is not:
 
 ## Project status
 
-✅ **v0.3.0 — Living Intelligence** (2026-05-04). See [`CHANGELOG.md`](CHANGELOG.md).
+✅ **v0.3.1 — Robust & Natural** (2026-05-06). See [`CHANGELOG.md`](CHANGELOG.md).
 
 - [x] 4 new pillars: Conversation, Vision, Physical Presence, Narrative Identity
 - [x] Gemini 3 Flash + Mistral Large 3 vision via Ollama Pro

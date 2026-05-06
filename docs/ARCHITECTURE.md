@@ -1,6 +1,6 @@
 # CoreMind — Technical Architecture
 
-**Version:** 0.3.0 (Active — Living Intelligence)
+**Version:** 0.3.1 (Robust — Plugin Resilience + Natural Flow)
 **Status:** All 7 layers + 4 new pillars active — vision, conversation, presence, narrative
 **Audience:** Contributors, implementers, coding agents
 
