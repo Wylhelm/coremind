@@ -184,13 +184,33 @@ class Executor:
             intent_id=intent.id,
         )
 
-        # Execute the action after a longer grace period (2 min)
-        # This gives the user time to respond and cancel if needed
-        action = await self.execute_with_grace(intent, grace=timedelta(seconds=120))
+        # Execute the action after a shorter grace period (30s for approved intents)
+        # The user already saw the message, so just wait a bit then execute
+        action = await self.execute_with_grace(intent, grace=timedelta(seconds=30))
         if action is None:
             log.info("executor.conversation_action_cancelled", intent_id=intent.id)
-        else:
+        elif action.result and action.result.status in ("ok", "noop"):
+            # Send the result back to the user
+            result_msg = _format_action_result(intent, action)
+            if result_msg and self._notify is not None:
+                await self._notify.notify(
+                    message=result_msg,
+                    category="info",
+                    actions=None,
+                    intent_id=intent.id,
+                )
             log.info("executor.conversation_action_executed", intent_id=intent.id)
+        else:
+            # Action failed — tell the user
+            error_msg = action.result.message if action and action.result else "Échec inconnu"
+            if self._notify is not None:
+                await self._notify.notify(
+                    message=f"❌ Désolé, je n'ai pas réussi : {error_msg}",
+                    category="info",
+                    actions=None,
+                    intent_id=intent.id,
+                )
+            log.warning("executor.conversation_action_failed", intent_id=intent.id)
 
         return conv_id
 
@@ -429,6 +449,21 @@ def _format_suggest(intent: Intent, grace_seconds: int) -> str:
             why = why[len(prefix) :]
             break
     return f"{why.strip()}\n\nJe vais vérifier ça automatiquement. Dis-moi si tu veux que j'annule."
+
+
+def _format_action_result(intent: Intent, action: Action) -> str:
+    """Format the result of a completed action into a user-friendly message."""
+    if action.result is None:
+        return intent.proposed_action.expected_outcome if intent.proposed_action else "Fait !"
+
+    output = action.result.output
+    if output:
+        parts = []
+        for key, value in output.items():
+            parts.append(f"• **{key}**: {value}")
+        return "\n".join(parts)
+
+    return action.result.message or "Fait !"
 
 
 def _format_execution_summary(action: Action, intent: Intent) -> str:
