@@ -41,10 +41,33 @@ CONVERSATION_TTL_SECONDS = 86400
 
 # Affirmative responses that should trigger action execution
 _AFFIRMATIVE = {
-    "oui", "yes", "ouais", "yep", "ok", "okay", "d'accord", "daccord",
-    "vas-y", "vas y", "go", "let's go", "lets go", "fais-le", "fais le",
-    "allume", "allume-les", "allume les", "éteins", "éteins-les", "éteins les",
-    "turn on", "turn off", "sure", "bien sûr", "absolument", "évidemment",
+    "oui",
+    "yes",
+    "ouais",
+    "yep",
+    "ok",
+    "okay",
+    "d'accord",
+    "daccord",
+    "vas-y",
+    "vas y",
+    "go",
+    "let's go",
+    "lets go",
+    "fais-le",
+    "fais le",
+    "allume",
+    "allume-les",
+    "allume les",
+    "éteins",
+    "éteins-les",
+    "éteins les",
+    "turn on",
+    "turn off",
+    "sure",
+    "bien sûr",
+    "absolument",
+    "évidemment",
 }
 
 _AFFIRMATIVE_MAX_LEN = 10
@@ -56,10 +79,7 @@ def _is_affirmative(text: str) -> bool:
     if cleaned in _AFFIRMATIVE:
         return True
     # Short responses that start with oui/yes/ok
-    return (
-        len(cleaned) <= _AFFIRMATIVE_MAX_LEN
-        and cleaned.startswith(("oui", "yes", "ok"))
-    )
+    return len(cleaned) <= _AFFIRMATIVE_MAX_LEN and cleaned.startswith(("oui", "yes", "ok"))
 
 
 class ConversationHandler:
@@ -145,9 +165,7 @@ class ConversationHandler:
 
         # Check if this is an affirmative response to a pending conversation
         # action — if so, execute the action directly instead of LLM.
-        action_result = await self._try_execute_affirmative(
-            text, conversation_id, conversation
-        )
+        action_result = await self._try_execute_affirmative(text, conversation_id, conversation)
         if action_result is not None:
             return action_result, conversation
 
@@ -263,7 +281,7 @@ class ConversationHandler:
             if conversation_id and conversation_id != expected_conv_id:
                 continue
             # Found a match — flip to approved so the dispatcher executes it
-            intent.status = "approved"  # type: ignore[assignment]
+            intent.status = "approved"
             await self._intents.save(intent)
             log.info(
                 "conversation.affirmative_approved",

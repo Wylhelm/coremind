@@ -535,7 +535,8 @@ def _format_execution_summary(action: Action, intent: Intent) -> str:
                     for item in value[:5]:  # max 5 items
                         if isinstance(item, dict):
                             title = item.get("title", item.get("subject", ""))
-                            start = item.get("start", item.get("date", ""))[:16]
+                            start_str = item.get("start", item.get("date", ""))
+                            start = str(start_str)[:16]
                             lines.append(f"  • {title} — {start}")
                         else:
                             lines.append(f"  • {item}")

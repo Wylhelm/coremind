@@ -54,8 +54,7 @@ class ReflectionNotifier:
         if len(body) > max_body_len:
             if self._dashboard_url:
                 suffix = (
-                    "\n\n*(truncated — [open dashboard]"
-                    f"({self._dashboard_url}) for full report)*"
+                    f"\n\n*(truncated — [open dashboard]({self._dashboard_url}) for full report)*"
                 )
             else:
                 suffix = "\n\n*(truncated — see dashboard for full report)*"
