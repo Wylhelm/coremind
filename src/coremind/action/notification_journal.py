@@ -25,6 +25,27 @@ TOPIC_KEYWORDS = {
     "pause": ["pause", "bureau", "travail", "café", "☕"],
     "batterie": ["batterie", "robot", "aspirateur", "nettoyage", "séchage"],
     "calendrier": ["calendrier", "événement", "rendez-vous", "paie"],
+    "maison": [
+        "lumière",
+        "lampe",
+        "light",
+        "éteins",
+        "allume",
+        "porte",
+        "door",
+        "fenêtre",
+        "window",
+        "sensor",
+        "capteur",
+        "thermostat",
+        "humidité",
+        "humidifier",
+        "humidificateur",
+        "vacuum",
+        "aspirateur",
+        "turn on",
+        "turn off",
+    ],
 }
 
 
@@ -45,15 +66,16 @@ class NotificationJournal:
         self._path = path or Path.home() / ".coremind" / "notification_journal.jsonl"
         self._entries: list[dict[str, str]] = []
         self._cooldowns: dict[str, int] = {
-            "sommeil": 14400,  # 4h
-            "pas": 10800,  # 3h
-            "météo": 14400,  # 4h
-            "chats": 3600,  # 1h
-            "finances": 43200,  # 12h
-            "pause": 10800,  # 3h
-            "batterie": 21600,  # 6h
-            "calendrier": 14400,  # 4h
-            "autre": 7200,  # 2h
+            "sommeil": 28800,  # 8h
+            "pas": 21600,  # 6h
+            "météo": 28800,  # 8h
+            "chats": 14400,  # 4h
+            "finances": 86400,  # 24h
+            "pause": 21600,  # 6h
+            "batterie": 43200,  # 12h
+            "calendrier": 28800,  # 8h
+            "maison": 10800,  # 3h
+            "autre": 14400,  # 4h
         }
         self._load()
 

@@ -93,6 +93,9 @@ class ReflectionLoopConfig(BaseModel):
         notify_on_cycle: When ``True``, the produced report is delivered
             through the configured :class:`ReportNotifier` at the end of
             every cycle.  ``False`` lets callers (CLI, dashboard) decide.
+        startup_delay_seconds: Initial delay before the first scheduled
+            cycle.  Prevents immediate reflection on every daemon restart.
+            Set to 0 in tests for deterministic scheduling.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -100,6 +103,7 @@ class ReflectionLoopConfig(BaseModel):
     interval_seconds: int = Field(default=7 * _SECONDS_PER_DAY, ge=60)
     window_days: int = Field(default=7, ge=1, le=90)
     notify_on_cycle: bool = True
+    startup_delay_seconds: int = Field(default=300, ge=0)
 
     @model_validator(mode="after")
     def _no_overlapping_windows(self) -> Self:
@@ -367,6 +371,15 @@ class ReflectionLoop:
     async def _scheduler(self) -> None:
         """Run cycles until :meth:`stop` is called."""
         interval = self._config.interval_seconds
+        # First run: wait startup_delay_seconds to avoid triggering on
+        # every daemon restart.  Subsequent runs respect the full interval.
+        startup_delay = min(self._config.startup_delay_seconds, interval)
+        try:
+            await asyncio.wait_for(self._stop_event.wait(), timeout=startup_delay)
+            return  # stop was requested during startup delay
+        except TimeoutError:
+            pass
+
         while not self._stop_event.is_set():
             try:
                 await self.run_cycle()

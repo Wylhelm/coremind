@@ -343,7 +343,7 @@ async def test_scheduler_runs_cycle_and_stops_cleanly() -> None:
     notifier = _RecordingNotifier()
     loop, _, _, _ = _build_loop(
         notifier=notifier,
-        config=ReflectionLoopConfig(interval_seconds=86400, window_days=1),
+        config=ReflectionLoopConfig(interval_seconds=86400, window_days=1, startup_delay_seconds=0),
     )
 
     loop.start()
@@ -382,7 +382,7 @@ async def test_scheduler_stop_cancels_in_flight_cycle() -> None:
         _FakeCalibrationUpdater(),
         _FakeRuleLearner(),
         _FakeReportProducer(),
-        config=ReflectionLoopConfig(interval_seconds=86400, window_days=1),
+        config=ReflectionLoopConfig(interval_seconds=86400, window_days=1, startup_delay_seconds=0),
         clock=lambda: _FIXED_NOW,
     )
 
@@ -425,7 +425,7 @@ async def test_scheduler_does_not_crash_on_cycle_failure() -> None:
         _FakeRuleLearner(),
         _FakeReportProducer(),
         notifier=notifier,
-        config=ReflectionLoopConfig(interval_seconds=86400, window_days=1),
+        config=ReflectionLoopConfig(interval_seconds=86400, window_days=1, startup_delay_seconds=0),
         clock=lambda: _FIXED_NOW,
     )
 

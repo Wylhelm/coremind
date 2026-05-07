@@ -231,9 +231,10 @@ class Executor:
             action = await self.execute(intent, notify="silent")
             return conv_id
 
-        # Execute the action after a shorter grace period (30s for approved intents)
-        # The user already saw the message, so just wait a bit then execute
-        action = await self.execute_with_grace(intent, grace=timedelta(seconds=30))
+        # Execute the proposed action immediately — the conversation opener
+        # already informed the user.  Affirmative replies are handled by
+        # the conversation handler"s _try_execute_affirmative.
+        action = await self.execute(intent, notify="immediate")
         if action is None:
             log.info("executor.conversation_action_cancelled", intent_id=intent.id)
         elif action.result and action.result.status in ("ok", "noop"):
