@@ -464,6 +464,31 @@ class ActionJournal:
                 return Action.model_validate(entry.payload)
         return None
 
+    async def list_actions(
+        self,
+        *,
+        since: datetime,
+        until: datetime,
+    ) -> list[Action]:
+        """Return actions whose timestamp lies in ``[since, until)``.
+
+        Implements the :class:`~coremind.reflection.loop.ActionFeed` protocol
+        consumed by the reflection loop.
+        """
+        entries = await self.read_all()
+        actions: list[Action] = []
+        for entry in entries:
+            if entry.kind != "action":
+                continue
+            if not (since <= entry.timestamp < until):
+                continue
+            try:
+                actions.append(Action.model_validate(entry.payload))
+            except Exception:
+                log.warning("action_journal.corrupt_action", seq=entry.seq)
+        actions.sort(key=lambda a: a.timestamp, reverse=True)
+        return actions
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
