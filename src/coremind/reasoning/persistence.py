@@ -97,12 +97,14 @@ class JsonlCyclePersister:
     async def list_cycles(
         self,
         since: datetime | None = None,
+        until: datetime | None = None,
         limit: int = 50,
     ) -> list[ReasoningOutput]:
         """Return cycles ordered by timestamp descending.
 
         Args:
             since: If set, only return cycles with timestamp >= ``since``.
+            until: If set, only return cycles with timestamp < ``until``.
             limit: Maximum number of cycles to return.
 
         Returns:
@@ -111,6 +113,8 @@ class JsonlCyclePersister:
         cycles = await self._read_all()
         if since is not None:
             cycles = [c for c in cycles if c.timestamp >= since]
+        if until is not None:
+            cycles = [c for c in cycles if c.timestamp < until]
         cycles.sort(key=lambda c: c.timestamp, reverse=True)
         return cycles[:limit]
 
