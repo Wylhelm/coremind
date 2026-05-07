@@ -41,17 +41,25 @@ _DATABASE = "world"
 
 
 def _event_signing_payload(event: WorldEventRecord) -> bytes:
-    """Return the canonical bytes that are signed for *event*.
+    """Return the canonical bytes that were signed for *event*.
 
-    The signature covers the stable, deterministic fields of the event.
-    Mutable bookkeeping fields (e.g. internal store ids) are excluded.
+    Uses the pre-computed ``canonical_payload`` stored at proto→record
+    conversion time — guaranteeing byte-identical output to what the
+    plugin signed via ``MessageToDict``.
+
+    Falls back to manual reconstruction for internal meta-events that
+    carry no signature.
 
     Args:
         event: The event whose signing payload to produce.
 
     Returns:
-        RFC 8785 canonical JSON bytes ready for signing or verification.
+        RFC 8785 canonical JSON bytes ready for signature verification.
     """
+    if event.canonical_payload is not None:
+        return base64.b64decode(event.canonical_payload)
+
+    # Fallback: manual reconstruction for meta-events and legacy records.
     payload: dict[str, object] = {
         "id": event.id,
         "timestamp": event.timestamp.isoformat().replace("+00:00", "Z"),

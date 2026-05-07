@@ -72,6 +72,10 @@ def _proto_value_to_python(proto_value: Any) -> Any:  # noqa: PLR0911 — all on
 def _proto_event_to_record(proto_event: Any) -> WorldEventRecord:
     """Convert a ``WorldEvent`` proto message to a :class:`WorldEventRecord`.
 
+    Also pre-computes the canonical signing payload (RFC 8785 JSON) so
+    signature verification uses byte-identical output to what the plugin
+    signed via ``MessageToDict``.
+
     Args:
         proto_event: A ``plugin_pb2.WorldEvent`` message.
 
@@ -82,12 +86,21 @@ def _proto_event_to_record(proto_event: Any) -> WorldEventRecord:
     sig_bytes: bytes = proto_event.signature
     sig_b64: str | None = base64.b64encode(sig_bytes).decode() if sig_bytes else None
 
+    # Pre-compute the canonical payload from the raw proto — this is the
+    # exact same bytes the plugin signed (MessageToDict → pop signature →
+    # canonical JSON).  Storing it guarantees verification uses identical
+    # input regardless of model field mappings.
+    proto_dict = MessageToDict(proto_event, preserving_proto_field_name=True)
+    proto_dict.pop("signature", None)
+    canonical_payload_b64: str = base64.b64encode(canonical_json(proto_dict)).decode()
+
     return WorldEventRecord(
         id=proto_event.id,
         timestamp=ts,
         source=proto_event.source,
         source_version=proto_event.source_version,
         signature=sig_b64,
+        canonical_payload=canonical_payload_b64,
         entity=EntityRef(
             type=proto_event.entity.type,
             id=proto_event.entity.entity_id,

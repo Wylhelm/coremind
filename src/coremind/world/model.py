@@ -72,6 +72,10 @@ class WorldEventRecord(BaseModel):
     value: JsonValue
     confidence: float = Field(ge=0.0, le=1.0)
     unit: str | None = None
+    # Pre-computed canonical payload (RFC 8785 JSON) used for signature
+    # verification.  Computed once from the raw proto via MessageToDict so
+    # the verification side produces byte-identical output to the signer.
+    canonical_payload: str | None = None
 
 
 class WorldSnapshot(BaseModel):
