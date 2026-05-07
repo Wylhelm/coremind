@@ -116,11 +116,12 @@ class Executor:
         category: str = "info",
         actions: object = None,
         intent_id: str | None = None,
+        bypass_journal: bool = False,
     ) -> bool:
-        """Send a notification if not suppressed by the notification journal."""
+        """Send a notification, optionally bypassing dedup journal."""
         if self._notify is None:
             return False
-        if not self._notify_journal.should_send(message, intent_id or ""):
+        if not bypass_journal and not self._notify_journal.should_send(message, intent_id or ""):
             return False
         await self._notify.notify(
             message=message,
@@ -439,6 +440,7 @@ class Executor:
                 category="info",
                 actions=None,
                 intent_id=intent.id,
+                bypass_journal=True,
             )
         except Exception:
             log.warning("executor.notify_failed", intent_id=intent.id)
