@@ -519,9 +519,14 @@ def _format_action_result(intent: Intent, action: Action) -> str:
 
 
 def _format_execution_summary(action: Action, intent: Intent) -> str:
-    """Render a one-line summary of a completed action."""
-    status = action.result.status if action.result else "dispatched"
-    return (
-        f"CoreMind executed {action.operation} ({action.category}) "
-        f"for intent {intent.id[:8]}: {status}"
-    )
+    """Render a user-facing summary of a completed action."""
+    result = action.result
+    status = result.status if result else "dispatched"
+    lines = [f"✅ {action.operation}"]
+    if result and result.message:
+        lines.append(result.message)
+    if result and result.output:
+        lines.append(str(result.output))
+    if not result or (not result.message and not result.output):
+        lines.append(f"Status: {status}")
+    return "\n".join(lines)
