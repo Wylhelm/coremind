@@ -523,10 +523,22 @@ def _format_execution_summary(action: Action, intent: Intent) -> str:
     result = action.result
     status = result.status if result else "dispatched"
     lines = [f"✅ {action.operation}"]
-    if result and result.message:
-        lines.append(result.message)
-    if result and result.output:
-        lines.append(str(result.output))
-    if not result or (not result.message and not result.output):
+
+    if result:
+        if result.message:
+            lines.append(result.message)
+        if result.output and isinstance(result.output, dict):
+            for key, value in result.output.items():
+                if isinstance(value, list):
+                    for item in value[:5]:  # max 5 items
+                        if isinstance(item, dict):
+                            title = item.get("title", item.get("subject", ""))
+                            start = item.get("start", item.get("date", ""))[:16]
+                            lines.append(f"  • {title} — {start}")
+                        else:
+                            lines.append(f"  • {item}")
+                elif isinstance(value, (int, float, str, bool)):
+                    lines.append(f"  {key}: {value}")
+    if len(lines) == 1:
         lines.append(f"Status: {status}")
     return "\n".join(lines)
