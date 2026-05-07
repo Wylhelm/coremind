@@ -3,10 +3,11 @@
 The router is the single entrypoint the intention layer uses to dispatch an
 :class:`Intent`.  It is responsible for:
 
-1. Enforcing forced-approval classes (see :mod:`coremind.action.forced_classes`).
-   A plugin or the reasoning layer attempting to return ``safe``/``suggest``
-   for a forced-``ask`` class is overridden; the attempt is journaled as a
-   ``security.category.override_blocked`` meta-event so it is auditable.
+1. Enforcing category overrides based on the action class
+   (see :mod:`coremind.action.action_classes`).  The LLM-assigned category
+   is the default, but SAFE / SUGGEST / ASK classes are always enforced.
+   Overrides are journaled as ``security.category.override_blocked``
+   meta-events so they are auditable.
 2. Dispatching through the executor for ``safe`` / ``suggest`` categories.
 3. Handing off to the approval gate for ``ask``.
 4. Short-circuiting intents that carry no proposed action.
@@ -18,9 +19,9 @@ from collections.abc import Iterable
 
 import structlog
 
+from coremind.action.action_classes import get_forced_category
 from coremind.action.approvals import ApprovalGate
 from coremind.action.executor import Executor
-from coremind.action.forced_classes import is_forced_ask
 from coremind.action.journal import ActionJournal
 from coremind.intention.persistence import IntentStore
 from coremind.intention.schemas import Intent
@@ -68,24 +69,27 @@ class ActionRouter:
             log.debug("router.pure_question", intent_id=intent.id)
             return
 
-        forced = is_forced_ask(proposal.action_class, user_ask_classes=self._user_ask_classes)
-        if forced and intent.category != "ask":
+        forced_cat = get_forced_category(
+            proposal.action_class, user_ask_classes=self._user_ask_classes
+        )
+        if forced_cat is not None and intent.category != forced_cat:
             await self._journal.append_meta(
                 "security.category.override_blocked",
                 {
                     "intent_id": intent.id,
                     "action_class": proposal.action_class,
                     "original_category": intent.category,
-                    "forced_category": "ask",
+                    "forced_category": forced_cat,
                 },
             )
             log.warning(
-                "router.forced_ask_override",
+                "router.forced_category_override",
                 intent_id=intent.id,
                 action_class=proposal.action_class,
                 original=intent.category,
+                forced=forced_cat,
             )
-            intent.category = "ask"
+            intent.category = forced_cat
 
         await self._intents.save(intent)
 

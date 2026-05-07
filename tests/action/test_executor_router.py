@@ -193,6 +193,76 @@ async def test_forced_class_override_is_blocked(wired: tuple) -> None:  # type: 
     assert "security.category.override_blocked" in text
 
 
+async def test_safe_class_overrides_suggest_to_safe(wired: tuple) -> None:  # type: ignore[type-arg]
+    """SAFE class (homeassistant.get_state) forces silent dispatch even when LLM says suggest."""
+    intents, journal, _exec, router, port, effector = wired
+    intent = _intent(category="suggest", action_class="homeassistant.get_state")
+
+    await router.route(intent)
+
+    assert len(effector.calls) == 1
+    saved = await intents.get(intent.id)
+    assert saved is not None
+    assert saved.category == "safe"
+    assert saved.status == "done"
+    assert port.history == []  # silent, no notification
+    # override meta-event in journal
+    text = journal._path.read_text()
+    assert "security.category.override_blocked" in text
+
+
+async def test_suggest_class_overrides_safe_to_suggest(wired: tuple) -> None:  # type: ignore[type-arg]
+    """SUGGEST class (homeassistant.turn_on) forces grace dispatch even when LLM says safe."""
+    intents, journal, _exec, router, port, effector = wired
+    intent = _intent(category="safe", action_class="homeassistant.turn_on")
+
+    await router.route(intent)
+
+    assert len(effector.calls) == 1
+    saved = await intents.get(intent.id)
+    assert saved is not None
+    assert saved.category == "suggest"
+    assert saved.status == "done"
+    # suggest notifies the user
+    assert any(n.category == "suggest" for n in port.history)
+    # override meta-event in journal
+    text = journal._path.read_text()
+    assert "security.category.override_blocked" in text
+
+
+async def test_safe_class_no_override_when_already_safe(wired: tuple) -> None:  # type: ignore[type-arg]
+    """No journal entry when SAFE class already has safe category (no change)."""
+    intents, journal, _exec, router, _port, effector = wired
+    intent = _intent(category="safe", action_class="homeassistant.get_state")
+
+    await router.route(intent)
+
+    assert len(effector.calls) == 1
+    saved = await intents.get(intent.id)
+    assert saved is not None
+    assert saved.category == "safe"
+    assert saved.status == "done"
+    # no override means no meta-event
+    text = journal._path.read_text()
+    assert "security.category.override_blocked" not in text
+
+
+async def test_new_ask_class_overrides_safe(wired: tuple) -> None:  # type: ignore[type-arg]
+    """New ASK class (homeassistant.lock.lock) forces approval even when LLM says safe."""
+    intents, journal, _exec, router, _port, effector = wired
+    intent = _intent(category="safe", action_class="homeassistant.lock.lock")
+
+    await router.route(intent)
+
+    assert effector.calls == []
+    saved = await intents.get(intent.id)
+    assert saved is not None
+    assert saved.category == "ask"
+    assert saved.status == "pending_approval"
+    text = journal._path.read_text()
+    assert "security.category.override_blocked" in text
+
+
 class _ReversibleEffector:
     """Effector whose ``invoke`` result carries a reversal operation."""
 
