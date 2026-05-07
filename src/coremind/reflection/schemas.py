@@ -91,3 +91,16 @@ class ReflectionReport(BaseModel):
     calibration: CalibrationResult
     rules: RuleLearningResult
     markdown: str
+
+
+class StoredReflectionReport(BaseModel):
+    """A reflection report archived for the dashboard.
+
+    The L7 loop produces :class:`ReflectionReport` instances; this wrapper
+    pins the storage timestamp the dashboard uses for ordering.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    stored_at: datetime
+    report: ReflectionReport

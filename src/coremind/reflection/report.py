@@ -24,8 +24,8 @@ falls back to listing proposal ids only.
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Iterable, Sequence
-from datetime import datetime
+from collections.abc import Callable, Iterable, Sequence
+from datetime import UTC, datetime
 from typing import Final
 
 import structlog
@@ -38,10 +38,45 @@ from coremind.reflection.schemas import (
     CalibrationResult,
     FeedbackEvaluationResult,
     PredictionEvaluationResult,
+    ReflectionReport,
     RuleLearningResult,
+    StoredReflectionReport,
 )
 
 log = structlog.get_logger(__name__)
+
+type Clock = Callable[[], datetime]
+
+
+def _utc_now() -> datetime:
+    """Return the current UTC time."""
+    return datetime.now(UTC)
+
+
+class InMemoryReportStore:
+    """In-memory store for reflection reports, surfaced by the dashboard.
+
+    Stores :class:`ReflectionReport` instances in-process so the
+    ``/reflection`` dashboard page can list and render them without
+    a SurrealDB dependency.  Reports are held until restart; the store
+    is not backed by persistent storage.
+
+    Implements the :class:`coremind.dashboard.data.ReflectionReportSource`
+    protocol by duck typing.
+    """
+
+    def __init__(self, *, clock: Clock = _utc_now) -> None:
+        self._reports: list[tuple[datetime, ReflectionReport]] = []
+        self._clock = clock
+
+    async def store(self, report: ReflectionReport) -> None:
+        """Archive a finished reflection report."""
+        self._reports.append((self._clock(), report))
+
+    async def list_reports(self, *, limit: int = 20) -> list[StoredReflectionReport]:
+        """Return reports newest-first, up to *limit*."""
+        sorted_reports = sorted(self._reports, key=lambda t: t[0], reverse=True)
+        return [StoredReflectionReport(stored_at=ts, report=r) for ts, r in sorted_reports[:limit]]
 
 
 _TITLE: Final[str] = "# CoreMind — Weekly Reflection"

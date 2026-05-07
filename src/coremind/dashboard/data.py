@@ -17,13 +17,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Protocol
 
-from pydantic import BaseModel, ConfigDict
-
 from coremind.action.schemas import Action
 from coremind.intention.schemas import Intent, IntentStatus
 from coremind.notify.adapters.dashboard import DashboardNotificationPort
 from coremind.reasoning.schemas import ReasoningOutput
-from coremind.reflection.schemas import ReflectionReport
+from coremind.reflection.schemas import StoredReflectionReport
 from coremind.world.model import WorldEventRecord, WorldSnapshot
 
 
@@ -112,19 +110,6 @@ class JournalSource(Protocol):
 
     async def find_action(self, action_id: str) -> Action | None:
         """Return a single action by id or ``None``."""
-
-
-class StoredReflectionReport(BaseModel):
-    """A reflection report archived for the dashboard.
-
-    The L7 loop produces :class:`ReflectionReport` instances; this wrapper
-    pins the storage timestamp the dashboard uses for ordering.
-    """
-
-    model_config = ConfigDict(frozen=True)
-
-    stored_at: datetime
-    report: ReflectionReport
 
 
 class ReflectionReportSource(Protocol):

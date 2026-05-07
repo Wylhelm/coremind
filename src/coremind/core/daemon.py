@@ -282,6 +282,8 @@ class CoreMindDaemon:
         # Response listener REMOVED — merged into _conversation_listener_loop
         # which uses subscribe_all() to avoid poll_offset race.
 
+        report_store: object | None = None
+
         if config.intention.enabled:
             reasoning_journal = config.audit_log_path.parent / "reasoning.log"
             llm_cfg = LLMConfig()
@@ -589,10 +591,13 @@ class CoreMindDaemon:
                 proposal_store=InMemoryRuleProposalStore(),
             )
 
-            # Build report producer
+            # Build report producer + in-memory report store (shared with dashboard)
+            from coremind.reflection.report import InMemoryReportStore
+
             report_producer = MarkdownReportProducer(
                 proposal_store=InMemoryRuleProposalStore(),
             )
+            report_store = InMemoryReportStore()
 
             # Build reflection notifier (sends reports via Telegram/dashboard)
             from coremind.reflection.notify import (
@@ -601,7 +606,7 @@ class CoreMindDaemon:
 
             reflection_notifier = ReflectionNotifier(
                 port=notify_router,
-                dashboard_url=f"http://10.0.0.253:{config.dashboard.port}",
+                dashboard_url=f"http://10.0.0.253:{config.dashboard.port}/reflection",
             )
 
             reflection_loop = ReflectionLoop(
@@ -614,6 +619,7 @@ class CoreMindDaemon:
                 rule_learner=rule_learner,
                 report_producer=report_producer,
                 notifier=reflection_notifier,
+                report_store=report_store,
                 narrative_state=narrative_memory,
                 narrative_llm=llm_4,
                 config=ReflectionLoopConfig(
@@ -635,6 +641,7 @@ class CoreMindDaemon:
                 dashboard_port=dashboard_port,
                 event_bus=event_bus,
                 reasoning_log=config.audit_log_path.parent / "reasoning.log",
+                reflection=report_store if config.intention.enabled else None,
             )
             self._dashboard_server = dashboard_server
 
@@ -1156,6 +1163,7 @@ async def _start_dashboard(
     dashboard_port: DashboardNotificationPort,
     event_bus: EventBus,
     reasoning_log: Path,
+    reflection: object | None = None,
 ) -> DashboardServer:
     """Construct and start the read-only web dashboard.
 
@@ -1172,6 +1180,9 @@ async def _start_dashboard(
         event_bus: In-process :class:`EventBus`; powers the SSE live tail.
         reasoning_log: Path to the JSONL reasoning-cycle log; surfaces the
             ``/reasoning`` page.
+        reflection: Optional report store implementing
+            ``list_reports(*, limit) -> list[StoredReflectionReport]``.
+            When ``None`` the ``/reflection`` page renders an empty state.
 
     Returns:
         A started :class:`DashboardServer`.  Stopping is the caller's job.
@@ -1181,9 +1192,7 @@ async def _start_dashboard(
         cycles=JsonlCyclePersister(reasoning_log),
         intents=intents,
         journal=journal,
-        # Reflection-report archive is not yet exposed via a list-able port
-        # (Phase 4 follow-up); the page renders an empty state for now.
-        reflection=None,
+        reflection=reflection,  # type: ignore[arg-type]
         notifications=dashboard_port,
         events=event_bus,
     )

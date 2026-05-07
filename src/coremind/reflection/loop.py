@@ -293,6 +293,9 @@ class ReflectionLoop:
         report_producer: Port that renders Markdown reports.
         notifier: Optional notification port; when ``None`` the report is
             still produced but not delivered.
+        report_store: Optional in-memory or persistent store for produced
+            reports.  When provided, each finished report is archived so
+            the dashboard ``/reflection`` page can display it.
         narrative_state: Optional narrative identity store.  When provided,
             every reflection cycle asks the narrative LLM to refresh the
             user's persistent life context.
@@ -314,6 +317,7 @@ class ReflectionLoop:
         report_producer: ReportProducer,
         *,
         notifier: ReportNotifier | None = None,
+        report_store: object | None = None,
         narrative_state: object | None = None,
         narrative_llm: object | None = None,
         config: ReflectionLoopConfig | None = None,
@@ -328,6 +332,7 @@ class ReflectionLoop:
         self._rules = rule_learner
         self._report = report_producer
         self._notifier = notifier
+        self._report_store = report_store
         self._narrative_state = narrative_state
         self._narrative_llm = narrative_llm
         self._config = config or ReflectionLoopConfig()
@@ -463,6 +468,12 @@ class ReflectionLoop:
                 await self._notifier.deliver(report)
             except Exception:
                 log.exception("reflection.notify_failed", cycle_id=cycle_id)
+
+        if self._report_store is not None:
+            try:
+                await self._report_store.store(report)  # type: ignore[attr-defined]
+            except Exception:
+                log.exception("reflection.store_failed", cycle_id=cycle_id)
 
         log.info(
             "reflection.cycle.done",

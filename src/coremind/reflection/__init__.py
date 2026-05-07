@@ -46,7 +46,7 @@ from coremind.reflection.loop import (
     ReportProducer,
     RuleLearner,
 )
-from coremind.reflection.report import MarkdownReportProducer
+from coremind.reflection.report import InMemoryReportStore, MarkdownReportProducer
 from coremind.reflection.rule_learner import (
     CandidateKey,
     CandidateLedger,
@@ -95,6 +95,7 @@ __all__ = [
     "InMemoryCalibrationStore",
     "InMemoryCandidateLedger",
     "InMemoryPredictionEvaluationStore",
+    "InMemoryReportStore",
     "InMemoryRuleProposalStore",
     "IntentSource",
     "MarkdownReportProducer",

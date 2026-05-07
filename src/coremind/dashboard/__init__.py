@@ -24,7 +24,6 @@ from coremind.dashboard.data import (
     JournalEntryView,
     JournalSource,
     ReflectionReportSource,
-    StoredReflectionReport,
     WorldSource,
 )
 from coremind.dashboard.server import (
@@ -33,6 +32,7 @@ from coremind.dashboard.server import (
     DashboardServer,
     create_app,
 )
+from coremind.reflection.schemas import StoredReflectionReport
 
 __all__ = [
     "DASHBOARD_DEFAULT_HOST",
