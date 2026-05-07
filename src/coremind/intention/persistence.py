@@ -95,10 +95,7 @@ class IntentStore:
         contract used by the reflection loop.
         """
         latest = await self._read_latest()
-        items = [
-            i for i in latest.values()
-            if i.created_at >= since and i.created_at < until
-        ]
+        items = [i for i in latest.values() if i.created_at >= since and i.created_at < until]
         items.sort(key=lambda i: i.created_at, reverse=True)
         return items
 
