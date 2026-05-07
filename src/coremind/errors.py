@@ -72,3 +72,7 @@ class ForcedCategoryError(CoreMindError):
 
 class ReflectionError(CoreMindError):
     """Raised when the reflection layer (L7) cycle cannot complete."""
+
+
+class PredictionError(CoreMindError):
+    """Raised when the predictive memory layer cannot generate or verify a prediction."""

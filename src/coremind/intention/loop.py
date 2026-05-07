@@ -144,6 +144,7 @@ class IntentionLoop:
         patterns: Optional procedural-pattern summary provider.
         rule_matcher: Optional rule-match counter for confidence.
         event_bus: Optional EventBus for event-driven mode.
+        predictive_memory: Optional predictive memory for reading predictions.
         config: Scheduler parameters.
         clock: Injectable clock.
     """
@@ -159,6 +160,7 @@ class IntentionLoop:
         patterns: PatternProvider | None = None,
         rule_matcher: RuleMatcher | None = None,
         event_bus: EventBus | None = None,
+        predictive_memory: object | None = None,
         config: IntentionLoopConfig | None = None,
         clock: Clock = _utc_now,
     ) -> None:
@@ -170,6 +172,7 @@ class IntentionLoop:
         self._patterns = patterns
         self._rules = rule_matcher
         self._event_bus = event_bus
+        self._predictive_memory = predictive_memory
         self._config = config or IntentionLoopConfig()
         self._clock = clock
         self._task: asyncio.Task[None] | None = None
@@ -339,6 +342,14 @@ class IntentionLoop:
             since=now - timedelta(hours=self._config.recent_intent_window_hours)
         )
 
+        predictions = []
+        if self._predictive_memory is not None:
+            try:
+                predictions = await self._predictive_memory.get_active_predictions()  # type: ignore[attr-defined]
+            except Exception:
+                log.warning("intention.predictions_failed", exc_info=True)
+                predictions = []
+
         system = render_prompt(self._config.template_system)
         user = render_prompt(
             self._config.template_user,
@@ -350,6 +361,7 @@ class IntentionLoop:
                 if self._patterns is not None
                 else "(none)"
             ),
+            predictions_summary=_predictions_summary(predictions),
             schema_json=json.dumps(QuestionBatch.model_json_schema(), indent=2),
             max_questions=self._config.max_questions,
         )
@@ -488,6 +500,19 @@ def _recent_intents_summary(intents: list[Intent]) -> str:
     if not intents:
         return "(no recent intents)"
     lines = [f"- [{i.status}] {i.question.text}" for i in intents[:10]]
+    return "\n".join(lines)
+
+
+def _predictions_summary(predictions: list[object]) -> str:
+    """One-line digest of active predictions for the intention prompt."""
+    if not predictions:
+        return "(no active predictions)"
+    lines: list[str] = []
+    for p in predictions[:5]:
+        domain = getattr(p, "domain", "unknown")
+        description = getattr(p, "description", "")
+        confidence = getattr(p, "confidence", 0.0)
+        lines.append(f"- [{domain}] {description} (conf={confidence:.2f})")
     return "\n".join(lines)
 
 

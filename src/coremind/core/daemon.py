@@ -58,6 +58,7 @@ from coremind.notify.quiet_hours import QuietHoursFilter, QuietHoursPolicy
 from coremind.notify.router import NotificationRouter
 from coremind.plugin_host.registry import PluginRegistry
 from coremind.plugin_host.server import PluginHostServer
+from coremind.prediction import PredictiveMemory
 from coremind.reasoning.llm import LLM, LayerConfig, LLMConfig
 from coremind.reasoning.loop import ReasoningLoop, ReasoningLoopConfig
 from coremind.reasoning.persistence import JsonlCyclePersister
@@ -164,6 +165,7 @@ class CoreMindDaemon:
         self._intention_loop: IntentionLoop | None = None
         self._reasoning_loop: ReasoningLoop | None = None
         self._reflection_loop: ReflectionLoop | None = None
+        self._predictive_memory: PredictiveMemory | None = None
         self._anomaly_checker_task: asyncio.Task[None] | None = None
         self._approval_expirer_task: asyncio.Task[None] | None = None
         self._approval_expirer_stop: asyncio.Event = asyncio.Event()
@@ -298,6 +300,7 @@ class CoreMindDaemon:
                 llm=llm,
                 router=router,
                 event_bus=event_bus,
+                predictive_memory=None,  # Set after semantic_memory init below
                 config=IntentionLoopConfig(
                     event_driven=config.intention.event_driven,
                     interval_seconds=config.intention.interval_seconds,
@@ -361,16 +364,23 @@ class CoreMindDaemon:
             await narrative_memory.load()
             log.info("daemon.narrative_memory_loaded")
 
+            predictive_memory: object | None = None
+            if config.prediction.enabled and semantic_memory is not None:
+                predictive_memory = PredictiveMemory(semantic_memory)
+                log.info("daemon.predictive_memory_initialised")
+
             reasoning_loop = ReasoningLoop(
                 snapshot_provider=world_store,
                 memory=semantic_memory,  # type: ignore[arg-type]
                 llm=llm_4,
                 persister=JsonlCyclePersister(reasoning_journal),
                 narrative=narrative_memory,
+                predictive_memory=None,  # Set after semantic_memory init below
                 config=reasoning_config,
             )
             reasoning_loop.start()
             self._reasoning_loop = reasoning_loop
+            self._predictive_memory = predictive_memory  # type: ignore[assignment]
             log.info(
                 "daemon.reasoning_loop_started",
                 interval_seconds=1800,

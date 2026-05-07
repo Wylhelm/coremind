@@ -126,6 +126,7 @@ class ReasoningLoop:
         persister: Destination for completed cycles.
         narrative: Optional narrative identity store for injecting persistent
             user context into each reasoning cycle.
+        predictive_memory: Optional predictive memory for generating predictions.
         config: Scheduler parameters.
         clock: Injectable clock for deterministic tests.
     """
@@ -138,6 +139,7 @@ class ReasoningLoop:
         persister: CyclePersister,
         *,
         narrative: object | None = None,
+        predictive_memory: object | None = None,
         config: ReasoningLoopConfig | None = None,
         clock: Clock = _utc_now,
     ) -> None:
@@ -146,6 +148,7 @@ class ReasoningLoop:
         self._llm = llm
         self._persister = persister
         self._narrative = narrative
+        self._predictive_memory = predictive_memory
         self._config = config or ReasoningLoopConfig()
         self._clock = clock
         self._task: asyncio.Task[None] | None = None
@@ -324,6 +327,35 @@ class ReasoningLoop:
 
         # Save investigation questions for future cycles (curiosity loop)
         self._save_investigation_questions(output.investigations)
+
+        # Store observations in predictive memory and generate predictions
+        if self._predictive_memory is not None:
+            try:
+                for pattern in output.patterns:
+                    obs = {
+                        "domain": "pattern",
+                        "description": pattern.description,
+                        "confidence": pattern.confidence,
+                        "horizon_hours": 24,
+                    }
+                    await self._predictive_memory.store_observation(obs)  # type: ignore[attr-defined]
+
+                predictions = await self._predictive_memory.predict(  # type: ignore[attr-defined]
+                    [
+                        {
+                            "domain": "pattern",
+                            "description": p.description,
+                            "confidence": p.confidence,
+                            "horizon_hours": 24,
+                        }
+                        for p in output.patterns
+                    ]
+                )
+
+                for pred in predictions:
+                    await self._predictive_memory.store(pred)  # type: ignore[attr-defined]
+            except Exception:
+                log.warning("reasoning.predictive_memory_failed", exc_info=True)
 
         log.info(
             "reasoning.cycle.done",

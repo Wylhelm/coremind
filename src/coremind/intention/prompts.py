@@ -102,6 +102,10 @@ _USER_V1 = """\
 
 {{ patterns_summary }}
 
+## Active predictions (from predictive memory)
+
+{{ predictions_summary }}
+
 ## Required response schema (JSON Schema)
 
 ```json

@@ -41,6 +41,17 @@ class IntentionConfig(BaseModel):
     min_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
+class PredictionConfig(BaseModel):
+    """Configuration for the predictive memory layer."""
+
+    model_config = ConfigDict(frozen=True)
+
+    enabled: bool = True
+    min_confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+    max_predictions: int = Field(default=10, ge=1)
+    horizon_hours: int = Field(default=24, ge=1)
+
+
 class ActionConfig(BaseModel):
     """Configuration for the L6 action layer."""
 
@@ -165,6 +176,7 @@ class DaemonConfig(BaseModel):
     )
     audit_log_path: Path = Field(default_factory=lambda: Path.home() / ".coremind" / "audit.log")
     intention: IntentionConfig = Field(default_factory=IntentionConfig)
+    prediction: PredictionConfig = Field(default_factory=PredictionConfig)
     action: ActionConfig = Field(default_factory=ActionConfig)
     notify: NotifyConfig = Field(default_factory=NotifyConfig)
     quiet_hours: QuietHoursConfig = Field(default_factory=QuietHoursConfig)

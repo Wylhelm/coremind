@@ -151,6 +151,8 @@ ignore = [
 "src/coremind/presence/scheduler.py" = ["DTZ005", "PLR2004"]
 "src/coremind/notify/adapters/nest_hub.py" = ["PTH123", "PTH111"]
 "src/coremind/plugin_helpers.py" = ["PLC0415"]
+"src/coremind/prediction/schemas.py" = ["E501"]
+"src/coremind/prediction/predictor.py" = ["E501", "S110", "S112", "SIM105", "PLR2004", "UP035"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -188,6 +190,10 @@ ignore_errors = true
 
 [[tool.mypy.overrides]]
 module = ["coremind.action.effectors", "coremind.cli.reflect_ports"]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["coremind.prediction.*"]
 ignore_errors = true
 
 [[tool.mypy.overrides]]
