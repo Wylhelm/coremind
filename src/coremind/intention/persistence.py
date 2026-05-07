@@ -83,6 +83,25 @@ class IntentStore:
         items.sort(key=lambda i: i.created_at, reverse=True)
         return items[:limit]
 
+    async def list_intents(
+        self,
+        *,
+        since: datetime,
+        until: datetime,
+    ) -> _IntentList:
+        """Return intents with ``created_at`` in ``[since, until)``.
+
+        Half-open interval matches the CycleSource / IntentSource protocol
+        contract used by the reflection loop.
+        """
+        latest = await self._read_latest()
+        items = [
+            i for i in latest.values()
+            if i.created_at >= since and i.created_at < until
+        ]
+        items.sort(key=lambda i: i.created_at, reverse=True)
+        return items
+
     async def recent(
         self,
         *,
