@@ -20,6 +20,7 @@ def test_user_renders_with_context() -> None:
         reasoning_summary="",
         recent_intents_summary="",
         patterns_summary="",
+        predictions_summary="",
         schema_json="{}",
         max_questions=5,
     )
