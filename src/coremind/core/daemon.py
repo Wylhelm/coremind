@@ -400,6 +400,7 @@ class CoreMindDaemon:
                 llm=conv_llm,
                 store=conv_store,
                 get_narrative=_make_narrative_getter(narrative_memory),  # type: ignore[no-untyped-call]
+                intent_store=intents,
             )
             self._conversation_listener_stop = asyncio.Event()
             self._conversation_listener_task = asyncio.create_task(

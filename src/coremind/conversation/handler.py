@@ -29,6 +29,7 @@ from coremind.conversation.schemas import (
     MessageRole,
 )
 from coremind.conversation.store import ConversationStore
+from coremind.intention.persistence import IntentStore
 from coremind.reasoning.llm import LLM
 
 log = structlog.get_logger(__name__)
@@ -37,6 +38,28 @@ log = structlog.get_logger(__name__)
 MAX_CONTEXT_MESSAGES = 20
 # Max conversation active time before auto-archive (seconds) — 24h
 CONVERSATION_TTL_SECONDS = 86400
+
+# Affirmative responses that should trigger action execution
+_AFFIRMATIVE = {
+    "oui", "yes", "ouais", "yep", "ok", "okay", "d'accord", "daccord",
+    "vas-y", "vas y", "go", "let's go", "lets go", "fais-le", "fais le",
+    "allume", "allume-les", "allume les", "éteins", "éteins-les", "éteins les",
+    "turn on", "turn off", "sure", "bien sûr", "absolument", "évidemment",
+}
+
+_AFFIRMATIVE_MAX_LEN = 10
+
+
+def _is_affirmative(text: str) -> bool:
+    """Check if *text* is an affirmative/confirmation response."""
+    cleaned = text.strip().lower().rstrip(".!?")
+    if cleaned in _AFFIRMATIVE:
+        return True
+    # Short responses that start with oui/yes/ok
+    return (
+        len(cleaned) <= _AFFIRMATIVE_MAX_LEN
+        and cleaned.startswith(("oui", "yes", "ok"))
+    )
 
 
 class ConversationHandler:
@@ -49,6 +72,8 @@ class ConversationHandler:
         llm: The LLM instance for response generation.
         store: Persistence for conversations.
         get_narrative: Optional callback to fetch current narrative state text.
+        intent_store: Optional intent store for detecting and executing
+            affirmative responses to pending conversation actions.
         max_context_messages: Max messages to include in LLM context.
     """
 
@@ -58,11 +83,13 @@ class ConversationHandler:
         store: ConversationStore | None = None,
         *,
         get_narrative: Callable[[], Awaitable[str]] | None = None,
+        intent_store: IntentStore | None = None,
         max_context_messages: int = MAX_CONTEXT_MESSAGES,
     ) -> None:
         self._llm = llm
         self._store = store or ConversationStore()
         self._get_narrative = get_narrative
+        self._intents = intent_store
         self._max_context = max_context_messages
 
     # ------------------------------------------------------------------
@@ -115,6 +142,14 @@ class ConversationHandler:
             message_id=user_id,
         )
         conversation.add_message(user_msg)
+
+        # Check if this is an affirmative response to a pending conversation
+        # action — if so, execute the action directly instead of LLM.
+        action_result = await self._try_execute_affirmative(
+            text, conversation_id, conversation
+        )
+        if action_result is not None:
+            return action_result, conversation
 
         # Build context
         from datetime import datetime as dt
@@ -198,6 +233,46 @@ class ConversationHandler:
     # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------
+
+    async def _try_execute_affirmative(
+        self,
+        text: str,
+        conversation_id: str | None,
+        conversation: Conversation,
+    ) -> str | None:
+        """Execute a pending action if *text* is an affirmative response.
+
+        Returns the action result message if executed, or None to proceed
+        with normal LLM conversation.
+        """
+        if not _is_affirmative(text):
+            return None
+        if self._intents is None:
+            return None
+
+        # Find the most recent conversation intent with a proposed action
+        recent = await self._intents.list(
+            status="conversation",  # type: ignore[arg-type]
+            limit=20,
+        )
+        for intent in recent:
+            if intent.proposed_action is None:
+                continue
+            # The conversation_id is derived from intent.id prefix
+            expected_conv_id = f"conv_{intent.id[:20]}"
+            if conversation_id and conversation_id != expected_conv_id:
+                continue
+            # Found a match — flip to approved so the dispatcher executes it
+            intent.status = "approved"  # type: ignore[assignment]
+            await self._intents.save(intent)
+            log.info(
+                "conversation.affirmative_approved",
+                intent_id=intent.id,
+                operation=intent.proposed_action.operation,
+            )
+            return f"✅ Compris ! J'exécute {intent.proposed_action.operation}."
+
+        return None
 
     async def _generate_response(self, prompt: str) -> str:
         """Call the LLM to generate a conversational response. Retries on overload."""
