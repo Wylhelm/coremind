@@ -25,10 +25,13 @@ class ReflectionNotifier:
         port: The notification port (typically the daemon's
             :class:`NotificationRouter` instance) used to dispatch
             reports to the user.
+        dashboard_url: Public URL for the CoreMind dashboard, shown
+            when the report is truncated.
     """
 
-    def __init__(self, port: NotificationPort) -> None:
+    def __init__(self, port: NotificationPort, dashboard_url: str = "") -> None:
         self._port = port
+        self._dashboard_url = dashboard_url
 
     async def deliver(self, report: ReflectionReport) -> None:
         """Send ``report`` to the user via the configured notification port.
@@ -49,7 +52,14 @@ class ReflectionNotifier:
         # char limit; we stay under 3500 to leave room for the title).
         max_body_len = 3500
         if len(body) > max_body_len:
-            body = body[:max_body_len] + "\n\n*(truncated — see dashboard for full report)*"
+            if self._dashboard_url:
+                suffix = (
+                    "\n\n*(truncated — [open dashboard]"
+                    f"({self._dashboard_url}) for full report)*"
+                )
+            else:
+                suffix = "\n\n*(truncated — see dashboard for full report)*"
+            body = body[:max_body_len] + suffix
 
         message = f"{title}\n\n{body}"
 

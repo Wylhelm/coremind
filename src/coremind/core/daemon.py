@@ -600,6 +600,7 @@ class CoreMindDaemon:
 
             reflection_notifier = ReflectionNotifier(
                 port=notify_router,
+                dashboard_url=f"http://10.0.0.253:{config.dashboard.port}",
             )
 
             reflection_loop = ReflectionLoop(
