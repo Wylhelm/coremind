@@ -100,6 +100,7 @@ class CyclePersister(Protocol):
     async def list_cycles(
         self,
         since: datetime | None = None,
+        until: datetime | None = None,
         limit: int = 50,
     ) -> list[ReasoningOutput]:
         """Return cycles ordered by timestamp descending."""

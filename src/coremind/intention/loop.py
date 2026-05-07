@@ -101,7 +101,7 @@ class ReasoningFeed(Protocol):
     """Yields recent :class:`ReasoningOutput` entries for context."""
 
     async def list_cycles(
-        self, since: datetime | None = None, limit: int = 50
+        self, since: datetime | None = None, until: datetime | None = None, limit: int = 50
     ) -> list[ReasoningOutput]:
         """Return reasoning cycles, newest first."""
         ...

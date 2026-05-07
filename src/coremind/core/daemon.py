@@ -603,9 +603,9 @@ class CoreMindDaemon:
             )
 
             reflection_loop = ReflectionLoop(
-                cycle_source=JsonlCyclePersister(reasoning_journal),  # type: ignore[arg-type]
-                intent_source=intents,  # type: ignore[arg-type]
-                action_feed=journal,  # type: ignore[arg-type]
+                cycle_source=JsonlCyclePersister(reasoning_journal),
+                intent_source=intents,
+                action_feed=journal,
                 prediction_evaluator=prediction_evaluator,
                 feedback_evaluator=feedback_evaluator,
                 calibration_updater=calibration_updater,
