@@ -47,6 +47,7 @@ dev = [
     "grpcio-tools>=1.66.0",
     "grpc-stubs>=1.53.0",
     "types-protobuf>=5.0.0",
+    "types-requests>=2.31.0",
     "pydantic>=2.9.0",
     "psutil>=6.0.0",
 ]
