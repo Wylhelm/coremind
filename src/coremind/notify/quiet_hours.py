@@ -165,8 +165,10 @@ class QuietHoursFilter:
             return "defer"
 
         if in_quiet:
-            if category == "ask":
-                return "deliver_low_urgency"
+            # All non-safety notifications are deferred during quiet hours.
+            # Previously "ask" category was delivered with low urgency, but
+            # that still woke users up at night.  Only safety/security classes
+            # (checked above) bypass this gate.
             return "defer"
 
         return "deliver"

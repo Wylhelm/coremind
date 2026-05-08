@@ -21,6 +21,8 @@ def test_user_renders_with_context() -> None:
         recent_intents_summary="",
         patterns_summary="",
         predictions_summary="",
+        local_time="14:30",
+        local_timezone="America/Toronto",
         schema_json="{}",
         max_questions=5,
     )

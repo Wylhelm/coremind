@@ -13,7 +13,6 @@ class TestSafePatterns:
     @pytest.mark.parametrize(
         "action_class",
         [
-            "notification.send",
             "homeassistant.get_state",
             "homeassistant.get_history",
             "homeassistant.get_printer_estimated_pages",
@@ -46,6 +45,9 @@ class TestSuggestPatterns:
             "homeassistant.turn_off",
             "homeassistant.set_temperature",
             "homeassistant.send_notification",
+            "notification.send",
+            "notification.query",
+            "notification.cat_moved",
         ],
     )
     def test_suggest_exact_matches(self, action_class: str) -> None:

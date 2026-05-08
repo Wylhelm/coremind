@@ -156,7 +156,7 @@ class PresenceDetector:
                 operation="notify_user",
                 parameters={"message": question_text},
                 expected_outcome=f"Je te rappelle de faire une pause après {hours}h{minutes:02d}.",
-                action_class="presence_alert",
+                action_class="safety.presence_alert",
             ),
             salience=0.88,
             confidence=0.82,

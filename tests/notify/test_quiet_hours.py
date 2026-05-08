@@ -24,7 +24,7 @@ def test_quiet_hours_defers_info_and_suggest() -> None:
     f = QuietHoursFilter(policy, clock=lambda: _clock_at(2))
     assert f.decide(category="info") == "defer"
     assert f.decide(category="suggest") == "defer"
-    assert f.decide(category="ask") == "deliver_low_urgency"
+    assert f.decide(category="ask") == "defer"
 
 
 def test_safety_overrides_quiet_hours() -> None:

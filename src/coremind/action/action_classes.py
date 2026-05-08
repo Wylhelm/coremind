@@ -21,7 +21,6 @@ from typing import Literal
 # ---------------------------------------------------------------------------
 
 _SAFE_PATTERNS: tuple[str, ...] = (
-    "notification.send",
     "homeassistant.get_state",
     "homeassistant.get_history",
     "homeassistant.get_printer_estimated_pages",
@@ -45,6 +44,9 @@ _SUGGEST_PATTERNS: tuple[str, ...] = (
     "homeassistant.turn_off",
     "homeassistant.set_temperature",
     "homeassistant.send_notification",
+    # All CoreMind→user notifications are suggest (auto-execute, notify result).
+    "notification.",
+    "notification.send",
 )
 
 # ---------------------------------------------------------------------------

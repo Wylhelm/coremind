@@ -23,6 +23,7 @@ import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
+from zoneinfo import ZoneInfo
 
 import structlog
 from pydantic import BaseModel, Field
@@ -351,9 +352,15 @@ class IntentionLoop:
                 predictions = []
 
         system = render_prompt(self._config.template_system)
+        # Compute local time so the LLM doesn't mistake UTC hours for local time.
+        local_tz = ZoneInfo("America/Toronto")
+        local_now = now.astimezone(local_tz)
+
         user = render_prompt(
             self._config.template_user,
             snapshot_json=_snapshot_to_json(snapshot, self._config.max_entities_in_prompt),
+            local_time=local_now.strftime("%H:%M"),
+            local_timezone=str(local_tz),
             reasoning_summary=_reasoning_summary(cycles),
             recent_intents_summary=_recent_intents_summary(recent_intents),
             patterns_summary=(
