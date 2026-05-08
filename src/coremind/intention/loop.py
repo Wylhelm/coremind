@@ -19,12 +19,14 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import os
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
 from zoneinfo import ZoneInfo
 
+import requests as _requests
 import structlog
 from pydantic import BaseModel, Field
 
@@ -52,7 +54,9 @@ log = structlog.get_logger(__name__)
 type Clock = Callable[[], datetime]
 
 # Near-identical recent question suppression threshold (Jaccard token overlap).
-_DUPLICATE_JACCARD_THRESHOLD = 0.85
+_DUPLICATE_JACCARD_THRESHOLD = 0.65  # lowered from 0.85 — better safe than spammy
+# Cosine similarity threshold for semantic duplicate detection.
+_DUPLICATE_COSINE_THRESHOLD = 0.82
 
 
 def _utc_now() -> datetime:
@@ -83,6 +87,11 @@ class IntentionLoopConfig(BaseModel):
     recent_reasoning_window_hours: int = Field(default=1, ge=1)
     min_salience: float = Field(default=0.0, ge=0.0, le=1.0)
     min_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    startup_grace_seconds: int = Field(
+        default=600,
+        ge=0,
+        description="Silence window after daemon start — no notifications sent during this period (default 10 min)",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -182,6 +191,7 @@ class IntentionLoop:
         self._pending_observations: list[WorldEventRecord] = []
         self._observation_threshold = 10
         self._last_routine_cycle: datetime | None = None
+        self._daemon_started_at: datetime | None = None
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -191,6 +201,7 @@ class IntentionLoop:
         """Start the background scheduler task.  Idempotent."""
         if self._task is not None and not self._task.done():
             return
+        self._daemon_started_at = self._clock()
         self._stop_event.clear()
         if self._config.event_driven and self._event_bus is not None:
             self._event_subscription_task = asyncio.create_task(
@@ -330,6 +341,19 @@ class IntentionLoop:
             The list of freshly created :class:`Intent` objects (possibly empty).
         """
         now = self._clock()
+
+        # Startup grace: don't generate intents during the cooldown window.
+        if (
+            self._daemon_started_at is not None
+            and (now - self._daemon_started_at).total_seconds() < self._config.startup_grace_seconds
+        ):
+            remaining = int(
+                self._config.startup_grace_seconds - (now - self._daemon_started_at).total_seconds()
+            )
+            log.debug("intention.startup_grace", remaining_s=remaining)
+            self._pending_observations.clear()  # Drop accumulated events — world is still settling
+            return []
+
         try:
             snapshot = await self._snapshots.snapshot(at=now)
         except Exception as exc:
@@ -552,18 +576,76 @@ def _snapshot_context(snapshot: WorldSnapshot) -> dict[str, JsonValue]:
 def _is_duplicate(raw: RawIntent, recent_intents: list[Intent]) -> bool:
     """Return ``True`` if ``raw`` duplicates one of ``recent_intents``.
 
-    Uses a very high Jaccard overlap threshold so near-duplicates are caught
-    without penalising merely related questions.
+    Uses a two-layer check:
+    1. Fast Jaccard token overlap (catches exact/near-exact duplicates).
+    2. Semantic cosine similarity via embedding (catches paraphrased duplicates).
     """
     new_tokens = set(raw.question.text.lower().split())
     if not new_tokens:
         return False
+
     for prior in recent_intents:
         prior_tokens = set(prior.question.text.lower().split())
         if not prior_tokens:
             continue
+
+        # Layer 1: fast Jaccard check
         inter = len(new_tokens & prior_tokens)
         union = len(new_tokens | prior_tokens)
         if union and inter / union >= _DUPLICATE_JACCARD_THRESHOLD:
             return True
+
+    # Layer 2: semantic similarity via embedding (best-effort, non-blocking)
+    if len(recent_intents) >= 2:
+        with contextlib.suppress(Exception):
+            return _is_semantic_duplicate(
+                raw.question.text, [i.question.text for i in recent_intents[:20]]
+            )
+
     return False
+
+
+def _is_semantic_duplicate(
+    text: str, recent_texts: list[str], *, threshold: float = _DUPLICATE_COSINE_THRESHOLD
+) -> bool:
+    """Check if *text* is semantically too close to any of *recent_texts*.
+
+    Uses the configured embedding model (Ollama nomic-embed-text by default)
+    to compute cosine similarity.  Returns ``False`` (not a duplicate) if the
+    embedding service is unreachable.
+    """
+
+    ollama_url = os.environ.get("OLLAMA_API_BASE", "http://10.0.0.175:11434")
+    texts = [text, *list(recent_texts)]
+
+    try:
+        resp = _requests.post(
+            f"{ollama_url}/api/embed",
+            json={"model": "nomic-embed-text", "input": texts},
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            return False
+        embeddings = resp.json().get("embeddings", [])
+        if len(embeddings) < 2:
+            return False
+
+        new_emb = embeddings[0]
+        for prior_emb in embeddings[1:]:
+            sim = _cosine_similarity(new_emb, prior_emb)
+            if sim >= threshold:
+                log.debug("intention.semantic_duplicate", similarity=round(sim, 3))
+                return True
+        return False
+    except Exception:
+        return False
+
+
+def _cosine_similarity(a: list[float], b: list[float]) -> float:
+    """Compute cosine similarity between two vectors."""
+    dot: float = sum(ai * bi for ai, bi in zip(a, b, strict=True))
+    norm_a: float = sum(ai * ai for ai in a) ** 0.5
+    norm_b: float = sum(bi * bi for bi in b) ** 0.5
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+    return float(dot / (norm_a * norm_b))

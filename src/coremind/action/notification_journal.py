@@ -46,6 +46,8 @@ TOPIC_KEYWORDS = {
         "turn on",
         "turn off",
     ],
+    "anomalie": ["anomaly", "anomalie", "high-severity", "unavailable", "figé", "stale"],
+    "sécurité": ["security", "sécurité", "token", "exposed", "vulnerability", "vulnérabilité"],
 }
 
 
@@ -66,16 +68,18 @@ class NotificationJournal:
         self._path = path or Path.home() / ".coremind" / "notification_journal.jsonl"
         self._entries: list[dict[str, str]] = []
         self._cooldowns: dict[str, int] = {
-            "sommeil": 28800,  # 8h
-            "pas": 21600,  # 6h
-            "météo": 28800,  # 8h
-            "chats": 14400,  # 4h
+            "sommeil": 43200,  # 12h (was 8h)
+            "pas": 43200,  # 12h (was 6h) — Apple Watch sync gaps trigger false anomalies
+            "météo": 43200,  # 12h (was 8h)
+            "chats": 21600,  # 6h (was 4h)
             "finances": 86400,  # 24h
-            "pause": 21600,  # 6h
+            "pause": 43200,  # 12h (was 6h) — too frequent at desk
             "batterie": 43200,  # 12h
             "calendrier": 28800,  # 8h
-            "maison": 10800,  # 3h
-            "autre": 14400,  # 4h
+            "maison": 21600,  # 6h (was 3h) — sensor unavailability after restarts
+            "anomalie": 43200,  # 12h — new: high-severity anomaly alerts
+            "sécurité": 86400,  # 24h — new: security alerts
+            "autre": 21600,  # 6h (was 4h)
         }
         self._load()
 

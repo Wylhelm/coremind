@@ -123,7 +123,7 @@ async def test_run_cycle_produces_and_routes_intents(
         intents,
         llm,  # type: ignore[arg-type]
         router,
-        config=IntentionLoopConfig(interval_seconds=10),
+        config=IntentionLoopConfig(interval_seconds=10, startup_grace_seconds=0),
     )
     created = await loop.run_cycle()
 
@@ -234,7 +234,9 @@ async def test_event_driven_mode_triggers_on_threshold(
         llm,
         router,
         event_bus=event_bus,  # type: ignore[arg-type]
-        config=IntentionLoopConfig(event_driven=True, routine_interval_seconds=60),
+        config=IntentionLoopConfig(
+            event_driven=True, routine_interval_seconds=60, startup_grace_seconds=0
+        ),
     )
     loop._observation_threshold = 3  # Small threshold for test
     loop.start()
@@ -302,7 +304,9 @@ async def test_event_driven_mode_filters_insignificant_events(
         llm,
         router,
         event_bus=event_bus,  # type: ignore[arg-type]
-        config=IntentionLoopConfig(event_driven=True, routine_interval_seconds=60),
+        config=IntentionLoopConfig(
+            event_driven=True, routine_interval_seconds=60, startup_grace_seconds=0
+        ),
     )
     loop._observation_threshold = 3
     loop.start()
