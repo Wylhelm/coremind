@@ -45,8 +45,8 @@ _SUGGEST_PATTERNS: tuple[str, ...] = (
     "homeassistant.set_temperature",
     "homeassistant.send_notification",
     # All CoreMind→user notifications are suggest (auto-execute, notify result).
-    "notification.",
-    "notification.send",
+    # Bare "notification" catches: "notification", "notification.send", "notification.*"
+    "notification",
 )
 
 # ---------------------------------------------------------------------------

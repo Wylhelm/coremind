@@ -45,6 +45,7 @@ class TestSuggestPatterns:
             "homeassistant.turn_off",
             "homeassistant.set_temperature",
             "homeassistant.send_notification",
+            "notification",
             "notification.send",
             "notification.query",
             "notification.cat_moved",
