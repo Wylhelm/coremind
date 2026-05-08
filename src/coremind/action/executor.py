@@ -231,37 +231,10 @@ class Executor:
             action = await self.execute(intent, notify="silent")
             return conv_id
 
-        # Execute the proposed action immediately — the conversation opener
-        # already informed the user.  Affirmative replies are handled by
-        # the conversation handler"s _try_execute_affirmative.
-        action = await self.execute(intent, notify="immediate")
-        if action is None:
-            log.info("executor.conversation_action_cancelled", intent_id=intent.id)
-        elif action.result and action.result.status in ("ok", "noop"):
-            # Only send result for query-type actions, not simple notifications
-            action_class = intent.proposed_action.action_class if intent.proposed_action else ""
-            if action_class not in ("notification", "presence_alert", "health_nudge"):
-                result_msg = _format_action_result(intent, action)
-                if result_msg:
-                    await self._notify_user(
-                        message=result_msg,
-                        category="info",
-                        actions=None,
-                        intent_id=intent.id,
-                    )
-            log.info("executor.conversation_action_executed", intent_id=intent.id)
-        else:
-            # Action failed — tell the user
-            error_msg = action.result.message if action and action.result else "Échec inconnu"
-            if self._notify is not None:
-                await self._notify_user(
-                    message=f"❌ Désolé, je n'ai pas réussi : {error_msg}",
-                    category="info",
-                    actions=None,
-                    intent_id=intent.id,
-                )
-            log.warning("executor.conversation_action_failed", intent_id=intent.id)
-
+        # Don't execute the action yet — the ConversationHandler will handle
+        # execution when the user replies affirmatively (_try_execute_affirmative).
+        # Executing now would flip the intent status to "done", preventing the
+        # handler from finding it.
         return conv_id
 
     async def execute_with_grace(

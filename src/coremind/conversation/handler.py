@@ -13,7 +13,7 @@ import asyncio
 import contextlib
 import uuid
 from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 
 import structlog
 
@@ -170,9 +170,11 @@ class ConversationHandler:
             return action_result, conversation
 
         # Build context
-        from datetime import datetime as dt
-
-        current_time = dt.now().strftime("%A %d %B %Y, %H:%M (%Z)")
+        current_time = (
+            datetime.now(UTC)
+            .astimezone(timezone(timedelta(hours=-4)))
+            .strftime("%A %d %B %Y, %H:%M (America/Toronto)")
+        )
         narrative_text = ""
         if self._get_narrative:
             try:
