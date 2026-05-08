@@ -26,7 +26,6 @@ from datetime import UTC, datetime, timedelta
 from typing import Protocol
 from zoneinfo import ZoneInfo
 
-import requests as _requests
 import structlog
 from pydantic import BaseModel, Field
 
@@ -614,6 +613,8 @@ def _is_semantic_duplicate(
     to compute cosine similarity.  Returns ``False`` (not a duplicate) if the
     embedding service is unreachable.
     """
+
+    import requests as _requests  # noqa: PLC0415
 
     ollama_url = os.environ.get("OLLAMA_API_BASE", "http://10.0.0.175:11434")
     texts = [text, *list(recent_texts)]
