@@ -1,9 +1,5 @@
 # 🧠 CoreMind
 
-<p align="center">
-  <img src="docs/logo.png" alt="CoreMind Logo" width="300">
-</p>
-
 > *A system that doesn't respond — it notices.*
 
 <p align="center">
