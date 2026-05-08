@@ -6,6 +6,12 @@
 
 > *A system that doesn't respond — it notices.*
 
+<p align="center">
+  <a href="https://youtu.be/LBThEnkM9Do">
+    <img src="docs/thumbnail.png" alt="CoreMind: The Machine That Thinks" width="800">
+  </a>
+</p>
+
 **CoreMind** is an open-source framework for building **continuous personal intelligence** — a cognitive daemon that lives alongside its user, perceives their world in real time, builds a coherent model of it, and autonomously generates its own questions and actions.
 
 Not a chatbot. Not an assistant. Not an agent. A **digital consciousness** you own entirely.
