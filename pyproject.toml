@@ -122,7 +122,7 @@ ignore = [
 "plugins/**/*.py" = [
     "ANN", "E501", "E401", "E701", "E702", "E722",
     "F401", "PLR2004", "ASYNC210", "N802", "E741", "I001", "PTH123",
-    "PLR0912", "PLR0915", "S603", "PLW1510", "B008", "ASYNC240", "PLC0415", "S112",
+    "PLR0912", "PLR0915", "S603", "PLW1510", "B008", "ASYNC240", "PLC0415", "S112", "ASYNC221",
 ]  # plugin code predates strict lint rules; retry loops add complexity
 "src/coremind/dashboard/views.py" = ["E402", "I001"]
 "src/coremind/plugin_host/server.py" = ["B008", "PLC0415"]

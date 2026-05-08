@@ -1,0 +1,5 @@
+[gog]
+gmail_poll_interval_seconds = 300
+calendar_poll_interval_seconds = 900
+max_unread_emails = 10
+max_calendar_events = 10
