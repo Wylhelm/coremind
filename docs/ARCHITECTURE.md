@@ -1,7 +1,7 @@
 # CoreMind — Technical Architecture
 
-**Version:** 0.3.2 (Disciplined — Intelligent Dedup + Rate Limiting)
-**Status:** All 7 layers + 4 pillars + NotificationJournal — quality over quantity
+**Version:** 0.3.3 (Ally — Action Intelligence + Warm Personality)
+**Status:** All 7 layers + 4 pillars + Action Classification + Dashboard Reports — autonomous by default, approval only for destructive ops
 **Audience:** Contributors, implementers, coding agents
 
 ---
@@ -236,19 +236,30 @@ while alive:
 
 **Responsibility:** Execute intents from L5 with confidence-proportional autonomy.
 
-| Confidence | Category | Action |
+| Category | Behavior | Example Operations |
 |---|---|---|
-| **≥ 0.90** | Safe / Routine | Execute silently. Log in audit journal. Notify user in next summary. |
-| **0.50 – 0.89** | Optimization | Execute + immediate user notification with explanation. |
-| **< 0.50** | Uncertain | Do not execute. Ask for human approval via the configured channel. |
+| **SAFE** | Execute silently. Journal only. No user notification. | `calendar.fetch_*`, `weather.*`, `vikunja.*`, `homeassistant.get_*` |
+| **SUGGEST** | Notify user + auto-execute after grace period (30s). User can cancel. | `homeassistant.light.turn_*`, `homeassistant.set_temperature` |
+| **ASK** | Request explicit user approval before execution. Destructive/irreversible. | `homeassistant.vacuum.*`, `homeassistant.lock.*`, `finance.*` |
+| **CONVERSATION** | Open-ended dialogue. Rare, for complex questions needing back-and-forth. | Open-ended queries |
 
-All actions — even at high confidence — trigger the approval gate if they touch:
-- Financial systems
-- External communications (email, SMS, posts)
-- Critical system configuration
-- Anything the user has marked `require_approval`
+**Action Class Override:** `src/coremind/action/action_classes.py` enforces these
+categories regardless of the LLM's assignment.  The LLM's judgment is the default,
+but SAFE/SUGGEST/ASK classes are always enforced — destructive operations (vacuum,
+locks, garage doors, financial transactions) can never auto-execute, while
+informational queries (calendar, weather) can never bother the user with approval
+requests.
 
-**Signing:** every action is signed with the daemon's ed25519 key. The journal entry is:
+**Confirmation Bypass:** Post-approval result notifications use `bypass_journal=True`
+to ensure user-triggered action results are never suppressed by the
+NotificationJournal.
+
+**Affirmative Responses:** The ConversationHandler detects "oui"/"yes"/"ok"
+responses to pending conversation intents and flips them to `approved` for
+immediate execution — no LLM interpretation needed.
+
+All actions — even at SAFE — are signed with the daemon's ed25519 key.
+The journal entry is:
 ```json
 {
   "action_id": "act_01HX...",
@@ -269,9 +280,9 @@ Instead of sending every intent as a notification, CoreMind tracks what was
 already communicated and suppresses near-duplicate messages on the same topic.
 
 - **Topic extraction**: each message is classified by keyword (sommeil, pas,
-  météo, chats, finances, pause, batterie, calendrier).
-- **Per-topic cooldowns**: sleep reminders wait 6 h, step nudges 4 h, weather
-  6 h, cat updates 2 h, finance summaries 12 h, pause suggestions 2 h.
+  météo, chats, finances, pause, batterie, calendrier, maison).
+- **Per-topic cooldowns**: sleep 8 h, steps 6 h, weather 8 h, cats 4 h,
+  finance 24 h, pause 6 h, battery 12 h, calendar 8 h, maison 3 h, other 4 h.
 - **Persistence**: `~/.coremind/notification_journal.jsonl` stores the last
   500 sent notifications with timestamps and topics.
 - **Integration**: the `_notify_user()` wrapper in the Executor checks the
@@ -295,7 +306,11 @@ messages within seconds.
 
 **Responsibility:** Meta-cognition. Evaluate the system's own effectiveness and update its behavior.
 
-**Status:** Wired into the daemon since 2026-05-02. Runs every 24 hours. Evaluates predictions from L4 against reality, calibrates model confidence, and learns procedural rules from outcomes. Produces a Markdown report delivered via Telegram.
+**Status:** Wired into the daemon since 2026-05-02. Runs every 24 hours. First cycle waits
+5 min after daemon start (`startup_delay_seconds=300`) to avoid immediate reflection on restart.
+Evaluates predictions from L4 against reality, calibrates model confidence, and learns
+procedural rules from outcomes. Produces a Markdown report delivered via Telegram.
+Reports are stored in `InMemoryReportStore` and accessible on the dashboard at `/reflection`.
 
 **Daily questions:**
 - Which predictions from L4 materialized? Which didn't?

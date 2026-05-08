@@ -367,4 +367,48 @@ chore(ci): pin grpcio-tools to 1.64.x for reproducible stubs
 
 ### Gate
 
-Every commit must pass `just lint && just test` locally before push. CI enforces the same gate; a failing CI build blocks merge.
+Every commit must pass `just ci` locally before push:
+```bash
+just ci  # ruff check + format + mypy + specs + proto-gen + 569 tests + 6 e2e
+```
+CI enforces the same gate; a failing CI build blocks merge.
+
+---
+
+## 7. CI / Development Workflow
+
+### Before pushing
+
+```bash
+just ci   # Full pipeline: lint, specs, proto-gen, tests, e2e
+```
+
+If `just ci` fails on `ruff format --check`, run:
+```bash
+just fix   # Auto-format + fix
+```
+
+### Coding with OpenCode
+
+CoreMind development uses **OpenCode** (v1.14.41+) with **DeepSeek V4 Pro**
+as the coding agent.  Never use GLM 4.7 for code generation — it's too slow
+and produces lower-quality output.
+
+```bash
+export DEEPSEEK_API_KEY="sk-..."
+cd ~/.openclaw/workspace/coremind
+opencode run "Your prompt here"
+```
+
+Config: `~/.config/opencode/opencode.json` — model: `deepseek/deepseek-v4-pro`.
+
+OpenCode should be used for:
+- Multi-file refactors
+- New feature implementation
+- Bug fixes requiring file exploration
+- Adding tests for new code
+
+Manual edits are acceptable for:
+- Single-line fixes (typos, formatting)
+- Configuration changes (`~/.coremind/config.toml`)
+- Commit/push operations

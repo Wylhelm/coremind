@@ -207,3 +207,65 @@ Reproducible behavior that contradicts the docs, a stack trace from the daemon p
 - Steps to reproduce, with config snippets if relevant
 
 For suspected security issues, follow [`SECURITY.md`](../SECURITY.md) (private disclosure) instead of filing a public issue.
+
+---
+
+## Common Issues (Post v0.3.3)
+
+### Plugins don't register after daemon restart
+
+**Symptom:** `plugin_host.registered` shows only a subset of plugins.
+
+**Cause:** Stale gRPC channels from old daemon session. When the daemon is
+restarted without killing plugins first, their gRPC channels point to the
+old (dead) socket.  The channels don't detect the dead peer and never reconnect.
+
+**Fix:** Kill ALL plugins BEFORE restarting the daemon:
+```bash
+for pid in $(ps aux | awk '/[c]oremind-plugin/{print $2}'); do kill "$pid" 2>/dev/null; done
+# Then restart daemon, then restart plugins
+```
+
+### `malformed_line` warnings flooding the log
+
+**Symptom:** Thousands of `intention.store.malformed_line` warnings.
+
+**Cause:** Corrupted `~/.coremind/intents.jsonl`.  Typically happens when
+the Pydantic `Intent` model adds a new field/constraint, and old intents
+in the JSONL file no longer validate.
+
+**Fix:** Validate and repair the file:
+```python
+import json, sys; sys.path.insert(0, 'src')
+from coremind.intention.schemas import Intent
+# Read, validate, fix or remove bad lines
+```
+
+### `bad_signature` on some plugins
+
+**Symptom:** `ingest.bad_signature` for specific plugin events.
+
+**Cause:** The plugin signs via `MessageToDict(proto)` but the daemon's
+`_event_signing_payload()` was manually reconstructing the dict.  Divergence
+on optional fields (`unit`, timestamp format).  Fixed in v0.3.3 via
+`canonical_payload` pre-computation.
+
+**Fix:** Ensure you're running CoreMind ≥ v0.3.3.
+
+### No notifications despite cycles running
+
+**Symptom:** `intention.cycle.done candidates=N produced=0` every cycle.
+
+**Cause:** `min_salience` too high for the LLM being used.
+`deepseek-v4-flash` typically scores salience between 0.16–0.46.  A threshold
+of 0.55 blocks all output.
+
+**Fix:** Set `min_salience = 0.35` in `~/.coremind/config.toml`.
+
+### Health plugin InfluxDB 401 errors
+
+**Symptom:** `health.influx_error status=401`.
+
+**Cause:** Missing `INFLUXDB_TOKEN` environment variable.
+
+**Fix:** `export INFLUXDB_TOKEN="health-token-secret"` before starting the plugin.

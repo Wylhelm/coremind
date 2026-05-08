@@ -47,9 +47,17 @@ docker compose down
 ## 3. Verify lint and tests pass
 
 ```bash
-just lint   # ruff check + mypy --strict
-just test   # unit tests (no external services required)
+just ci   # Full CI: ruff check + format + mypy + specs + proto-gen + 579 tests + 6 e2e
 ```
+
+Individual steps:
+```bash
+just lint      # ruff + mypy
+just test      # 569 unit tests
+just test-scenarios  # 6 end-to-end scenarios
+```
+
+**Always run `just ci` before pushing.** OpenCode should be used for code changes (see CONVENTIONS.md).
 
 ---
 
@@ -138,5 +146,46 @@ Integration tests require the backing services to be running:
 docker compose up -d
 just test-integration
 ```
+
+---
+
+## Production Deployment
+
+```bash
+# 1. Kill old plugins FIRST (they hold stale gRPC channels)
+for pid in $(ps aux | awk '/[c]oremind-plugin/{print $2}'); do kill "$pid" 2>/dev/null; done
+for pid in $(ps aux | awk '/[s]ide_bridge/{print $2}'); do kill "$pid" 2>/dev/null; done
+sleep 2
+
+# 2. Kill old daemon
+kill $(cat ~/.coremind/run/daemon.pid 2>/dev/null) 2>/dev/null
+sleep 2
+rm -f ~/.coremind/run/daemon.pid
+
+# 3. Start daemon with required env vars
+cd ~/.openclaw/workspace/coremind
+export OLLAMA_API_BASE=http://10.0.0.175:11434
+export COREMIND_TELEGRAM_BOT_TOKEN="..."
+nohup .venv/bin/coremind daemon start > /tmp/cm.log 2>&1 &
+sleep 6
+
+# 4. Start plugins with ALL required env vars
+export HA_TOKEN="$(cat ~/.openclaw/secrets/ha-token)"
+export FIREFLY_TOKEN="$(cat ~/.openclaw/secrets/firefly-token)"
+export FIREFLY_URL=http://localhost:8080
+export INFLUXDB_TOKEN="health-token-secret"
+source ~/.openclaw/secrets/tapo-credentials
+export TAPO_USERNAME TAPO_PASSWORD TAPO_IP
+nohup .venv/bin/python3.12 integrations/openclaw-adapter/openclaw_side_bridge.py >> ~/.coremind/logs/bridge.log 2>&1 &
+for plugin in homeassistant firefly openclaw-adapter weather vikunja tapo health; do
+    nohup .venv/bin/coremind-plugin-$plugin >> ~/.coremind/logs/plugin-$plugin.log 2>&1 &
+done
+```
+
+**Critical rules:**
+- Kill plugins BEFORE daemon — gRPC channels to old socket become stale
+- `INFLUXDB_TOKEN` required for health plugin
+- `COREMIND_TELEGRAM_BOT_TOKEN` required for Telegram notifications
+- `min_salience=0.35` is optimal for deepseek-v4-flash (scores 0.16-0.46)
 
 These tests are marked `@pytest.mark.integration` and are excluded from the default `just test` run.

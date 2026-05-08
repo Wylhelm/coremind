@@ -6,7 +6,69 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
-## [0.3.2] — 2026-05-06
+## [0.3.3] — 2026-05-07
+
+### Fixed — Signature Verification
+- **`bad_signature` on HA/Tapo events**: `_event_signing_payload()` manually
+  reconstructed a dict from `WorldEventRecord` fields but plugins sign via
+  `MessageToDict(proto)`.  These diverged for optional fields (`unit`, `delta`,
+  timestamp format).  **Fix**: pre-compute canonical payload at proto→record
+  conversion time (`_proto_event_to_record`) and store in `WorldEventRecord.canonical_payload`.
+  Verification now uses byte-identical input to the signer.
+
+### Added — Action Category Classification
+- **`action_classes.py`**: SAFE/SUGGEST/ASK patterns with glob matching.
+  - SAFE: calendar, weather, vikunja, gmail reads → silent auto-execute
+  - SUGGEST: lights, temperature, notifications → notify + auto-execute after grace
+  - ASK: vacuum, locks, garage doors, automations, finance → require explicit user approval
+- **`router.py`**: overrides LLM-assigned category based on action class.
+  Destructive actions (vacuum, locks, covers) are always gated behind approval,
+  while non-destructive checks (calendar, weather) run silently.
+- **45 new tests** covering all classification patterns (`test_action_classes.py`).
+
+### Added — Conversation Intelligence
+- **Affirmative response detection**: `_try_execute_affirmative()` in
+  `ConversationHandler` detects "oui"/"yes"/"ok" responses to pending
+  conversation intents and flips them to `approved` for immediate execution.
+- **Immediate execution on conversation start**: `start_conversation` now calls
+  `execute(intent, notify="immediate")` after sending the opener, rather than
+  waiting 30 s with `execute_with_grace`.  The user sees the result immediately.
+
+### Added — Dashboard Reflection Reports
+- **`InMemoryReportStore`**: stores finished reflection reports in-process.
+  Wired into both the `ReflectionLoop` (store after each cycle) and the
+  dashboard (list/latest endpoints).
+- Reports are now accessible at `http://<host>:9900/reflection`.
+
+### Changed — Reflection Loop Scheduling
+- **Startup delay**: first cycle waits 5 min after daemon start (`startup_delay_seconds=300`).
+  Prevents immediate reflection on every daemon restart.
+- Subsequent cycles respect the configured `interval_seconds` (default: 24 h).
+
+### Changed — Notification Journal
+- **Cooldowns doubled**: sommeil 8 h, pas 6 h, météo 8 h, chats 4 h, finances 24 h,
+  pause 6 h, batterie 12 h, calendrier 8 h, autre 4 h.
+- **New `maison` topic** (3 h cooldown): lumières, capteurs, thermostat, aspirateur.
+- **Post-approval results bypass the journal**: `_post_notification` uses
+  `bypass_journal=True` so user-triggered action results are never suppressed.
+
+### Changed — Personality
+- **Conversation prompt rewritten**: CoreMind is now warm, uses "tu", speaks
+  French naturally, knows Guillaume's context (cats, home, health, finances).
+  Never corporate, never robotic.
+
+### Changed — Thresholds
+- `min_salience` calibrated to **0.35** (optimal for deepseek-v4-flash which
+  scores in the 0.16–0.46 range;  higher thresholds block all output).
+- `min_confidence` at **0.40**.
+- Removed the `suggest → conversation` override at salience ≥ 0.50.
+
+### Fixed — Protocol Compliance
+- `JsonlCyclePersister.list_cycles()`: added optional `until` parameter.
+- `IntentStore.list_intents(since, until)`: new method for reflection loop.
+- `ActionJournal.list_actions(since, until)`: new method for reflection loop.
+- `CyclePersister` protocol: added optional `until` parameter.
+- All `list_cycles` signatures across the codebase now accept `until: datetime | None = None`.
 
 ### Added — Intelligent Dedup & Rate Limiting
 - **NotificationJournal**: topic-aware deduplication that prevents CoreMind from
