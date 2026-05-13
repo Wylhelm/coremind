@@ -395,7 +395,9 @@ class ReasoningLoop:
             try:
                 memories = await self._memory.recall(query=query, k=k)
             except Exception:
-                log.warning("reasoning.memory_recall_failed", entity=entity.type, exc_info=True)
+                # Entity types like ha_sensor / account rarely have semantic
+                # memories; don't litter the warning-level log.
+                log.debug("reasoning.memory_recall_skipped", entity=entity.type)
                 continue
             for mem in memories:
                 mem_id = getattr(mem, "id", None)

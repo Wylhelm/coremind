@@ -18,14 +18,18 @@ from coremind.dashboard.views import (
     DATA_SOURCES_KEY,
     actions_page,
     events_page,
+    events_recent_json,
     events_stream,
     graph_json,
     graph_page,
+    intents_list_json,
     intents_page,
+    logo_png,
     overview,
     reasoning_page,
     reflection_page,
     security_headers_middleware,
+    stats_json,
     submit_approval,
 )
 
@@ -69,6 +73,10 @@ def create_app(
     app.router.add_get("/actions", actions_page)
     app.router.add_get("/reflection", reflection_page)
     app.router.add_post("/api/approvals", submit_approval)
+    app.router.add_get("/api/stats", stats_json)
+    app.router.add_get("/api/intents/list", intents_list_json)
+    app.router.add_get("/api/events/recent", events_recent_json)
+    app.router.add_get("/logo.png", logo_png)
     return app
 
 

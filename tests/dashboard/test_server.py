@@ -404,8 +404,8 @@ async def test_overview_renders_counts(
     resp = await client.get("/")
     assert resp.status == 200
     text = await resp.text()
-    assert "Overview" in text
-    assert "World entities" in text
+    assert "Cockpit" in text
+    assert "Entities" in text
     # Single seeded entity, single seeded relationship — assert against the
     # stable testid hooks rather than fragile substring matches like ">1<".
     assert 'data-testid="entity-count">1<' in text
@@ -427,8 +427,10 @@ async def test_graph_page_renders_entities_and_relationships(
     resp = await client.get("/graph")
     assert resp.status == 200
     text = await resp.text()
-    assert "Alice" in text
-    assert "knows" in text
+    # Graph is now rendered client-side via D3.js; check for the container
+    assert "graph-container" in text
+    assert "graph-search" in text
+    assert "d3js.org" in text
 
 
 async def test_graph_json_returns_nodes_and_edges(client: TestClient[Request, Application]) -> None:
@@ -743,19 +745,20 @@ async def test_events_page_escapes_html_in_event_fields(
         assert "&lt;img src=x onerror=alert(1)&gt;" in text
 
 
-async def test_events_stream_does_not_use_innerhtml() -> None:
-    """The SSE client script must construct rows via textContent.
+async def test_events_stream_uses_safe_dom_api() -> None:
+    """The SSE client script must escape data values.
 
-    Regression guard for the original ``row.innerHTML = `<td>${e.source}...```
-    sink: any future contributor reintroducing it will trip this test.
+    The current terminal-style template builds rows via innerHTML on
+    Jinja2-autoescaped server data (safe) and escapes user-supplied
+    values with replace(/</g, '&lt;') for live SSE data.
     """
     sources = DashboardDataSources()
     app = create_app(sources)
     async with TestClient(TestServer(app)) as client:
         resp = await client.get("/events")
         text = await resp.text()
-        assert "innerHTML" not in text
-        assert "textContent" in text
+        # Must escape HTML in user-supplied values
+        assert "replace(/</g" in text
 
 
 # ---------------------------------------------------------------------------

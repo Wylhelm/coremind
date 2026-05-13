@@ -79,14 +79,38 @@ else
 fi
 
 # --- 4. Intention cycle activity ---
+# Read the configured interval from config.toml (default 60 min if unreadable).
+if [ -f "$COREMIND_HOME/config.toml" ]; then
+    EVENT_DRIVEN=$(python3 -c "
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
+with open('$COREMIND_HOME/config.toml','rb') as f:
+    cfg = tomllib.load(f)
+    print('true' if cfg.get('intention',{}).get('event_driven',True) else 'false')
+    if cfg.get('intention',{}).get('event_driven',True):
+        print(cfg.get('intention',{}).get('routine_interval_seconds',21600))
+    else:
+        print(cfg.get('intention',{}).get('interval_seconds',600))
+" 2>/dev/null || echo -e "true\n21600")
+    IS_EVENT_DRIVEN=$(echo "$EVENT_DRIVEN" | head -1)
+    INTENTION_INTERVAL_SECONDS=$(echo "$EVENT_DRIVEN" | tail -1)
+else
+    INTENTION_INTERVAL_SECONDS=21600
+fi
+INTENTION_INTERVAL_MINS=$(( INTENTION_INTERVAL_SECONDS / 60 ))
+# Allow 2x interval before warning (handles startup grace + normal variance).
+MAX_INTENT_MINS=$(( INTENTION_INTERVAL_MINS * 2 ))
+
 LAST_INTENT=$(grep "intention.cycle.done\|intention.cycle_failed" ~/.coremind/logs/daemon.log /tmp/coremind-daemon.log 2>/dev/null | tail -1 | grep -oP '\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}' || echo "")
 if [ -n "$LAST_INTENT" ]; then
     INTENT_EPOCH=$(date -d "$LAST_INTENT" +%s 2>/dev/null || echo 0)
     INTENT_MINS=$(( (NOW_EPOCH - INTENT_EPOCH) / 60 ))
-    if [ "$INTENT_MINS" -gt 120 ]; then
-        warn "Intention cycle: ${INTENT_MINS}min since last run (expected every 60min)"
+    if [ "$INTENT_MINS" -gt "$MAX_INTENT_MINS" ]; then
+        warn "Intention cycle: ${INTENT_MINS}min since last run (expected every ${INTENTION_INTERVAL_MINS}min)"
     else
-        echo "✅ Last intention cycle: ${INTENT_MINS}min ago"
+        echo "✅ Last intention cycle: ${INTENT_MINS}min ago (interval: ${INTENTION_INTERVAL_MINS}min)"
     fi
 else
     warn "No intention cycle activity in daemon log"

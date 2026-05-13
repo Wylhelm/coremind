@@ -220,6 +220,18 @@ def daemon_start() -> None:
         click.echo(f"Daemon is already running (PID {pid}).", err=True)
         sys.exit(1)
     _write_pid_file()
+
+    # Silence DEBUG-level log spam (~3,500 lines/min from plugin_host / world_store).
+    # The daemon writes structured logs to a file through stdout redirection;
+    # this caps the stream at INFO to keep the log file manageable.
+    import logging
+
+    import structlog
+
+    structlog.configure(
+        wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
+    )
+
     try:
         asyncio.run(CoreMindDaemon().run_forever())
     finally:
