@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -26,6 +27,10 @@ log = structlog.get_logger(__name__)
 
 type _IntentList = list[Intent]
 
+# Rate-limiting for malformed_line warnings: at most 1 per minute per error kind.
+_MALFORMED_LOG_WINDOW_SECONDS = 60
+_last_malformed_log: dict[str, float] = {}
+
 
 class IntentStore:
     """JSONL-backed intent store.
@@ -37,6 +42,9 @@ class IntentStore:
     def __init__(self, store_path: Path) -> None:
         self._path = store_path
         self._lock = asyncio.Lock()
+        # In-memory cache: invalidated after every save().
+        self._cache: dict[str, Intent] | None = None
+        self._cache_mtime: float = 0.0
 
     async def save(self, intent: Intent) -> None:
         """Append ``intent`` to the journal.
@@ -44,9 +52,18 @@ class IntentStore:
         Idempotent by ``intent.id`` on read — later writes of the same id
         shadow earlier ones.
 
+        Validates the intent via Pydantic before writing to prevent
+        corrupt entries from entering the store.
+
         Raises:
-            IntentionError: On write failure.
+            IntentionError: On validation or write failure.
         """
+        # Validate BEFORE writing — never let an invalid intent hit disk.
+        try:
+            Intent.model_validate(intent.model_dump())
+        except ValidationError as exc:
+            raise IntentionError(f"refusing to save invalid intent {intent.id!r}: {exc}") from exc
+
         line = intent.model_dump_json() + "\n"
 
         def _write() -> None:
@@ -60,6 +77,8 @@ class IntentStore:
                 await asyncio.to_thread(_write)
             except OSError as exc:
                 raise IntentionError(f"cannot append to intent store: {self._path}") from exc
+            # Invalidate cache after every write.
+            self._cache = None
 
     async def get(self, intent_id: str) -> Intent | None:
         """Return the latest version of ``intent_id`` or ``None``."""
@@ -108,24 +127,52 @@ class IntentStore:
         return await self.list(since=since, limit=10_000)
 
     async def _read_latest(self) -> dict[str, Intent]:
-        """Replay the JSONL file and return the most recent Intent per id."""
+        """Replay the JSONL file and return the most recent Intent per id.
+
+        Uses an in-memory cache keyed on file modification time.  The cache
+        is invalidated after every :meth:`save` call.
+        """
         if not self._path.exists():
             return {}
 
-        def _load() -> dict[str, Intent]:
-            latest: dict[str, Intent] = {}
-            with self._path.open("r", encoding="utf-8") as fh:
-                for line in fh:
-                    if not line.strip():
-                        continue
-                    try:
-                        raw = json.loads(line)
-                        intent = Intent.model_validate(raw)
-                    except (json.JSONDecodeError, ValidationError):
-                        log.warning("intention.store.malformed_line")
-                        continue
-                    latest[intent.id] = intent
-            return latest
-
         async with self._lock:
-            return await asyncio.to_thread(_load)
+            # Use cache if still valid.
+            mtime = self._path.stat().st_mtime if self._path.exists() else 0.0
+            if self._cache is not None and mtime <= self._cache_mtime:
+                return self._cache
+
+            def _load() -> dict[str, Intent]:
+                latest: dict[str, Intent] = {}
+                bad_count: dict[str, int] = {}
+                with self._path.open("r", encoding="utf-8") as fh:
+                    for line in fh:
+                        if not line.strip():
+                            continue
+                        try:
+                            raw = json.loads(line)
+                            intent = Intent.model_validate(raw)
+                        except (json.JSONDecodeError, ValidationError) as exc:
+                            # Rate-limit: max 1 warning per error kind per minute.
+                            err_kind = type(exc).__name__
+                            now = time.monotonic()
+                            last = _last_malformed_log.get(err_kind, 0.0)
+                            if now - last >= _MALFORMED_LOG_WINDOW_SECONDS:
+                                _last_malformed_log[err_kind] = now
+                                bad_count[err_kind] = bad_count.get(err_kind, 0) + 1
+                            else:
+                                bad_count[err_kind] = bad_count.get(err_kind, 0) + 1
+                            continue
+                        latest[intent.id] = intent
+                # Single summary warning once per window if any bad lines found.
+                for err_kind, count in bad_count.items():
+                    if count > 0:
+                        log.warning(
+                            "intention.store.malformed_lines",
+                            count=count,
+                            error_kind=err_kind,
+                        )
+                return latest
+
+            self._cache = await asyncio.to_thread(_load)
+            self._cache_mtime = mtime
+            return self._cache

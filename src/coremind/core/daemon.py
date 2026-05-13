@@ -76,7 +76,7 @@ _APPROVAL_EXPIRER_INTERVAL_SECONDS = 60.0
 # Poll interval for the approved-intent dispatcher.  Approval responses
 # (CLI, Telegram, dashboard, …) flip an intent to ``approved``; this loop
 # picks them up and hands them to the executor.
-_APPROVED_DISPATCHER_INTERVAL_SECONDS = 5.0
+_APPROVED_DISPATCHER_INTERVAL_SECONDS = 30.0
 
 
 # ---------------------------------------------------------------------------
