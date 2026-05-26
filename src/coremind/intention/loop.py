@@ -197,7 +197,9 @@ class IntentionLoop:
         self._stop_event = asyncio.Event()
         self._event_subscription_task: asyncio.Task[None] | None = None
         self._pending_observations: list[WorldEventRecord] = []
-        self._observation_threshold = 10
+        # Bumped from 10 → 50 to prevent flooding when many event-emitting plugins
+        # (GOG, presence, etc.) are active.  See 2026-05-26 incident.
+        self._observation_threshold = 50
         self._last_routine_cycle: datetime | None = None
         self._daemon_started_at: datetime | None = None
 

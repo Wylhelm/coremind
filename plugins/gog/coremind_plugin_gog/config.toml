@@ -1,5 +1,8 @@
+# GOG plugin config — anti-flood tuning (2026-05-26 incident)
+# Avant: 300s/900s → trop d'événements → cycles LLM constants
+# Après: 1800s/3600s → rythme raisonnable
 [gog]
-gmail_poll_interval_seconds = 300
-calendar_poll_interval_seconds = 900
-max_unread_emails = 10
-max_calendar_events = 10
+gmail_poll_interval_seconds = 1800    # 30 min (was 300s / 5 min)
+calendar_poll_interval_seconds = 3600 # 60 min (was 900s / 15 min)
+max_unread_emails = 5                 # limit emitted events per poll (was 10)
+max_calendar_events = 5               # was 10
