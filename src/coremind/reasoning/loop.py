@@ -185,7 +185,8 @@ class ReasoningLoop:
         return "\n".join(lines)
 
     def _save_investigation_questions(
-        self, investigations: Sequence[object],
+        self,
+        investigations: Sequence[object],
         snapshot: WorldSnapshot | None = None,
     ) -> None:
         """Store new investigation questions for future cycles and persist to disk.
@@ -207,9 +208,9 @@ class ReasoningLoop:
             from coremind.intention.stale_investigation_pruner import (
                 _has_stale_date_reference,
             )
+
             self._investigation_questions = [
-                q for q in self._investigation_questions
-                if not _has_stale_date_reference(q.lower())
+                q for q in self._investigation_questions if not _has_stale_date_reference(q.lower())
             ]
             # Also remove duplicates (keep first occurrence)
             seen: set[str] = set()

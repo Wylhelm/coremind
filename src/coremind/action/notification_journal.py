@@ -79,9 +79,9 @@ class NotificationJournal:
             "batterie": 14400,  # 4h (was 12h)
             "calendrier": 14400,  # 4h (was 8h)
             "maison": 10800,  # 3h (was 6h)
-            "anomalie": 7200,   # 2h (was 12h) — anomalies should alert quickly
+            "anomalie": 7200,  # 2h (was 12h) — anomalies should alert quickly
             "sécurité": 21600,  # 6h (was 24h)
-            "autre": 7200,      # 2h (was 6h)
+            "autre": 7200,  # 2h (was 6h)
         }
         self._load()
 

@@ -125,8 +125,6 @@ class Executor:
             return False
         await self._notify.notify(
             message=message,
-            category=category,  # type: ignore[arg-type]
-            actions=actions,  # type: ignore[arg-type]
             intent_id=intent_id,
         )
         return True
@@ -200,7 +198,6 @@ class Executor:
         if self._notify is None:
             return None
 
-        intent.status = "conversation"  # type: ignore[assignment]
         await self._intents.save(intent)
         conv_id = f"conv_{intent.id[:20]}"
 
@@ -434,12 +431,12 @@ def _build_action(intent: Intent, now: datetime) -> Action:
         id=uuid.uuid4().hex,
         intent_id=intent.id,
         timestamp=now,
-        category=intent.category,  # type: ignore[arg-type]
         operation=proposal.operation,
         parameters=dict(proposal.parameters),
         action_class=proposal.action_class,
         expected_outcome=proposal.expected_outcome,
         reversal=proposal.reversal,
+        category=intent.category,
         confidence=intent.confidence,
     )
 

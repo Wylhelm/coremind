@@ -272,7 +272,6 @@ class ConversationHandler:
 
         # Find the most recent conversation intent with a proposed action
         recent = await self._intents.list(
-            status="conversation",  # type: ignore[arg-type]
             limit=20,
         )
         for intent in recent:

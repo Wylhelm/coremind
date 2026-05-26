@@ -78,6 +78,10 @@ _APPROVAL_EXPIRER_INTERVAL_SECONDS = 60.0
 # picks them up and hands them to the executor.
 _APPROVED_DISPATCHER_INTERVAL_SECONDS = 30.0
 
+# Maximum number of Telegram message→intent mappings to keep in the
+# deduplication dict before pruning the oldest entry.
+_MAX_TELEGRAM_MSG_MAPPINGS = 50
+
 
 # ---------------------------------------------------------------------------
 # Internal port — allows test doubles without depending on WorldStore directly
@@ -255,8 +259,8 @@ class CoreMindDaemon:
             if intent_id and receipt and receipt.channel_message_id:
                 self._telegram_msg_to_intent[receipt.channel_message_id] = intent_id
                 self._last_notified_intent_id = intent_id
-                # Prune dict if > 50 entries
-                if len(self._telegram_msg_to_intent) > 50:
+                # Prune dict if > _MAX_TELEGRAM_MSG_MAPPINGS entries
+                if len(self._telegram_msg_to_intent) > _MAX_TELEGRAM_MSG_MAPPINGS:
                     oldest = next(iter(self._telegram_msg_to_intent))
                     del self._telegram_msg_to_intent[oldest]
             return receipt
@@ -929,7 +933,10 @@ class CoreMindDaemon:
                     matched_intent_desc: str | None = None
                     intents = self._intents
 
-                    if update.reply_to_message_id and update.reply_to_message_id in self._telegram_msg_to_intent:
+                    if (
+                        update.reply_to_message_id
+                        and update.reply_to_message_id in self._telegram_msg_to_intent
+                    ):
                         matched_intent_id = self._telegram_msg_to_intent[update.reply_to_message_id]
                     elif self._last_notified_intent_id is not None:
                         # Fallback: use most recently notified intent
@@ -941,7 +948,7 @@ class CoreMindDaemon:
                         if matched_intent is not None:
                             matched_intent_desc = matched_intent.question.text
                             if matched_intent.status != "conversation":
-                                matched_intent.status = "conversation"  # type: ignore[assignment]
+                                matched_intent.status = "conversation"
                                 await intents.save(matched_intent)
                                 log.info(
                                     "conversation.intent_linked",
@@ -967,8 +974,8 @@ class CoreMindDaemon:
                     if matched_intent_id and receipt and receipt.channel_message_id:
                         self._telegram_msg_to_intent[receipt.channel_message_id] = matched_intent_id
                         self._last_notified_intent_id = matched_intent_id
-                        # Prune dict if > 50 entries
-                        if len(self._telegram_msg_to_intent) > 50:
+                        # Prune dict if > _MAX_TELEGRAM_MSG_MAPPINGS entries
+                        if len(self._telegram_msg_to_intent) > _MAX_TELEGRAM_MSG_MAPPINGS:
                             oldest = next(iter(self._telegram_msg_to_intent))
                             del self._telegram_msg_to_intent[oldest]
                 else:

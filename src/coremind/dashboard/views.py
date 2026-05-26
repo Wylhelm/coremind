@@ -17,6 +17,7 @@ email) cannot execute in the dashboard origin.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -67,11 +68,23 @@ _BASE_HTML = """<!doctype html>
     min-height: 100vh;
   }
   /* ---- Animations ---- */
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-  @keyframes slideIn { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
-  @keyframes glowPulse { 0%, 100% { box-shadow: 0 0 8px rgba(0,212,255,0.4); } 50% { box-shadow: 0 0 20px rgba(0,212,255,0.7); } }
-  @keyframes countUp { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-12px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes glowPulse {
+    0%, 100% { box-shadow: 0 0 8px rgba(0,212,255,0.4); }
+    50% { box-shadow: 0 0 20px rgba(0,212,255,0.7); }
+  }
+  @keyframes countUp {
+    from { opacity: 0; transform: scale(0.8); }
+    to { opacity: 1; transform: scale(1); }
+  }
   .fade-in { animation: fadeIn 0.4s ease-out; }
   .slide-in { animation: slideIn 0.3s ease-out; }
   /* ---- Header ---- */
@@ -111,7 +124,10 @@ _BASE_HTML = """<!doctype html>
     border: 1px solid #1e293b; border-radius: 10px; padding: 16px;
   }
   .card.glow-cyan { border-color: rgba(0,212,255,0.3); box-shadow: 0 0 12px rgba(0,212,255,0.08); }
-  .card.glow-purple { border-color: rgba(168,85,247,0.3); box-shadow: 0 0 12px rgba(168,85,247,0.08); }
+  .card.glow-purple {
+    border-color: rgba(168,85,247,0.3);
+    box-shadow: 0 0 12px rgba(168,85,247,0.08);
+  }
   /* ---- Stats Grid ---- */
   .stats-grid {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -125,12 +141,18 @@ _BASE_HTML = """<!doctype html>
   }
   .stat-card:hover { border-color: #00d4ff66; }
   .stat-value { font-size: 32px; font-weight: 700; color: #00d4ff; line-height: 1.1; }
-  .stat-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+  .stat-label {
+    font-size: 11px;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 4px;
+  }
   .stat-card.warn .stat-value { color: #f97316; }
   .stat-card.ok .stat-value { color: #22c55e; }
   /* ---- Cockpit Layout ---- */
   .cockpit-grid {
-    display: grid; grid-template-columns: minmax(280px, 1fr) minmax(400px, 2.5fr) minmax(280px, 1.2fr); gap: 14px;
+display: grid; grid-template-columns: minmax(280px, 1fr) minmax(400px, 2.5fr) minmax(280px, 1.2fr); gap: 14px;
     min-height: calc(100vh - 120px);
   }
   @media (max-width: 1200px) { .cockpit-grid { grid-template-columns: 1fr 1fr; } }
@@ -150,12 +172,33 @@ _BASE_HTML = """<!doctype html>
   .cockpit-panel .panel-header .dot.live { background: #22c55e; animation: pulse 2s infinite; }
   .cockpit-panel .panel-body { padding: 10px 14px; overflow-y: auto; flex: 1; }
   /* ---- Event Ticker ---- */
-  .event-ticker { font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", monospace; font-size: 11px; max-height: calc(100vh - 200px); overflow-y: auto; }
-  .event-ticker .tick { padding: 4px 0; border-bottom: 1px solid #1e293b; animation: slideIn 0.2s ease-out; display: flex; gap: 8px; }
+  .event-ticker {
+    font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", monospace;
+    font-size: 11px;
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+  }
+  .event-ticker .tick {
+    padding: 4px 0;
+    border-bottom: 1px solid #1e293b;
+    animation: slideIn 0.2s ease-out;
+    display: flex;
+    gap: 8px;
+  }
   .event-ticker .tick .ts { color: #64748b; white-space: nowrap; min-width: 80px; }
-  .event-ticker .tick .src { color: #a855f7; min-width: 80px; overflow: hidden; text-overflow: ellipsis; }
+  .event-ticker .tick .src {
+    color: #a855f7;
+    min-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .event-ticker .tick .attr { color: #00d4ff; }
-  .event-ticker .tick .val { color: #e2e8f0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .event-ticker .tick .val {
+    color: #e2e8f0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   /* ---- Intent Cards ---- */
   .intent-card {
     background: rgba(26,35,50,0.7); border: 1px solid #1e293b;
@@ -164,13 +207,29 @@ _BASE_HTML = """<!doctype html>
     transition: border-color 0.2s;
   }
   .intent-card:hover { border-color: #334155; }
-  .intent-card .intent-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px; }
+  .intent-card .intent-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    margin-bottom: 6px;
+  }
   .intent-card .intent-question { font-size: 13px; color: #e2e8f0; line-height: 1.4; }
-  .intent-card .intent-meta { display: flex; gap: 12px; align-items: center; margin-top: 6px; font-size: 11px; color: #64748b; }
+  .intent-card .intent-meta {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-top: 6px;
+    font-size: 11px;
+    color: #64748b;
+  }
   .intent-card .salience-bar {
     height: 4px; border-radius: 2px; background: #1e293b; margin-top: 8px; overflow: hidden;
   }
-  .intent-card .salience-bar .fill { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+  .intent-card .salience-bar .fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.5s ease;
+  }
   /* ---- Pills ---- */
   .pill {
     display: inline-block; padding: 2px 8px; border-radius: 10px;
@@ -188,10 +247,29 @@ _BASE_HTML = """<!doctype html>
   .pill.snoozed { background: rgba(100,116,139,0.15); color: #94a3b8; }
   /* ---- Tables ---- */
   table { border-collapse: collapse; width: 100%; font-size: 13px; }
-  th, td { border-bottom: 1px solid #1e293b; padding: 8px 10px; text-align: left; vertical-align: top; }
-  th { background: rgba(17,24,39,0.6); color: #94a3b8; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  th, td {
+    border-bottom: 1px solid #1e293b;
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    background: rgba(17,24,39,0.6);
+    color: #94a3b8;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
   tr:hover td { background: rgba(255,255,255,0.02); }
-  pre { background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; overflow-x: auto; font-size: 12px; border: 1px solid #1e293b; }
+  pre {
+    background: rgba(0,0,0,0.3);
+    padding: 12px;
+    border-radius: 8px;
+overflow-x: auto;
+    font-size: 12px;
+    border: 1px solid #1e293b;
+  }
   code { font-family: "JetBrains Mono", "Cascadia Code", monospace; font-size: 12px; color: #00d4ff; }
   .muted { color: #64748b; }
   /* ---- Buttons ---- */
@@ -214,27 +292,99 @@ _BASE_HTML = """<!doctype html>
   }
   input:focus, select:focus { outline: none; border-color: #00d4ff; }
   /* ---- Graph ---- */
-  #graph-container { width: 100%; height: calc(100vh - 140px); min-height: 600px; background: rgba(0,0,0,0.2); border-radius: 10px; border: 1px solid #1e293b; overflow: hidden; position: relative; }
+  #graph-container {
+    width: 100%;
+    height: calc(100vh - 140px);
+    min-height: 600px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 10px;
+    border: 1px solid #1e293b;
+    overflow: hidden;
+    position: relative;
+  }
   #graph-container svg { width: 100%; height: 100%; }
-  #graph-container .node-label { font-size: 10px; fill: #e2e8f0; pointer-events: none; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
-  #graph-container .legend { position: absolute; top: 10px; right: 10px; background: rgba(10,14,23,0.9); border: 1px solid #1e293b; border-radius: 8px; padding: 10px; font-size: 11px; }
+  #graph-container .node-label {
+    font-size: 10px;
+    fill: #e2e8f0;
+    pointer-events: none;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  }
+  #graph-container .legend {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(10,14,23,0.9);
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 11px;
+  }
   /* ---- Timeline ---- */
   .timeline { position: relative; padding-left: 24px; }
-  .timeline::before { content: ''; position: absolute; left: 8px; top: 0; bottom: 0; width: 2px; background: linear-gradient(180deg, #00d4ff, #a855f7); }
-  .timeline-entry { position: relative; margin-bottom: 16px; padding: 10px 14px; background: rgba(17,24,39,0.7); border: 1px solid #1e293b; border-radius: 8px; }
-  .timeline-entry::before { content: ''; position: absolute; left: -20px; top: 14px; width: 10px; height: 10px; border-radius: 50%; background: #00d4ff; border: 2px solid #0a0e17; }
-  .timeline-entry.deny::before, .timeline-entry.rejected::before, .timeline-entry.failed::before { background: #ef4444; }
-  .timeline-entry.ok::before, .timeline-entry.approved::before, .timeline-entry.done::before { background: #22c55e; }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(180deg, #00d4ff, #a855f7);
+  }
+  .timeline-entry {
+    position: relative;
+    margin-bottom: 16px;
+    padding: 10px 14px;
+    background: rgba(17,24,39,0.7);
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+  }
+  .timeline-entry::before {
+    content: '';
+    position: absolute;
+    left: -20px;
+    top: 14px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #00d4ff;
+    border: 2px solid #0a0e17;
+  }
+  .timeline-entry.deny::before, .timeline-entry.rejected::before, .timeline-entry.failed::before {
+    background: #ef4444;
+  }
+.timeline-entry.ok::before, .timeline-entry.approved::before, .timeline-entry.done::before {
+    background: #22c55e;
+  }
   /* ---- Terminal ---- */
   .terminal { background: #0a0e17; border: 1px solid #1e293b; border-radius: 10px; overflow: hidden; }
-  .terminal .term-header { padding: 8px 14px; background: #111827; border-bottom: 1px solid #1e293b; display: flex; align-items: center; gap: 8px; font-size: 12px; color: #94a3b8; }
+  .terminal .term-header {
+    padding: 8px 14px;
+    background: #111827;
+    border-bottom: 1px solid #1e293b;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #94a3b8;
+  }
   .terminal .term-header .controls { display: flex; gap: 6px; }
   .terminal .term-header .ctrl { width: 10px; height: 10px; border-radius: 50%; }
   .terminal .term-header .ctrl.red { background: #ef4444; }
   .terminal .term-header .ctrl.yellow { background: #f59e0b; }
   .terminal .term-header .ctrl.green { background: #22c55e; }
-  .terminal .term-body { font-family: "JetBrains Mono", monospace; font-size: 12px; padding: 12px; max-height: calc(100vh - 200px); overflow-y: auto; }
-  .terminal .term-body .line { padding: 2px 0; display: flex; gap: 10px; animation: slideIn 0.15s ease-out; }
+  .terminal .term-body {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    padding: 12px;
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+  }
+  .terminal .term-body .line {
+    padding: 2px 0;
+    display: flex;
+    gap: 10px;
+    animation: slideIn 0.15s ease-out;
+  }
   .terminal .term-body .line .time { color: #475569; white-space: nowrap; min-width: 85px; }
   .terminal .term-body .line .plugin { color: #a855f7; min-width: 80px; }
   .terminal .term-body .line .msg { color: #94a3b8; flex: 1; }
@@ -260,8 +410,6 @@ _BASE_HTML = """<!doctype html>
 </body>
 </html>
 """
-
-
 _OVERVIEW_BODY = """
 <div class="stats-grid fade-in" id="stats-row">
   <div class="stat-card"><div class="stat-value" data-testid="entity-count">{{ entity_count }}</div><div class="stat-label">Entities</div></div>
@@ -671,7 +819,6 @@ _INTENTS_BODY = """
 {% endif %}
 """
 
-
 _ACTIONS_BODY = """
 <h1>Action journal</h1>
 <form method="get" style="margin-bottom:16px">
@@ -927,6 +1074,7 @@ async def graph_page(request: web.Request) -> web.Response:
 
 async def graph_json(request: web.Request) -> web.Response:
     """Return the world graph as ``{nodes: [...], edges: [...]}`` JSON."""
+    _min_group_size = 2
     data = _data(request)
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
@@ -967,30 +1115,34 @@ async def graph_json(request: web.Request) -> web.Response:
 
             # Create same-type relationships (chain within each group)
             for etype, members in type_groups.items():
-                if len(members) < 2:
+                if len(members) < _min_group_size:
                     continue
                 weight = round(1.0 / len(members), 3)  # Rarer types = stronger
                 for i in range(len(members) - 1):
-                    edges.append({
-                        "from": members[i],
-                        "to": members[i + 1],
-                        "type": f"same_type:{etype}",
-                        "weight": max(weight, 0.1),
-                    })
+                    edges.append(
+                        {
+                            "from": members[i],
+                            "to": members[i + 1],
+                            "type": f"same_type:{etype}",
+                            "weight": max(weight, 0.1),
+                        }
+                    )
 
             # Create same-plugin relationships
             for plugin, members in plugin_groups.items():
-                if len(members) < 2:
+                if len(members) < _min_group_size:
                     continue
                 short_plugin = plugin.split(".")[-1] if "." in plugin else plugin
                 # Connect first member to all others (star topology for plugins)
-                for member in members[1:min(len(members), 5)]:
-                    edges.append({
-                        "from": members[0],
-                        "to": member,
-                        "type": f"source:{short_plugin}",
-                        "weight": 0.5,
-                    })
+                for member in members[1 : min(len(members), 5)]:
+                    edges.append(
+                        {
+                            "from": members[0],
+                            "to": member,
+                            "type": f"source:{short_plugin}",
+                            "weight": 0.5,
+                        }
+                    )
 
     return web.json_response({"nodes": nodes, "edges": edges})
 
@@ -1192,6 +1344,7 @@ _START_TIME = datetime.now(UTC)
 
 async def stats_json(request: web.Request) -> web.Response:
     """Return aggregated daemon stats as JSON for the cockpit."""
+    min_same_type_count = 2
     data = _data(request)
     entity_count = 0
     relationship_count = 0
@@ -1200,7 +1353,7 @@ async def stats_json(request: web.Request) -> web.Response:
     pending_approvals = 0
 
     if data.world is not None:
-        try:
+        with contextlib.suppress(Exception):
             snap = await data.world.snapshot()
             entity_count = len(snap.entities)
             relationship_count = len(snap.relationships)
@@ -1213,7 +1366,7 @@ async def stats_json(request: web.Request) -> web.Response:
                     type_groups[etype] = type_groups.get(etype, 0) + 1
                 # Count same-type edges (chain within each group)
                 for count in type_groups.values():
-                    if count >= 2:
+                    if count >= min_same_type_count:
                         rel_count += count - 1  # chain edges
                 # Count same-plugin edges (approx: first member → up to 4 others)
                 plugin_groups: dict[str, int] = {}
@@ -1221,43 +1374,37 @@ async def stats_json(request: web.Request) -> web.Response:
                     for plugin in entity.source_plugins:
                         plugin_groups[str(plugin)] = plugin_groups.get(str(plugin), 0) + 1
                 for count in plugin_groups.values():
-                    if count >= 2:
+                    if count >= min_same_type_count:
                         rel_count += min(count - 1, 4)
                 relationship_count = rel_count
-        except Exception:
-            pass
-        try:
+        with contextlib.suppress(Exception):
             since = datetime.now(UTC) - timedelta(days=1)
             recent = await data.world.recent_events(since, limit=10_000)
             events_24h = len(recent)
-        except Exception:
-            pass
 
     if data.intents is not None:
-        try:
+        with contextlib.suppress(Exception):
             intents = await data.intents.list(status=None, limit=500)
             pending_intents = sum(
                 1 for i in intents if i.status in ("pending", "pending_approval", "executing")
             )
-        except Exception:
-            pass
 
     if data.notifications is not None:
-        try:
+        with contextlib.suppress(Exception):
             pending_approvals = len(await data.notifications.pending())
-        except Exception:
-            pass
 
     uptime = (datetime.now(UTC) - _START_TIME).total_seconds()
 
-    return web.json_response({
-        "entities": entity_count,
-        "relationships": relationship_count,
-        "events_24h": events_24h,
-        "pending_intents": pending_intents,
-        "pending_approvals": pending_approvals,
-        "uptime_seconds": int(uptime),
-    })
+    return web.json_response(
+        {
+            "entities": entity_count,
+            "relationships": relationship_count,
+            "events_24h": events_24h,
+            "pending_intents": pending_intents,
+            "pending_approvals": pending_approvals,
+            "uptime_seconds": int(uptime),
+        }
+    )
 
 
 async def intents_list_json(request: web.Request) -> web.Response:
@@ -1271,21 +1418,25 @@ async def intents_list_json(request: web.Request) -> web.Response:
                 actions = []
                 if i.proposed_action:
                     a = i.proposed_action
-                    actions.append({
-                        "operation": a.operation,
-                        "expected_outcome": a.expected_outcome,
-                        "action_class": a.action_class,
-                    })
-                intents.append({
-                    "id": i.id,
-                    "created_at": i.created_at.isoformat(),
-                    "question": i.question.text,
-                    "category": i.category,
-                    "status": i.status,
-                    "salience": i.salience,
-                    "confidence": i.confidence,
-                    "actions": actions,
-                })
+                    actions.append(
+                        {
+                            "operation": a.operation,
+                            "expected_outcome": a.expected_outcome,
+                            "action_class": a.action_class,
+                        }
+                    )
+                intents.append(
+                    {
+                        "id": i.id,
+                        "created_at": i.created_at.isoformat(),
+                        "question": i.question.text,
+                        "category": i.category,
+                        "status": i.status,
+                        "salience": i.salience,
+                        "confidence": i.confidence,
+                        "actions": actions,
+                    }
+                )
         except Exception:
             log.exception("dashboard.intents_list_json_failed")
     return web.json_response(intents)
@@ -1297,22 +1448,22 @@ async def events_recent_json(request: web.Request) -> web.Response:
     limit = min(int(request.query.get("limit", "50")), 200)
     events = []
     if data.world is not None:
-        try:
+        with contextlib.suppress(Exception):
             since = datetime.now(UTC) - timedelta(days=1)
             raw = await data.world.recent_events(since, limit=limit)
             for e in raw:
-                events.append({
-                    "id": e.id,
-                    "timestamp": e.timestamp.isoformat(),
-                    "source": e.source,
-                    "entity_type": e.entity.type,
-                    "entity_id": e.entity.id,
-                    "attribute": e.attribute,
-                    "value": e.value,
-                    "confidence": e.confidence,
-                })
-        except Exception:
-            pass
+                events.append(
+                    {
+                        "id": e.id,
+                        "timestamp": e.timestamp.isoformat(),
+                        "source": e.source,
+                        "entity_type": e.entity.type,
+                        "entity_id": e.entity.id,
+                        "attribute": e.attribute,
+                        "value": e.value,
+                        "confidence": e.confidence,
+                    }
+                )
     return web.json_response(events)
 
 

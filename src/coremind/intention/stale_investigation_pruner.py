@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
 
@@ -70,7 +70,10 @@ class FileInvestigationsStore:
             return []
         try:
             with self._path.open() as f:
-                return json.load(f)
+                result: object = json.load(f)
+            if isinstance(result, list):
+                return [str(item) for item in result]
+            return []
         except (json.JSONDecodeError, OSError):
             return []
 
@@ -108,7 +111,7 @@ class StaleInvestigationPruner:
         if not active:
             return active
 
-        now = datetime.now(datetime.UTC)
+        now = datetime.now(UTC)
         kept = []
         pruned = []
 
@@ -129,9 +132,7 @@ class StaleInvestigationPruner:
 
         return kept
 
-    def _is_premise_stale(
-        self, investigation: str, snapshot: WorldSnapshot, now: datetime
-    ) -> bool:
+    def _is_premise_stale(self, investigation: str, snapshot: WorldSnapshot, now: datetime) -> bool:
         """Check if the investigation's premise is stale based on snapshot data."""
         inv_lower = investigation.lower()
 
@@ -156,11 +157,10 @@ class StaleInvestigationPruner:
                     # Check if entity properties indicate resolution
                     props = getattr(entity, "properties", {}) or {}
                     for prop_key in attributes:
-                        if (
-                            any(prop_key in k.lower() for k in props)
-                            and _has_stale_date_reference(inv_lower)
+                        if any(prop_key in k.lower() for k in props) and _has_stale_date_reference(
+                            inv_lower
                         ):
-                                return True
+                            return True
 
                     # If investigation says "not X since DATE" and entity data
                     # is more recent than that date, it's stale
@@ -177,12 +177,14 @@ class StaleInvestigationPruner:
             self._log_path.parent.mkdir(parents=True, exist_ok=True)
             with self._log_path.open("a") as f:
                 for inv in pruned:
-                    entry = json.dumps({
-                        "timestamp": now.isoformat(),
-                        "event": "investigation.pruned",
-                        "reason": "stale_premise",
-                        "investigation": inv[:200],
-                    })
+                    entry = json.dumps(
+                        {
+                            "timestamp": now.isoformat(),
+                            "event": "investigation.pruned",
+                            "reason": "stale_premise",
+                            "investigation": inv[:200],
+                        }
+                    )
                     f.write(entry + "\n")
         except OSError:
             pass
