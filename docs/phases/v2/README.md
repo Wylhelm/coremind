@@ -10,6 +10,7 @@
 |---|---|---|
 | [`EXECUTIVE_SUMMARY.md`](EXECUTIVE_SUMMARY.md) | What, why, and for whom | Everyone |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Full technical architecture (updated from v0.3) | Developers, coding agents |
+| [`PHASE_0_SOVEREIGNTY.md`](PHASE_0_SOVEREIGNTY.md) | 🔴 CRITICAL — Remove personal data, add i18n, configurable language/timezone | Coding agents (Opus) |
 | [`PHASE_1_AUTONOMY_SLIDER.md`](PHASE_1_AUTONOMY_SLIDER.md) | Per-domain graduated autonomy control | Coding agents (Opus) |
 | [`PHASE_2_SELF_IMPROVEMENT.md`](PHASE_2_SELF_IMPROVEMENT.md) | Meta-loop: observe→learn→adjust behavior | Coding agents (Opus) |
 | [`PHASE_3_EMBEDDING_WORLD.md`](PHASE_3_EMBEDDING_WORLD.md) | JEPA-inspired embedding-based world understanding | Coding agents (Opus) |
@@ -20,7 +21,8 @@
 
 1. Start with `EXECUTIVE_SUMMARY.md` — understand the vision
 2. Read `ARCHITECTURE.md` — understand the system you're modifying
-3. Implement phases in order (Phase 1 → Phase 5), as each builds on the last
+3. 🔴 **Do Phase 0 FIRST** — removes personal data from the repository before anything else goes public
+4. Implement remaining phases in order (Phase 1 → Phase 5), as each builds on the last
 
 ## Relationship to v0 Phases
 

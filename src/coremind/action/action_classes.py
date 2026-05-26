@@ -1,13 +1,22 @@
-"""Action class category overrides.
+"""Action class category overrides — DEPRECATED, superseded by autonomy.py.
+
+⚠️  This module is kept for backward compatibility only.  New code MUST use
+    :func:`coremind.action.autonomy.resolve_agency` instead.
+
+The :func:`get_forced_category` function remains available during the
+Phase 1→Phase 2 migration but should not be extended.  Any new
+action_class patterns should be added to :data:`AutonomyConfig.hard_ask`
+or the [autonomy] section of config.toml.
+
+Migration path:
+    Old:  get_forced_category(action_class) → "ask" | "suggest" | "safe" | None
+    New:  resolve_agency(action_class, confidence, autonomy_config) → same
 
 Hardcoded routing policies that override LLM-assigned categories
 to ensure safe operations never require approval and destructive
-operations are always gated.
-
-The :func:`get_forced_category` function is called by the
-:class:`~coremind.action.router.ActionRouter` *after* the LLM has
-assigned a category, so the LLM judgment is the default but
-destructive/safe classes are always enforced.
+operations are always gated.  These patterns are now mirrored in
+:class:`~coremind.action.autonomy.AutonomyConfig`'s default hard_ask
+and hard_safe rules.
 """
 
 from __future__ import annotations

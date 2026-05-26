@@ -35,6 +35,25 @@ class SliderGraduationProposal(BaseModel):
     proposed_at: datetime
 
 
+class SliderDemotionProposal(BaseModel):
+    """A proposal to decrease a domain's autonomy slider.
+
+    Generated when the user rejects a high proportion of actions in a domain.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    proposal_id: str = Field(min_length=1)
+    domain: str = Field(min_length=1)
+    current_slider: float = Field(ge=0.0, le=1.0)
+    proposed_slider: float = Field(ge=0.0, le=1.0)
+    rejection_rate: float = Field(ge=0.0, le=1.0)
+    total_actions: int = Field(ge=0)
+    rejected_actions: int = Field(ge=0)
+    observation_window_days: int = Field(ge=1)
+    proposed_at: datetime
+
+
 class ActionOutcome(BaseModel):
     """Minimal action record needed for graduation evaluation.
 
@@ -52,12 +71,12 @@ class ActionOutcome(BaseModel):
 
 
 class GraduationEvaluator:
-    """Evaluate whether a domain qualifies for a slider promotion.
+    """Evaluate whether a domain qualifies for slider promotion or demotion.
 
     Args:
         config: The graduation configuration thresholds.
-        last_promotions: Mapping of domain → timestamp of last promotion,
-            used for cooldown enforcement.
+        last_promotions: Mapping of domain → timestamp of last promotion.
+        last_demotions: Mapping of domain → timestamp of last demotion.
     """
 
     def __init__(
@@ -65,9 +84,11 @@ class GraduationEvaluator:
         config: GraduationConfig,
         *,
         last_promotions: dict[str, datetime] | None = None,
+        last_demotions: dict[str, datetime] | None = None,
     ) -> None:
         self._config = config
         self._last_promotions = last_promotions or {}
+        self._last_demotions = last_demotions or {}
 
     def evaluate(
         self,
@@ -101,7 +122,7 @@ class GraduationEvaluator:
                 return None
 
         # Filter actions for this domain within the observation window.
-        cutoff = now - timedelta(days=self._config.min_observation_days)
+        cutoff = now - timedelta(days=self._config.effective_observation_days)
         relevant = [
             a
             for a in action_history
@@ -133,23 +154,91 @@ class GraduationEvaluator:
             proposed_at=now,
         )
 
+    def evaluate_demotion(
+        self,
+        domain: str,
+        current_slider: float,
+        action_history: list[ActionOutcome],
+    ) -> SliderDemotionProposal | None:
+        """Return a demotion proposal if the domain qualifies, else None.
+
+        Args:
+            domain: The domain to evaluate.
+            current_slider: The current slider value for this domain.
+            action_history: Recent action outcomes to analyze.
+
+        Returns:
+            A :class:`SliderDemotionProposal` if thresholds are met.
+        """
+        if not self._config.enabled or not self._config.demotion_enabled:
+            return None
+
+        if current_slider <= 0.1:
+            return None  # Already at minimum.
+
+        # Enforce cooldown.
+        last = self._last_demotions.get(domain)
+        now = datetime.now(UTC)
+        if last is not None:
+            cooldown = timedelta(days=self._config.demotion_cooldown_days)
+            if now - last < cooldown:
+                return None
+
+        cutoff = now - timedelta(days=self._config.effective_observation_days)
+        relevant = [
+            a
+            for a in action_history
+            if classify_domain(a.action_class) == domain and a.timestamp >= cutoff
+        ]
+
+        if len(relevant) < self._config.min_rejections_before_demotion:
+            return None
+
+        rejected_count = sum(1 for a in relevant if not a.approved)
+        rejection_rate = rejected_count / len(relevant)
+
+        if rejection_rate < self._config.min_rejection_rate_for_demotion:
+            return None
+
+        decrease = min(
+            self._config.max_demotion_per_proposal, current_slider - 0.1
+        )
+        new_slider = round(current_slider - decrease, 2)
+
+        return SliderDemotionProposal(
+            proposal_id=f"demote_{domain}_{now.strftime('%Y%m%d%H%M%S')}",
+            domain=domain,
+            current_slider=current_slider,
+            proposed_slider=new_slider,
+            rejection_rate=round(rejection_rate, 3),
+            total_actions=len(relevant),
+            rejected_actions=rejected_count,
+            observation_window_days=self._config.effective_observation_days,
+            proposed_at=now,
+        )
+
     def evaluate_all(
         self,
         autonomy_config: AutonomyConfig,
         action_history: list[ActionOutcome],
     ) -> list[SliderGraduationProposal]:
-        """Evaluate all configured domains for graduation.
-
-        Args:
-            autonomy_config: The full autonomy configuration.
-            action_history: Recent action outcomes across all domains.
-
-        Returns:
-            A list of proposals for domains that qualify.
-        """
+        """Evaluate all configured domains for graduation."""
         proposals: list[SliderGraduationProposal] = []
         for domain, slider in autonomy_config.domains.items():
             proposal = self.evaluate(domain, slider, action_history)
+            if proposal is not None:
+                proposals.append(proposal)
+        return proposals
+
+    def evaluate_all_demotions(
+        self,
+        autonomy_config: AutonomyConfig,
+        action_history: list[ActionOutcome],
+    ) -> list[SliderDemotionProposal]:
+        """Evaluate all configured domains for demotion."""
+        proposals: list[SliderDemotionProposal] = []
+        for domain, slider in autonomy_config.domains.items():
+            proposal = self.evaluate_demotion(domain, slider, action_history)
             if proposal is not None:
                 proposals.append(proposal)
         return proposals
