@@ -251,12 +251,14 @@ class IntentionLoop:
             interval = self._config.routine_interval_seconds
         else:
             interval = self._config.interval_seconds
-        # Startup grace: wait one full interval before first cycle
+
+        # Startup grace: use the dedicated config field (default 10 min).
+        grace = self._config.startup_grace_seconds
         log.info(
-            "intention.startup_grace", seconds=interval, event_driven=self._config.event_driven
+            "intention.startup_grace", seconds=grace, event_driven=self._config.event_driven
         )
         with contextlib.suppress(TimeoutError):
-            await asyncio.wait_for(self._stop_event.wait(), timeout=interval)
+            await asyncio.wait_for(self._stop_event.wait(), timeout=grace)
 
         while not self._stop_event.is_set():
             try:
