@@ -23,6 +23,7 @@ import os
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Protocol
 from zoneinfo import ZoneInfo
 
@@ -43,6 +44,10 @@ from coremind.intention.schemas import (
     Intent,
     QuestionBatch,
     RawIntent,
+)
+from coremind.intention.stale_investigation_pruner import (
+    FileInvestigationsStore,
+    StaleInvestigationPruner,
 )
 from coremind.reasoning.llm import LLM
 from coremind.reasoning.schemas import ReasoningOutput
@@ -153,7 +158,9 @@ class IntentionLoop:
         patterns: Optional procedural-pattern summary provider.
         rule_matcher: Optional rule-match counter for confidence.
         event_bus: Optional EventBus for event-driven mode.
-        predictive_memory: Optional predictive memory for reading predictions.
+        predictive_memory: Optional object for reading predictions.
+        conversation_handler: Optional ConversationHandler for injecting
+            conversation context into the intention prompt.
         config: Scheduler parameters.
         clock: Injectable clock.
     """
@@ -170,6 +177,7 @@ class IntentionLoop:
         rule_matcher: RuleMatcher | None = None,
         event_bus: EventBus | None = None,
         predictive_memory: object | None = None,
+        conversation_handler: object | None = None,
         config: IntentionLoopConfig | None = None,
         clock: Clock = _utc_now,
     ) -> None:
@@ -182,6 +190,7 @@ class IntentionLoop:
         self._rules = rule_matcher
         self._event_bus = event_bus
         self._predictive_memory = predictive_memory
+        self._conversation_handler = conversation_handler
         self._config = config or IntentionLoopConfig()
         self._clock = clock
         self._task: asyncio.Task[None] | None = None
@@ -366,6 +375,25 @@ class IntentionLoop:
             since=now - timedelta(hours=self._config.recent_intent_window_hours)
         )
 
+        # ── Stale investigation pruning ───────────────────────────
+        # Remove investigations whose premise is disproven by fresh
+        # snapshot data BEFORE generating new questions.  This prevents
+        # the LLM from re-asking questions about resolved issues.
+        try:
+            inv_store = FileInvestigationsStore(
+                Path.home() / ".coremind" / "run" / "investigations.json"
+            )
+            pruner = StaleInvestigationPruner(
+                inv_store,
+                log_path=Path.home() / ".coremind" / "investigation_prunes.jsonl",
+            )
+            pruned = pruner.prune(snapshot)
+            if len(pruned) < len(inv_store.get_active()):
+                inv_store.save(pruned)
+        except Exception:
+            log.warning("intention.stale_prune_failed", exc_info=True)
+        # ── End stale pruning ─────────────────────────────────────
+
         predictions = []
         if self._predictive_memory is not None:
             try:
@@ -373,6 +401,15 @@ class IntentionLoop:
             except Exception:
                 log.warning("intention.predictions_failed", exc_info=True)
                 predictions = []
+
+        # Get conversation context for prompt injection
+        conversations_summary = "(no active conversations)"
+        if self._conversation_handler is not None:
+            try:
+                ctx = await self._conversation_handler.get_active_context()
+                conversations_summary = ctx.recent_context_text()
+            except Exception:
+                log.warning("intention.conversation_context_failed", exc_info=True)
 
         system = render_prompt(self._config.template_system)
         # Compute local time so the LLM doesn't mistake UTC hours for local time.
@@ -392,6 +429,7 @@ class IntentionLoop:
                 else "(none)"
             ),
             predictions_summary=_predictions_summary(predictions),
+            conversations_summary=conversations_summary,
             schema_json=json.dumps(QuestionBatch.model_json_schema(), indent=2),
             max_questions=self._config.max_questions,
         )

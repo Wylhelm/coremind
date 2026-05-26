@@ -16,10 +16,13 @@ export OLLAMA_API_BASE="http://10.0.0.175:11434"
 export COREMIND_TELEGRAM_BOT_TOKEN=$(cat /home/guillaume/.coremind/secrets/telegram_bot_token)
 export TAPO_USERNAME=$(cat /home/guillaume/.coremind/secrets/camera_username 2>/dev/null || echo 'admin')
 export TAPO_PASSWORD=$(cat /home/guillaume/.coremind/secrets/camera_password 2>/dev/null || echo '')
+export TAPO_IP="${TAPO_IP:-10.0.0.131}"
 export GEMINI_API_KEY=$(python3 -c "import json; c=json.load(open('$HOME/.opencode/config.json')); print(c['providers']['google']['apiKey'])" 2>/dev/null || echo '')
 export HA_TOKEN=$(cat /home/guillaume/.openclaw/secrets/ha-token)
 export FIREFLY_URL="http://localhost:8080"
 export FIREFLY_TOKEN=$(cat /home/guillaume/.openclaw/secrets/firefly-token)
+export VIKUNJA_TOKEN=$(cat /home/guillaume/.openclaw/secrets/vikunja-token)
+export VIKUNJA_URL="http://localhost:3456"
 export INFLUXDB_URL="http://localhost:8086"
 export INFLUXDB_TOKEN="health-token-secret"
 export INFLUXDB_ORG="health"
@@ -90,6 +93,7 @@ PLUGINS=(
     "tapo"
     "webcam"
     "health"
+    "gog"
 )
 
 # --- Launch function with retry ---
@@ -102,11 +106,22 @@ launch_plugin() {
 
     while [ $attempt -le $max_retries ]; do
         nohup env \
+          PATH="$PATH" \
+          HOME="$HOME" \
           OLLAMA_API_BASE="$OLLAMA_API_BASE" \
           COREMIND_TELEGRAM_BOT_TOKEN="$COREMIND_TELEGRAM_BOT_TOKEN" \
           HA_TOKEN="$HA_TOKEN" \
           FIREFLY_URL="$FIREFLY_URL" \
           FIREFLY_TOKEN="$FIREFLY_TOKEN" \
+          VIKUNJA_URL="$VIKUNJA_URL" \
+          VIKUNJA_TOKEN="$VIKUNJA_TOKEN" \
+          TAPO_USERNAME="$TAPO_USERNAME" \
+          TAPO_PASSWORD="$TAPO_PASSWORD" \
+          TAPO_IP="$TAPO_IP" \
+          INFLUXDB_URL="$INFLUXDB_URL" \
+          INFLUXDB_TOKEN="$INFLUXDB_TOKEN" \
+          INFLUXDB_ORG="$INFLUXDB_ORG" \
+          INFLUXDB_BUCKET="$INFLUXDB_BUCKET" \
           $COREMIND_VENV/coremind-plugin-$plugin >> "$log_file" 2>&1 &
         local pid=$!
         echo "$pid" > "$pid_file"
@@ -151,6 +166,15 @@ export COREMIND_TELEGRAM_BOT_TOKEN='"$COREMIND_TELEGRAM_BOT_TOKEN"'
 export HA_TOKEN='"$HA_TOKEN"'
 export FIREFLY_URL='"$FIREFLY_URL"'
 export FIREFLY_TOKEN='"$FIREFLY_TOKEN"'
+export VIKUNJA_URL='"$VIKUNJA_URL"'
+export VIKUNJA_TOKEN='"$VIKUNJA_TOKEN"'
+export TAPO_USERNAME='"$TAPO_USERNAME"'
+export TAPO_PASSWORD='"$TAPO_PASSWORD"'
+export TAPO_IP='"$TAPO_IP"'
+export INFLUXDB_URL='"$INFLUXDB_URL"'
+export INFLUXDB_TOKEN='"$INFLUXDB_TOKEN"'
+export INFLUXDB_ORG='"$INFLUXDB_ORG"'
+export INFLUXDB_BUCKET='"$INFLUXDB_BUCKET"'
 
 while true; do
     for plugin in "${PLUGINS[@]}"; do
@@ -160,11 +184,22 @@ while true; do
             if ! kill -0 "$pid" 2>/dev/null; then
                 echo "[$(date -Iseconds)] 🔄 Restarting dead plugin: $plugin" >> "$LOG_DIR/watchdog.log"
                 nohup env \
+                  PATH="$PATH" \
+                  HOME="$HOME" \
                   OLLAMA_API_BASE="$OLLAMA_API_BASE" \
                   COREMIND_TELEGRAM_BOT_TOKEN="$COREMIND_TELEGRAM_BOT_TOKEN" \
                   HA_TOKEN="$HA_TOKEN" \
                   FIREFLY_URL="$FIREFLY_URL" \
                   FIREFLY_TOKEN="$FIREFLY_TOKEN" \
+                  VIKUNJA_URL="$VIKUNJA_URL" \
+                  VIKUNJA_TOKEN="$VIKUNJA_TOKEN" \
+                  TAPO_USERNAME="$TAPO_USERNAME" \
+                  TAPO_PASSWORD="$TAPO_PASSWORD" \
+                  TAPO_IP="$TAPO_IP" \
+                  INFLUXDB_URL="$INFLUXDB_URL" \
+                  INFLUXDB_TOKEN="$INFLUXDB_TOKEN" \
+                  INFLUXDB_ORG="$INFLUXDB_ORG" \
+                  INFLUXDB_BUCKET="$INFLUXDB_BUCKET" \
                   $VENV/coremind-plugin-$plugin >> "$LOG_DIR/plugin-$plugin.log" 2>&1 &
                 echo $! > "$pid_file"
             fi

@@ -16,7 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from coremind.world.model import JsonValue
 
-type ActionCategory = Literal["safe", "suggest", "ask"]
+type ActionCategory = Literal["safe", "suggest", "ask", "conversation"]
 type ActionOutcome = Literal[
     "dispatched",
     "ok",

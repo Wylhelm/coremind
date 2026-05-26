@@ -184,14 +184,44 @@ class ReasoningLoop:
             lines.append(f"  - {q}")
         return "\n".join(lines)
 
-    def _save_investigation_questions(self, investigations: Sequence[object]) -> None:
-        """Store new investigation questions for future cycles and persist to disk."""
+    def _save_investigation_questions(
+        self, investigations: Sequence[object],
+        snapshot: WorldSnapshot | None = None,
+    ) -> None:
+        """Store new investigation questions for future cycles and persist to disk.
+
+        Also prunes stale investigations whose premises are disproven by
+        the current world snapshot.
+        """
         for inv in investigations:
             if hasattr(inv, "question"):
                 self._investigation_questions.append(inv.question)
         # Keep only last 10
         if len(self._investigation_questions) > 10:
             self._investigation_questions = self._investigation_questions[-10:]
+
+        # ── Stale investigation pruning ──
+        # Filter out investigations with date-based premises that are
+        # now invalidated by fresh world data.
+        if snapshot is not None:
+            from coremind.intention.stale_investigation_pruner import (
+                _has_stale_date_reference,
+            )
+            self._investigation_questions = [
+                q for q in self._investigation_questions
+                if not _has_stale_date_reference(q.lower())
+            ]
+            # Also remove duplicates (keep first occurrence)
+            seen: set[str] = set()
+            deduped: list[str] = []
+            for q in self._investigation_questions:
+                fingerprint = q[:80]
+                if fingerprint not in seen:
+                    seen.add(fingerprint)
+                    deduped.append(q)
+            self._investigation_questions = deduped
+        # ── End stale pruning ──
+
         self._persist_investigations_to_disk()
 
     def _persist_investigations_to_disk(self) -> None:
@@ -327,7 +357,8 @@ class ReasoningLoop:
         await self._add_narrative_observation(output)
 
         # Save investigation questions for future cycles (curiosity loop)
-        self._save_investigation_questions(output.investigations)
+        # Pass snapshot so stale investigations can be pruned.
+        self._save_investigation_questions(output.investigations, snapshot)
 
         # Store observations in predictive memory and generate predictions
         if self._predictive_memory is not None:

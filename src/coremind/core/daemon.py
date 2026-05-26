@@ -177,6 +177,9 @@ class CoreMindDaemon:
         self._conversation_listener_task: asyncio.Task[None] | None = None
         self._presence_detector_task: asyncio.Task[None] | None = None
         self._conversation_handler: ConversationHandler | None = None
+        # Telegram message id → intent_id mapping for reply matching.
+        self._telegram_msg_to_intent: dict[str, str] = {}
+        self._last_notified_intent_id: str | None = None
 
     async def start(self) -> None:
         """Initialise all subsystems and begin the ingest loop.
@@ -233,6 +236,32 @@ class CoreMindDaemon:
         dashboard_port = DashboardNotificationPort()
 
         notify_router = _build_notification_router(config, dashboard_port)
+
+        # Wrap notify_router.notify to track channel_message_id → intent_id
+        # mapping.  This lets the conversation listener match user replies
+        # (via reply_to_message_id) back to the intent that triggered the
+        # notification, even when the notify call originates from
+        # ApprovalGate or Executor rather than the listener itself.
+        _original_notify = notify_router.notify
+
+        async def _tracked_notify(*, message: str, category, actions, intent_id, action_class=None):
+            receipt = await _original_notify(
+                message=message,
+                category=category,
+                actions=actions,
+                intent_id=intent_id,
+                action_class=action_class,
+            )
+            if intent_id and receipt and receipt.channel_message_id:
+                self._telegram_msg_to_intent[receipt.channel_message_id] = intent_id
+                self._last_notified_intent_id = intent_id
+                # Prune dict if > 50 entries
+                if len(self._telegram_msg_to_intent) > 50:
+                    oldest = next(iter(self._telegram_msg_to_intent))
+                    del self._telegram_msg_to_intent[oldest]
+            return receipt
+
+        notify_router.notify = _tracked_notify  # type: ignore[method-assign]
 
         effector_resolver = _build_effector_registry(notify_router)
         executor = Executor(
@@ -412,6 +441,11 @@ class CoreMindDaemon:
                 name="coremind.conversation.listener",
             )
             log.info("daemon.conversation_handler_started")
+
+            # Wire conversation handler into intention loop for context injection
+            if self._intention_loop is not None:
+                self._intention_loop._conversation_handler = self._conversation_handler
+                log.info("daemon.conversation_wired_to_intention")
 
             # Presence detector (Pillar #2 — Temporal Patterns)
             from coremind.presence.detector import PresenceDetector
@@ -890,18 +924,53 @@ class CoreMindDaemon:
                 break
             try:
                 if isinstance(update, InboundTextMessage):
+                    # Try to match intent from reply_to_message_id
+                    matched_intent_id: str | None = None
+                    matched_intent_desc: str | None = None
+                    intents = self._intents
+
+                    if update.reply_to_message_id and update.reply_to_message_id in self._telegram_msg_to_intent:
+                        matched_intent_id = self._telegram_msg_to_intent[update.reply_to_message_id]
+                    elif self._last_notified_intent_id is not None:
+                        # Fallback: use most recently notified intent
+                        matched_intent_id = self._last_notified_intent_id
+
+                    # If an intent was matched, load it and set status to conversation
+                    if matched_intent_id and intents is not None:
+                        matched_intent = await intents.get(matched_intent_id)
+                        if matched_intent is not None:
+                            matched_intent_desc = matched_intent.question.text
+                            if matched_intent.status != "conversation":
+                                matched_intent.status = "conversation"  # type: ignore[assignment]
+                                await intents.save(matched_intent)
+                                log.info(
+                                    "conversation.intent_linked",
+                                    intent_id=matched_intent_id,
+                                    reply_to_msg_id=update.reply_to_message_id,
+                                )
+
                     # Text message → conversation handler
                     response_text, _conv = await conversation_handler.handle_message(
                         update.text,
                         conversation_id=update.conversation_id,
                         user_id=update.responder,
+                        intent_id=matched_intent_id,
+                        intent_description=matched_intent_desc,
                     )
-                    await notify_router.notify(
+                    receipt = await notify_router.notify(
                         message=response_text,
                         category="info",
                         actions=None,
-                        intent_id=None,
+                        intent_id=matched_intent_id,
                     )
+                    # Store mapping so future replies can be matched
+                    if matched_intent_id and receipt and receipt.channel_message_id:
+                        self._telegram_msg_to_intent[receipt.channel_message_id] = matched_intent_id
+                        self._last_notified_intent_id = matched_intent_id
+                        # Prune dict if > 50 entries
+                        if len(self._telegram_msg_to_intent) > 50:
+                            oldest = next(iter(self._telegram_msg_to_intent))
+                            del self._telegram_msg_to_intent[oldest]
                 else:
                     # ApprovalResponse → approval gate
                     try:

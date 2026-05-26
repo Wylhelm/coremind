@@ -30,6 +30,7 @@ type IntentStatus = Literal[
     "failed",
     "expired",
     "auto_dismissed",
+    "conversation",
 ]
 
 

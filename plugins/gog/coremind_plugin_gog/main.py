@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import shutil
 import subprocess
 import tomllib
 import uuid
@@ -25,6 +26,10 @@ from coremind.crypto.signatures import canonical_json, ensure_plugin_keypair, si
 from coremind.plugin_api._generated import plugin_pb2, plugin_pb2_grpc
 
 log = structlog.get_logger(__name__)
+
+# Resolve gog path explicitly — the plugin's subprocess may not inherit
+# ~/.local/bin from the daemon's environment.
+_GOG_BIN = shutil.which("gog") or str(Path.home() / ".local" / "bin" / "gog")
 
 PLUGIN_ID: str = "coremind.plugin.gog"
 PLUGIN_VERSION: str = "0.1.0"
@@ -100,7 +105,7 @@ async def poll_gmail(
     max_results: int,
 ) -> None:
     """Poll gog for unread emails and emit events."""
-    cmd = ["gog", "gmail", "search", "--json", f"--max={max_results}", "is:unread"]
+    cmd = [_GOG_BIN, "gmail", "search", "--json", f"--max={max_results}", "is:unread"]
     try:
         cp = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         if cp.returncode != 0:
@@ -125,12 +130,17 @@ async def poll_gmail(
                 summary,
             )
         log.info("gog.gmail_polled", unread=unread_count)
+        # Clear previous gmail error on success
+        await _emit(stub, private_key, metadata, "gmail_error", "")
     except subprocess.TimeoutExpired:
         await _emit(stub, private_key, metadata, "gmail_error", "timeout")
+        await _emit(stub, private_key, metadata, "google_auth_ok", False)
     except json.JSONDecodeError:
         pass  # No output from gog (no unread emails or auth issue)
     except Exception as exc:
         log.warning("gog.gmail_failed", error=str(exc))
+        await _emit(stub, private_key, metadata, "gmail_error", str(exc)[:200])
+        await _emit(stub, private_key, metadata, "google_auth_ok", False)
 
 
 async def poll_calendar(
@@ -140,7 +150,7 @@ async def poll_calendar(
     max_results: int,
 ) -> None:
     """Poll gog for upcoming calendar events and emit events."""
-    cmd = ["gog", "calendar", "events", "--json", f"--max={max_results}"]
+    cmd = [_GOG_BIN, "calendar", "events", "--json", f"--max={max_results}"]
     try:
         cp = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         if cp.returncode != 0:
@@ -171,12 +181,19 @@ async def poll_calendar(
                 event_str,
             )
         log.info("gog.calendar_polled", events=event_count)
+        # Clear previous calendar error on success
+        await _emit(stub, private_key, metadata, "calendar_error", "")
+        # Emit auth-ok heartbeat only when both gmail and calendar succeed
+        await _emit(stub, private_key, metadata, "google_auth_ok", True)
     except subprocess.TimeoutExpired:
         await _emit(stub, private_key, metadata, "calendar_error", "timeout")
+        await _emit(stub, private_key, metadata, "google_auth_ok", False)
     except json.JSONDecodeError:
         pass
     except Exception as exc:
         log.warning("gog.calendar_failed", error=str(exc))
+        await _emit(stub, private_key, metadata, "calendar_error", str(exc)[:200])
+        await _emit(stub, private_key, metadata, "google_auth_ok", False)
 
 
 async def _emit(

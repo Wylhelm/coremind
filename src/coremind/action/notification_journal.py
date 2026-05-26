@@ -20,6 +20,7 @@ TOPIC_KEYWORDS = {
     "sommeil": ["sleep", "sommeil", "dormi", "dormir", "nuit", "réveil"],
     "pas": ["step", "pas", "marche", "promenade", "bouger"],
     "météo": ["météo", "pluie", "température", "degrés", "°C", "parapluie", "vent"],
+    "caméra": ["caméra", "camera", "cam", "tapo", "snapshot", "vision", "salon", "living"],
     "chats": ["chat", "minuit", "poukie", "timimi", "canapé"],
     "finances": ["compte", "solde", "visa", "mastercard", "scotia", "paiement"],
     "pause": ["pause", "bureau", "travail", "café", "☕"],
@@ -68,18 +69,19 @@ class NotificationJournal:
         self._path = path or Path.home() / ".coremind" / "notification_journal.jsonl"
         self._entries: list[dict[str, str]] = []
         self._cooldowns: dict[str, int] = {
-            "sommeil": 43200,  # 12h (was 8h)
-            "pas": 43200,  # 12h (was 6h) — Apple Watch sync gaps trigger false anomalies
-            "météo": 43200,  # 12h (was 8h)
-            "chats": 21600,  # 6h (was 4h)
-            "finances": 86400,  # 24h
-            "pause": 43200,  # 12h (was 6h) — too frequent at desk
-            "batterie": 43200,  # 12h
-            "calendrier": 28800,  # 8h
-            "maison": 21600,  # 6h (was 3h) — sensor unavailability after restarts
-            "anomalie": 43200,  # 12h — new: high-severity anomaly alerts
-            "sécurité": 86400,  # 24h — new: security alerts
-            "autre": 21600,  # 6h (was 4h)
+            "sommeil": 21600,  # 6h (was 12h)
+            "pas": 21600,  # 6h (was 12h)
+            "météo": 14400,  # 4h (was 12h)
+            "caméra": 5400,  # 1.5h — camera observations are naturally varied
+            "chats": 10800,  # 3h (was 6h)
+            "finances": 43200,  # 12h (was 24h)
+            "pause": 14400,  # 4h (was 12h)
+            "batterie": 14400,  # 4h (was 12h)
+            "calendrier": 14400,  # 4h (was 8h)
+            "maison": 10800,  # 3h (was 6h)
+            "anomalie": 7200,   # 2h (was 12h) — anomalies should alert quickly
+            "sécurité": 21600,  # 6h (was 24h)
+            "autre": 7200,      # 2h (was 6h)
         }
         self._load()
 
