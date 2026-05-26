@@ -1005,6 +1005,88 @@ def approvals_snooze(intent_id: str, duration: str, note: str | None) -> None:
 
 
 # ---------------------------------------------------------------------------
+# autonomy group
+# ---------------------------------------------------------------------------
+
+
+@cli.group()
+def autonomy() -> None:
+    """Per-domain autonomy slider management."""
+
+
+@autonomy.command("show")
+def autonomy_show() -> None:
+    """Display current autonomy slider configuration."""
+    from coremind.action.autonomy import AutonomyConfig
+
+    config = load_config()
+    ac: AutonomyConfig = config.autonomy
+
+    header = f"{'Domain':<16} {'Slider':<8} {'Effective'}"
+    click.echo(header)
+    click.echo("─" * len(header))
+
+    all_domains = dict(ac.domains)
+    if "default" not in all_domains:
+        all_domains["default"] = ac.default_slider
+
+    for domain in sorted(all_domains):
+        slider = all_domains[domain]
+        # Determine effective behavior note.
+        if slider >= 0.9:
+            note = "auto-execute (high trust)"
+        elif slider >= 0.6:
+            note = f"auto-execute (confidence ≥ {slider:.2f})"
+        elif slider >= 0.3:
+            note = f"suggest/ask (confidence ≥ {slider:.2f})"
+        else:
+            note = "mostly ask (low trust)"
+        click.echo(f"{domain:<16} {slider:<8.2f} {note}")
+
+    # Hard overrides.
+    if ac.hard_ask:
+        click.echo(f"\n🔒 Hard ASK ({len(ac.hard_ask)} rules): always require approval")
+    if ac.hard_safe:
+        click.echo(f"✅ Hard SAFE ({len(ac.hard_safe)} rules): always auto-execute")
+
+
+@autonomy.command("set")
+@click.argument("domain")
+@click.argument("value", type=click.FloatRange(0.0, 1.0))
+def autonomy_set(domain: str, value: float) -> None:
+    """Set a domain's autonomy slider value (0.0–1.0)."""
+    config = load_config()
+    old_value = config.autonomy.get_slider(domain)
+
+    # Update config.toml.
+    import tomllib
+
+    config_path = Path.home() / ".coremind" / "config.toml"
+    raw: dict[str, Any] = {}
+    if config_path.exists():
+        raw = tomllib.loads(config_path.read_text(encoding="utf-8"))
+
+    if "autonomy" not in raw:
+        raw["autonomy"] = {}
+    if "domains" not in raw["autonomy"]:
+        raw["autonomy"]["domains"] = {}
+    raw["autonomy"]["domains"][domain] = value
+
+    # Write back as TOML (simple serialization).
+    _write_toml(config_path, raw)
+
+    click.echo(click.style(f"✓ {domain} slider updated: {old_value:.2f} → {value:.2f}", fg="green"))
+
+
+def _write_toml(path: Path, data: dict[str, Any]) -> None:
+    """Write a dict back to a TOML file (simple implementation)."""
+    import tomli_w
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(tomli_w.dumps(data).encode())
+
+
+# ---------------------------------------------------------------------------
 # action group
 # ---------------------------------------------------------------------------
 

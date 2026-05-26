@@ -17,6 +17,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Protocol
 
+from coremind.action.autonomy import AutonomyConfig
+from coremind.action.graduation import SliderGraduationProposal
 from coremind.action.schemas import Action
 from coremind.intention.schemas import Intent, IntentStatus
 from coremind.notify.adapters.dashboard import DashboardNotificationPort
@@ -126,6 +128,22 @@ class EventSubscriber(Protocol):
         """Yield events as they are published."""
 
 
+class AutonomySource(Protocol):
+    """Read port over the autonomy slider configuration."""
+
+    def get_config(self) -> AutonomyConfig:
+        """Return the current autonomy configuration."""
+
+    def get_proposals(self) -> list[SliderGraduationProposal]:
+        """Return pending graduation proposals."""
+
+    async def set_slider(self, domain: str, value: float) -> None:
+        """Update a domain's slider value."""
+
+    async def approve_proposal(self, proposal_id: str) -> None:
+        """Approve and apply a graduation proposal."""
+
+
 @dataclass(frozen=True)
 class DashboardDataSources:
     """Container for every read port the dashboard may consume.
@@ -141,3 +159,4 @@ class DashboardDataSources:
     reflection: ReflectionReportSource | None = None
     notifications: DashboardNotificationPort | None = None
     events: EventSubscriber | None = None
+    autonomy: AutonomySource | None = None

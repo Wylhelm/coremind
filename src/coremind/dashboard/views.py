@@ -882,6 +882,7 @@ _NAV: list[tuple[str, str]] = [
     ("/intents", "Intents"),
     ("/actions", "Actions"),
     ("/reflection", "Reflection"),
+    ("/autonomy", "Autonomy"),
 ]
 
 
@@ -1467,6 +1468,199 @@ async def events_recent_json(request: web.Request) -> web.Response:
     return web.json_response(events)
 
 
+# ---------------------------------------------------------------------------
+# Autonomy page + API
+# ---------------------------------------------------------------------------
+
+_AUTONOMY_BODY = """
+<h2 class="fade-in">Autonomy Sliders</h2>
+<p class="muted">Per-domain trust levels. Higher slider = more autonomous.</p>
+<table class="fade-in">
+<thead><tr><th>Domain</th><th>Slider</th><th>Visual</th><th>Override</th></tr></thead>
+<tbody>
+{% for d in domains %}
+<tr>
+  <td><strong>{{ d.name }}</strong></td>
+  <td>{{ "%.2f"|format(d.slider) }}</td>
+  <td>
+    <div style="width:120px;height:8px;background:#1e293b;border-radius:4px;overflow:hidden">
+      <div style="width:{{ (d.slider * 100)|int }}%;height:100%;background:{% if d.slider >= 0.7 %}#22c55e{% elif d.slider >= 0.3 %}#eab308{% else %}#ef4444{% endif %};border-radius:4px"></div>
+    </div>
+  </td>
+  <td>{% if d.hard_ask %}🔒 Hard ASK{% elif d.hard_safe %}✅ Hard SAFE{% else %}—{% endif %}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+
+{% if proposals %}
+<h3 style="margin-top:2rem">Graduation Proposals</h3>
+<table class="fade-in">
+<thead><tr><th>Domain</th><th>Current</th><th>Proposed</th><th>Approval Rate</th><th>Actions</th></tr></thead>
+<tbody>
+{% for p in proposals %}
+<tr>
+  <td>{{ p.domain }}</td>
+  <td>{{ "%.2f"|format(p.current_slider) }}</td>
+  <td>{{ "%.2f"|format(p.proposed_slider) }}</td>
+  <td>{{ "%.0f"|format(p.approval_rate * 100) }}%</td>
+  <td>{{ p.approved_actions }}/{{ p.total_actions }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% endif %}
+
+<h3 style="margin-top:2rem">Hard Overrides</h3>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+  <div>
+    <h4 style="color:#ef4444">🔒 Hard ASK ({{ hard_ask_count }} rules)</h4>
+    <p class="muted" style="font-size:12px">Always require explicit approval, regardless of slider.</p>
+  </div>
+  <div>
+    <h4 style="color:#22c55e">✅ Hard SAFE ({{ hard_safe_count }} rules)</h4>
+    <p class="muted" style="font-size:12px">Always auto-execute silently, regardless of slider.</p>
+  </div>
+</div>
+"""
+
+
+async def autonomy_page(request: web.Request) -> web.Response:
+    """Render the autonomy slider configuration page."""
+    data = _data(request)
+    domains: list[dict[str, Any]] = []
+    proposals: list[Any] = []
+    hard_ask_count = 0
+    hard_safe_count = 0
+
+    if data.autonomy is not None:
+        config = data.autonomy.get_config()
+        all_domains = dict(config.domains)
+        if "default" not in all_domains:
+            all_domains["default"] = config.default_slider
+
+        for name in sorted(all_domains):
+            slider = all_domains[name]
+            has_hard_ask = any(name in rule for rule in config.hard_ask)
+            has_hard_safe = any(name in rule for rule in config.hard_safe)
+            domains.append(
+                {
+                    "name": name,
+                    "slider": slider,
+                    "hard_ask": has_hard_ask,
+                    "hard_safe": has_hard_safe,
+                }
+            )
+        proposals = data.autonomy.get_proposals()
+        hard_ask_count = len(config.hard_ask)
+        hard_safe_count = len(config.hard_safe)
+    else:
+        from coremind.action.autonomy import AutonomyConfig as _AC
+
+        config = _AC()
+        all_domains = dict(config.domains)
+        all_domains["default"] = config.default_slider
+        for name in sorted(all_domains):
+            domains.append(
+                {
+                    "name": name,
+                    "slider": all_domains[name],
+                    "hard_ask": False,
+                    "hard_safe": False,
+                }
+            )
+        hard_ask_count = len(config.hard_ask)
+        hard_safe_count = len(config.hard_safe)
+
+    html = _render(
+        "/autonomy",
+        "Autonomy",
+        _AUTONOMY_BODY,
+        domains=domains,
+        proposals=proposals,
+        hard_ask_count=hard_ask_count,
+        hard_safe_count=hard_safe_count,
+    )
+    return web.Response(text=html, content_type="text/html")
+
+
+async def autonomy_config_json(request: web.Request) -> web.Response:
+    """Return the current autonomy configuration as JSON."""
+    data = _data(request)
+    if data.autonomy is None:
+        from coremind.action.autonomy import AutonomyConfig as _AC
+
+        config = _AC()
+    else:
+        config = data.autonomy.get_config()
+
+    return web.json_response(
+        {
+            "default_slider": config.default_slider,
+            "domains": config.domains,
+            "hard_ask": list(config.hard_ask),
+            "hard_safe": list(config.hard_safe),
+        }
+    )
+
+
+async def autonomy_set_json(request: web.Request) -> web.Response:
+    """Update a domain slider. Body: {"domain": str, "slider": float}."""
+    data = _data(request)
+    auth = _auth(request)
+    if auth is None:
+        raise web.HTTPServiceUnavailable(reason="no auth configured")
+
+    token = _extract_bearer_token(request)
+    if not auth.token_matches(token):
+        raise web.HTTPForbidden(reason="invalid token")
+
+    if data.autonomy is None:
+        raise web.HTTPServiceUnavailable(reason="autonomy source not configured")
+
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise web.HTTPBadRequest(reason=f"invalid JSON: {exc}") from exc
+
+    domain = body.get("domain")
+    slider = body.get("slider")
+    if not isinstance(domain, str) or not domain:
+        raise web.HTTPBadRequest(reason="'domain' is required")
+    if not isinstance(slider, (int, float)) or not (0.0 <= slider <= 1.0):
+        raise web.HTTPBadRequest(reason="'slider' must be a float in [0.0, 1.0]")
+
+    await data.autonomy.set_slider(domain, float(slider))
+    return web.json_response({"status": "ok", "domain": domain, "slider": slider})
+
+
+async def autonomy_proposals_json(request: web.Request) -> web.Response:
+    """Return pending graduation proposals as JSON."""
+    data = _data(request)
+    if data.autonomy is None:
+        return web.json_response([])
+
+    proposals = data.autonomy.get_proposals()
+    return web.json_response(
+        [
+            {
+                "proposal_id": p.proposal_id,
+                "domain": p.domain,
+                "current_slider": p.current_slider,
+                "proposed_slider": p.proposed_slider,
+                "approval_rate": p.approval_rate,
+                "total_actions": p.total_actions,
+                "approved_actions": p.approved_actions,
+            }
+            for p in proposals
+        ]
+    )
+
+
+# ---------------------------------------------------------------------------
+# Logo
+# ---------------------------------------------------------------------------
+
 _LOGO_PATH = Path(__file__).resolve().parent.parent.parent.parent / "docs" / "logo.png"
 
 
@@ -1481,6 +1675,10 @@ __all__ = [
     "AUTH_KEY",
     "DATA_SOURCES_KEY",
     "actions_page",
+    "autonomy_config_json",
+    "autonomy_page",
+    "autonomy_proposals_json",
+    "autonomy_set_json",
     "events_page",
     "events_recent_json",
     "events_stream",

@@ -38,3 +38,15 @@ DEFINE FIELD to               ON relationship TYPE record<entity>;
 DEFINE FIELD weight           ON relationship TYPE float DEFAULT 1.0;
 DEFINE FIELD created_at       ON relationship TYPE datetime;
 DEFINE FIELD last_reinforced  ON relationship TYPE datetime;
+
+-- ---------------------------------------------------------------------------
+-- Autonomy change audit table
+-- ---------------------------------------------------------------------------
+DEFINE TABLE autonomy_change SCHEMAFULL;
+DEFINE FIELD domain           ON autonomy_change TYPE string;
+DEFINE FIELD old_slider       ON autonomy_change TYPE float;
+DEFINE FIELD new_slider       ON autonomy_change TYPE float;
+DEFINE FIELD reason           ON autonomy_change TYPE string;
+DEFINE FIELD changed_by       ON autonomy_change TYPE string;
+DEFINE FIELD changed_at       ON autonomy_change TYPE datetime;
+DEFINE INDEX autonomy_change_domain_time ON autonomy_change FIELDS domain, changed_at;

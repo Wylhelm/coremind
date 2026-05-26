@@ -113,7 +113,9 @@ async def test_safe_intent_dispatches_silently(wired: tuple) -> None:  # type: i
 
 async def test_suggest_intent_executes_after_grace(wired: tuple) -> None:  # type: ignore[type-arg]
     intents, _j, _exec, router, port, effector = wired
+    # confidence=0.55, hvac slider=0.7, suggest threshold=0.42 → suggest band.
     intent = _intent(category="suggest", action_class="hvac")
+    intent.confidence = 0.55
 
     await router.route(intent)
 
@@ -145,7 +147,9 @@ async def test_suggest_intent_cancelled_in_grace(
     approvals = ApprovalGate(port, intents, journal, executor)
     router = ActionRouter(executor, approvals, intents, journal)
 
+    # confidence=0.55, hvac slider=0.7, suggest threshold=0.42 → suggest band.
     intent = _intent(category="suggest", action_class="hvac")
+    intent.confidence = 0.55
 
     async def _cancel_soon() -> None:
         await asyncio.sleep(0.005)
@@ -211,10 +215,12 @@ async def test_safe_class_overrides_suggest_to_safe(wired: tuple) -> None:  # ty
     assert "security.category.override_blocked" in text
 
 
-async def test_suggest_class_overrides_safe_to_suggest(wired: tuple) -> None:  # type: ignore[type-arg]
-    """SUGGEST class (homeassistant.turn_on) forces grace dispatch even when LLM says safe."""
+async def test_slider_resolves_suggest_from_confidence(wired: tuple) -> None:  # type: ignore[type-arg]
+    """Autonomy slider downgrades to suggest when confidence is in suggest band."""
     intents, journal, _exec, router, port, effector = wired
+    # lights domain slider=0.8, suggest threshold=0.48. confidence=0.65 → suggest.
     intent = _intent(category="safe", action_class="homeassistant.turn_on")
+    intent.confidence = 0.65
 
     await router.route(intent)
 

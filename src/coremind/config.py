@@ -17,6 +17,8 @@ from pathlib import Path
 import structlog
 from pydantic import BaseModel, ConfigDict, Field
 
+from coremind.action.autonomy import AutonomyConfig
+
 log = structlog.get_logger(__name__)
 
 _CONFIG_FILE = Path.home() / ".coremind" / "config.toml"
@@ -182,6 +184,7 @@ class DaemonConfig(BaseModel):
     quiet_hours: QuietHoursConfig = Field(default_factory=QuietHoursConfig)
     dashboard: DashboardConfig = Field(default_factory=DashboardConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
+    autonomy: AutonomyConfig = Field(default_factory=AutonomyConfig)
 
 
 def load_config() -> DaemonConfig:

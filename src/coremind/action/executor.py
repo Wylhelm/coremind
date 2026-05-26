@@ -29,7 +29,7 @@ from coremind.action.schemas import Action, ActionResult
 from coremind.errors import ActionError
 from coremind.intention.persistence import IntentStore
 from coremind.intention.schemas import Intent
-from coremind.notify.port import NotificationPort
+from coremind.notify.port import ApprovalAction, NotificationCategory, NotificationPort
 from coremind.world.model import JsonValue
 
 log = structlog.get_logger(__name__)
@@ -113,8 +113,8 @@ class Executor:
         self,
         message: str,
         *,
-        category: str = "info",
-        actions: object = None,
+        category: NotificationCategory = "info",
+        actions: list[ApprovalAction] | None = None,
         intent_id: str | None = None,
         bypass_journal: bool = False,
     ) -> bool:
@@ -125,6 +125,8 @@ class Executor:
             return False
         await self._notify.notify(
             message=message,
+            category=category,
+            actions=actions,
             intent_id=intent_id,
         )
         return True

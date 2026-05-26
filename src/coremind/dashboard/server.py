@@ -17,6 +17,10 @@ from coremind.dashboard.views import (
     AUTH_KEY,
     DATA_SOURCES_KEY,
     actions_page,
+    autonomy_config_json,
+    autonomy_page,
+    autonomy_proposals_json,
+    autonomy_set_json,
     events_page,
     events_recent_json,
     events_stream,
@@ -76,6 +80,10 @@ def create_app(
     app.router.add_get("/api/stats", stats_json)
     app.router.add_get("/api/intents/list", intents_list_json)
     app.router.add_get("/api/events/recent", events_recent_json)
+    app.router.add_get("/autonomy", autonomy_page)
+    app.router.add_get("/api/autonomy", autonomy_config_json)
+    app.router.add_post("/api/autonomy/set", autonomy_set_json)
+    app.router.add_get("/api/autonomy/proposals", autonomy_proposals_json)
     app.router.add_get("/logo.png", logo_png)
     return app
 
