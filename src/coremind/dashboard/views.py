@@ -899,8 +899,18 @@ _env.filters["tojson"] = lambda value: json.dumps(value, default=str, sort_keys=
 
 from zoneinfo import ZoneInfo
 
-_LOCAL_TZ = ZoneInfo("America/Toronto")
+_LOCAL_TZ: ZoneInfo = ZoneInfo("UTC")
 _env.filters["localtime"] = lambda dt: dt.astimezone(_LOCAL_TZ).strftime("%Y-%m-%d %H:%M")
+
+
+def configure_dashboard_timezone(tz: ZoneInfo) -> None:
+    """Set the timezone used by the dashboard's ``localtime`` filter.
+
+    Must be called before the app starts serving requests.
+    """
+    global _LOCAL_TZ  # noqa: PLW0603 — module-level config, set once at startup
+    _LOCAL_TZ = tz
+    _env.filters["localtime"] = lambda dt: dt.astimezone(_LOCAL_TZ).strftime("%Y-%m-%d %H:%M")
 
 
 def _render(active: str, title: str, body_template: str, **context: Any) -> str:
@@ -1393,7 +1403,7 @@ async def stats_json(request: web.Request) -> web.Response:
 
     if data.notifications is not None:
         with contextlib.suppress(Exception):
-            pending_approvals = len(await data.notifications.pending())
+            pending_approvals = len(data.notifications.pending())
 
     uptime = (datetime.now(UTC) - _START_TIME).total_seconds()
 
@@ -1658,7 +1668,7 @@ async def autonomy_proposals_json(request: web.Request) -> web.Response:
 _LOGO_PATH = Path(__file__).resolve().parent.parent.parent.parent / "docs" / "logo.png"
 
 
-async def logo_png(request: web.Request) -> web.Response:
+async def logo_png(request: web.Request) -> web.StreamResponse:
     """Serve the CoreMind logo PNG."""
     if not _LOGO_PATH.exists():
         raise web.HTTPNotFound()
@@ -1673,6 +1683,7 @@ __all__ = [
     "autonomy_page",
     "autonomy_proposals_json",
     "autonomy_set_json",
+    "configure_dashboard_timezone",
     "events_page",
     "events_recent_json",
     "events_stream",

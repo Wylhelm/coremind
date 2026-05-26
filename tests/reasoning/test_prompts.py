@@ -26,6 +26,8 @@ def test_render_user_template_injects_context() -> None:
         snapshot_json='{"x": 1}',
         memory_excerpt="- something relevant",
         schema_json="{}",
+        user_name="Alice",
+        language_name="English",
     )
     assert '"x": 1' in out
     assert "something relevant" in out
@@ -37,6 +39,8 @@ def test_render_user_template_without_memory() -> None:
         snapshot_json="{}",
         memory_excerpt="",
         schema_json="{}",
+        user_name="Alice",
+        language_name="English",
     )
     assert "no relevant memories" in out
 

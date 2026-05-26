@@ -9,7 +9,11 @@ from coremind.intention.prompts import render_prompt
 
 
 def test_system_renders() -> None:
-    out = render_prompt("intention.system.v1")
+    out = render_prompt(
+        "intention.system.v1",
+        user_name="Alice",
+        language_name="English",
+    )
     assert "intention layer" in out.lower()
 
 
@@ -21,6 +25,7 @@ def test_user_renders_with_context() -> None:
         recent_intents_summary="",
         patterns_summary="",
         predictions_summary="",
+        conversations_summary="(no active conversations)",
         local_time="14:30",
         local_timezone="America/Toronto",
         schema_json="{}",

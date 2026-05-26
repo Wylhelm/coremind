@@ -47,15 +47,23 @@ from coremind.dashboard import (
     DashboardDataSources,
     DashboardServer,
 )
+from coremind.dashboard.views import configure_dashboard_timezone
 from coremind.errors import SignatureError, StoreError
 from coremind.intention.loop import IntentionLoop, IntentionLoopConfig
 from coremind.intention.persistence import IntentStore
 from coremind.memory.narrative import NarrativeMemory
 from coremind.memory.procedural import ProceduralMemory
 from coremind.notify.adapters.dashboard import DashboardNotificationPort
-from coremind.notify.port import NotificationPort, UserRef
+from coremind.notify.port import (
+    ApprovalAction,
+    NotificationCategory,
+    NotificationPort,
+    NotificationReceipt,
+    UserRef,
+)
 from coremind.notify.quiet_hours import QuietHoursFilter, QuietHoursPolicy
 from coremind.notify.router import NotificationRouter
+from coremind.personalization.config import get_timezone
 from coremind.plugin_host.registry import PluginRegistry
 from coremind.plugin_host.server import PluginHostServer
 from coremind.prediction import PredictiveMemory
@@ -248,7 +256,14 @@ class CoreMindDaemon:
         # ApprovalGate or Executor rather than the listener itself.
         _original_notify = notify_router.notify
 
-        async def _tracked_notify(*, message: str, category, actions, intent_id, action_class=None):
+        async def _tracked_notify(
+            *,
+            message: str,
+            category: NotificationCategory,
+            actions: list[ApprovalAction] | None,
+            intent_id: str | None,
+            action_class: str | None = None,
+        ) -> NotificationReceipt:
             receipt = await _original_notify(
                 message=message,
                 category=category,
@@ -336,6 +351,7 @@ class CoreMindDaemon:
                 router=router,
                 event_bus=event_bus,
                 predictive_memory=None,  # Set after semantic_memory init below
+                personalization=config.personalization,
                 config=IntentionLoopConfig(
                     event_driven=config.intention.event_driven,
                     interval_seconds=config.intention.interval_seconds,
@@ -412,6 +428,7 @@ class CoreMindDaemon:
                 narrative=narrative_memory,
                 predictive_memory=None,  # Set after semantic_memory init below
                 config=reasoning_config,
+                personalization=config.personalization,
             )
             reasoning_loop.start()
             self._reasoning_loop = reasoning_loop
@@ -436,6 +453,7 @@ class CoreMindDaemon:
                 store=conv_store,
                 get_narrative=_make_narrative_getter(narrative_memory),  # type: ignore[no-untyped-call]
                 intent_store=intents,
+                personalization=config.personalization,
             )
             self._conversation_listener_stop = asyncio.Event()
             self._conversation_listener_task = asyncio.create_task(
@@ -671,6 +689,7 @@ class CoreMindDaemon:
             log.info("daemon.reflection_loop_started")
 
         if config.dashboard.enabled:
+            configure_dashboard_timezone(get_timezone(config.personalization))
             dashboard_server = await _start_dashboard(
                 config=config.dashboard,
                 world_store=world_store,

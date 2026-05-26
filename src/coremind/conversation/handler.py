@@ -13,7 +13,7 @@ import asyncio
 import contextlib
 import uuid
 from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime
 
 import structlog
 
@@ -30,6 +30,7 @@ from coremind.conversation.schemas import (
 )
 from coremind.conversation.store import ConversationStore
 from coremind.intention.persistence import IntentStore
+from coremind.personalization.config import PersonalizationConfig, get_timezone
 from coremind.reasoning.llm import LLM
 
 log = structlog.get_logger(__name__)
@@ -105,12 +106,14 @@ class ConversationHandler:
         get_narrative: Callable[[], Awaitable[str]] | None = None,
         intent_store: IntentStore | None = None,
         max_context_messages: int = MAX_CONTEXT_MESSAGES,
+        personalization: PersonalizationConfig | None = None,
     ) -> None:
         self._llm = llm
         self._store = store or ConversationStore()
         self._get_narrative = get_narrative
         self._intents = intent_store
         self._max_context = max_context_messages
+        self._personalization = personalization or PersonalizationConfig()
 
     # ------------------------------------------------------------------
     # Public API
@@ -170,10 +173,11 @@ class ConversationHandler:
             return action_result, conversation
 
         # Build context
+        local_tz = get_timezone(self._personalization)
         current_time = (
             datetime.now(UTC)
-            .astimezone(timezone(timedelta(hours=-4)))
-            .strftime("%A %d %B %Y, %H:%M (America/Toronto)")
+            .astimezone(local_tz)
+            .strftime(f"%A %d %B %Y, %H:%M ({self._personalization.timezone})")
         )
         narrative_text = ""
         if self._get_narrative:

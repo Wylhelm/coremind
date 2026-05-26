@@ -33,10 +33,12 @@ class PresenceScheduler:
         config: PresenceConfig,
         *,
         event_bus: EventBus | None = None,
+        greeting_name: str = "User",
     ) -> None:
         self._adapter = adapter
         self._config = config
         self._event_bus = event_bus
+        self._greeting_name = greeting_name
         self._last_morning: datetime | None = None
         self._last_evening: datetime | None = None
 
@@ -90,9 +92,10 @@ class PresenceScheduler:
             return False
 
         self._last_morning = now
+        greeting = self._greeting_name
         event = PresenceEvent(
             event_type=PresenceEventType.MORNING_GREETING,
-            message="Bonjour Guillaume. Bonne journée.",
+            message=f"Bonjour {greeting}. Bonne journée.",
             urgency=0.6,
         )
         return await self.dispatch(event)

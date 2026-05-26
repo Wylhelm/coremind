@@ -451,7 +451,7 @@ def _format_conversation(intent: Intent) -> str:
     # Use expected_outcome as the user message (actions describe what will happen)
     outcome = proposal.expected_outcome or intent.question.text
     # Remove robotic "User receives..." prefix if present
-    for prefix in ("User receives ", "User will receive ", "Guillaume receives "):
+    for prefix in ("User receives ", "User will receive ", "The user receives "):
         if outcome.lower().startswith(prefix.lower()):
             outcome = outcome[len(prefix) :]
             break
@@ -468,9 +468,8 @@ def _format_suggest(intent: Intent, grace_seconds: int) -> str:
     for prefix in (
         "User receives ",
         "User will receive ",
-        "Guillaume receives ",
+        "The user receives ",
         "The user gets ",
-        "Guillaume gets ",
     ):
         if why.lower().startswith(prefix.lower()):
             why = why[len(prefix) :]

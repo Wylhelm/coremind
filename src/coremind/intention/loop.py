@@ -24,8 +24,10 @@ import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Protocol
-from zoneinfo import ZoneInfo
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from coremind.conversation.schemas import ConversationContext
 
 import structlog
 from pydantic import BaseModel, Field
@@ -49,6 +51,7 @@ from coremind.intention.stale_investigation_pruner import (
     FileInvestigationsStore,
     StaleInvestigationPruner,
 )
+from coremind.personalization.config import PersonalizationConfig, get_timezone
 from coremind.reasoning.llm import LLM
 from coremind.reasoning.schemas import ReasoningOutput
 from coremind.world.model import JsonValue, WorldEventRecord, WorldSnapshot
@@ -56,6 +59,13 @@ from coremind.world.model import JsonValue, WorldEventRecord, WorldSnapshot
 log = structlog.get_logger(__name__)
 
 type Clock = Callable[[], datetime]
+
+
+class ConversationContextProvider(Protocol):
+    """Protocol for objects that provide conversation context."""
+
+    async def get_active_context(self) -> ConversationContext: ...
+
 
 # Near-identical recent question suppression threshold (Jaccard token overlap).
 _DUPLICATE_JACCARD_THRESHOLD = 0.65  # lowered from 0.85 — better safe than spammy
@@ -177,8 +187,9 @@ class IntentionLoop:
         rule_matcher: RuleMatcher | None = None,
         event_bus: EventBus | None = None,
         predictive_memory: object | None = None,
-        conversation_handler: object | None = None,
+        conversation_handler: ConversationContextProvider | None = None,
         config: IntentionLoopConfig | None = None,
+        personalization: PersonalizationConfig | None = None,
         clock: Clock = _utc_now,
     ) -> None:
         self._snapshots = snapshot_provider
@@ -192,6 +203,7 @@ class IntentionLoop:
         self._predictive_memory = predictive_memory
         self._conversation_handler = conversation_handler
         self._config = config or IntentionLoopConfig()
+        self._personalization = personalization or PersonalizationConfig()
         self._clock = clock
         self._task: asyncio.Task[None] | None = None
         self._stop_event = asyncio.Event()
@@ -413,9 +425,13 @@ class IntentionLoop:
             except Exception:
                 log.warning("intention.conversation_context_failed", exc_info=True)
 
-        system = render_prompt(self._config.template_system)
+        system = render_prompt(
+            self._config.template_system,
+            user_name=self._personalization.user_name,
+            language_name=self._personalization.language_name,
+        )
         # Compute local time so the LLM doesn't mistake UTC hours for local time.
-        local_tz = ZoneInfo("America/Toronto")
+        local_tz = get_timezone(self._personalization)
         local_now = now.astimezone(local_tz)
 
         user = render_prompt(

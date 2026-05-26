@@ -29,6 +29,7 @@ import structlog
 from pydantic import BaseModel, Field
 
 from coremind.errors import LLMError, ReasoningError
+from coremind.personalization.config import PersonalizationConfig
 from coremind.reasoning.llm import LLM
 from coremind.reasoning.prompts import render_prompt
 from coremind.reasoning.schemas import ReasoningOutput, TokenUsage
@@ -142,6 +143,7 @@ class ReasoningLoop:
         narrative: object | None = None,
         predictive_memory: object | None = None,
         config: ReasoningLoopConfig | None = None,
+        personalization: PersonalizationConfig | None = None,
         clock: Clock = _utc_now,
     ) -> None:
         self._snapshots = snapshot_provider
@@ -151,6 +153,7 @@ class ReasoningLoop:
         self._narrative = narrative
         self._predictive_memory = predictive_memory
         self._config = config or ReasoningLoopConfig()
+        self._personalization = personalization or PersonalizationConfig()
         self._clock = clock
         self._task: asyncio.Task[None] | None = None
         self._stop_event = asyncio.Event()
@@ -314,7 +317,11 @@ class ReasoningLoop:
         snapshot_json = _snapshot_to_prompt_json(snapshot, self._config.max_entities_in_prompt)
         schema_json = json.dumps(ReasoningOutput.model_json_schema(), indent=2)
 
-        system = render_prompt(self._config.template_system)
+        system = render_prompt(
+            self._config.template_system,
+            user_name=self._personalization.user_name,
+            language_name=self._personalization.language_name,
+        )
         user = render_prompt(
             self._config.template_user,
             snapshot_json=snapshot_json,
@@ -323,6 +330,8 @@ class ReasoningLoop:
             schema_json=schema_json,
             about_user=self._about_user_context,
             previous_questions=self._load_investigation_questions(),
+            user_name=self._personalization.user_name,
+            language_name=self._personalization.language_name,
         )
 
         layer = self._config.layer
