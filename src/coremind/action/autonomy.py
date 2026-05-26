@@ -1,6 +1,6 @@
 """Per-domain graduated autonomy system.
 
-Replaces the binary forced-category model with a graduated slider (0.0–1.0)
+Replaces the binary forced-category model with a graduated slider (0.0-1.0)
 per domain, combined with the LLM's confidence to produce agency decisions.
 
 The decision algorithm:
@@ -16,6 +16,7 @@ The decision algorithm:
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -184,7 +185,7 @@ def resolve_agency(
 
     Args:
         action_class: The action's class (e.g. "light.turn_on").
-        confidence: The LLM's confidence in this action (0.0–1.0).
+        confidence: The LLM's confidence in this action (0.0-1.0).
         config: User's autonomy configuration with per-domain sliders.
 
     Returns:
@@ -289,8 +290,6 @@ def _match_pattern(action_class: str, pattern: str) -> bool:
       - Glob: "homeassistant.*_cover" → fnmatch-style.
       - Exact + prefix: "finance.transfer" → exact or starts with "finance.transfer.".
     """
-    import re
-
     if not action_class:
         return False
     if pattern.endswith("."):

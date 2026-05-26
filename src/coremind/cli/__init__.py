@@ -1033,12 +1033,15 @@ def autonomy_show() -> None:
     for domain in sorted(all_domains):
         slider = all_domains[domain]
         # Determine effective behavior note.
-        if slider >= 0.9:
+        high_trust = 0.9
+        medium_trust = 0.6
+        low_trust = 0.3
+        if slider >= high_trust:
             note = "auto-execute (high trust)"
-        elif slider >= 0.6:
-            note = f"auto-execute (confidence ≥ {slider:.2f})"
-        elif slider >= 0.3:
-            note = f"suggest/ask (confidence ≥ {slider:.2f})"
+        elif slider >= medium_trust:
+            note = f"auto-execute (confidence >= {slider:.2f})"
+        elif slider >= low_trust:
+            note = f"suggest/ask (confidence >= {slider:.2f})"
         else:
             note = "mostly ask (low trust)"
         click.echo(f"{domain:<16} {slider:<8.2f} {note}")
@@ -1054,7 +1057,7 @@ def autonomy_show() -> None:
 @click.argument("domain")
 @click.argument("value", type=click.FloatRange(0.0, 1.0))
 def autonomy_set(domain: str, value: float) -> None:
-    """Set a domain's autonomy slider value (0.0–1.0)."""
+    """Set a domain's autonomy slider value (0.0-1.0)."""
     config = load_config()
     old_value = config.autonomy.get_slider(domain)
 

@@ -29,6 +29,7 @@ from jinja2 import Environment, select_autoescape
 
 from coremind.dashboard.auth import DashboardAuth
 from coremind.dashboard.data import DashboardDataSources
+from coremind.action.autonomy import AutonomyConfig
 from coremind.notify.port import ApprovalResponse
 
 log = structlog.get_logger(__name__)
@@ -1555,9 +1556,7 @@ async def autonomy_page(request: web.Request) -> web.Response:
         hard_ask_count = len(config.hard_ask)
         hard_safe_count = len(config.hard_safe)
     else:
-        from coremind.action.autonomy import AutonomyConfig as _AC
-
-        config = _AC()
+        config = AutonomyConfig()
         all_domains = dict(config.domains)
         all_domains["default"] = config.default_slider
         for name in sorted(all_domains):
@@ -1587,12 +1586,7 @@ async def autonomy_page(request: web.Request) -> web.Response:
 async def autonomy_config_json(request: web.Request) -> web.Response:
     """Return the current autonomy configuration as JSON."""
     data = _data(request)
-    if data.autonomy is None:
-        from coremind.action.autonomy import AutonomyConfig as _AC
-
-        config = _AC()
-    else:
-        config = data.autonomy.get_config()
+    config = AutonomyConfig() if data.autonomy is None else data.autonomy.get_config()
 
     return web.json_response(
         {
