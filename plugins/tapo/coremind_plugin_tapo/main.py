@@ -37,11 +37,10 @@ TAPO_PASSWORD: str = os.environ.get("TAPO_PASSWORD", "")
 RTSP_PORT: int = 554
 STREAM_PATH: str = "/stream1"
 
-# Vision models — local (no API costs)
+# Vision models via Ollama Pro (no extra API costs)
 OLLAMA_HOST: str = os.environ.get("OLLAMA_API_BASE", "http://10.0.0.175:11434")
-VISION_PRIMARY: str = "mistral-small3.2:24b"  # Text + Image — already loaded, 0 cost
-VISION_FALLBACK: str = "minicpm-v:8b"  # Lightweight vision model (~5GB)
-FACE_MATCH_MODEL: str = "mistral-small3.2:24b"  # Same as VISION_PRIMARY, already loaded
+VISION_PRIMARY: str = "gemini-3-flash-preview:latest"  # Gemini via Ollama Pro
+VISION_FALLBACK: str = "mistral-large-3:675b-cloud"  # Mistral via Ollama Pro
 VISION_ENABLED: bool = True
 
 CONFIDENCE: float = 0.85
@@ -136,15 +135,8 @@ def build_signed_event(
     return unsigned
 
 
-async def analyze_scene(
-    image_path: Path,
-    faces_dir: Path = Path.home() / ".coremind" / "faces",
-) -> dict[str, str | bool]:
-    """Analyze a snapshot via Ollama — scene context + face matching in ONE call.
-
-    Sends the snapshot + first reference face to the vision model.
-    One call avoids GPU OOM from back-to-back vision requests.
-    """
+async def analyze_scene(image_path: Path) -> dict[str, str | bool]:
+    """Analyze a snapshot via Ollama — Gemini Flash (primary) or Mistral (fallback)."""
     try:
         from PIL import Image
         import ollama, json as _json
@@ -155,18 +147,6 @@ async def analyze_scene(
         img.save(buf, format="JPEG", quality=70)
         img_bytes = buf.getvalue()
 
-        # Load first reference face for person identification
-        ref_bytes: bytes | None = None
-        ref_name: str | None = None
-        if faces_dir.exists():
-            face_files = sorted(faces_dir.glob("*.jpg"))
-            if face_files:
-                ref = Image.open(face_files[0])
-                ref_buf = io.BytesIO()
-                ref.save(ref_buf, format="JPEG", quality=85)
-                ref_bytes = ref_buf.getvalue()
-                ref_name = face_files[0].stem
-
         host = OLLAMA_HOST.replace("http://", "").replace("https://", "").rstrip("/")
         if ":" in host:
             hp = host.split(":")
@@ -174,17 +154,14 @@ async def analyze_scene(
         else:
             client = ollama.Client(host=f"http://{host}:11434")
 
-        images = [img_bytes]
-        if ref_bytes:
-            images.append(ref_bytes)
-
         prompt = (
             "Describe this room in JSON: "
-            "person_present (boolean), "
-            "person_name (string — if a reference photo is provided, "
-            "compare it to the person in the room. "
-            "If the faces match, return the reference person's name. "
-            "If they don't match or no reference is given, use 'unknown'), "
+            "person_present (boolean), person_name (string — identify who you see. "
+            "Guillaume is a man in his late 40s with short brown hair, often in a t-shirt. "
+            "Aurélie is a young woman in her 20s with long dark hair. "
+            "Julie is a woman in her 40s with brown hair. "
+            "Jeff is a man in his 40s, bald or shaved head. "
+            "If you cannot identify confidently, use 'unknown'), "
             "activity (string), "
             "pets_visible (boolean), pet_description (string — "
             "3 black cats: Poukie (medium), Timimi (larger, caramel hints), Minuit (small). "
@@ -194,11 +171,12 @@ async def analyze_scene(
             '"pet_description": "Timimi on the couch"}'
         )
 
+        # Try Gemini Flash first (faster, more reliable)
         for model in [VISION_PRIMARY, VISION_FALLBACK]:
             try:
                 resp = client.chat(
                     model=model,
-                    messages=[{"role": "user", "content": prompt, "images": images}],
+                    messages=[{"role": "user", "content": prompt, "images": [img_bytes]}],
                 )
                 text = resp["message"]["content"]
                 start = text.find("{")
@@ -252,8 +230,8 @@ async def match_face_with_immich(
         buf = io.BytesIO()
         snap.save(buf, format="JPEG", quality=70)
 
-        # Batch reference faces (1 per call — GPU VRAM constraint)
-        batch_size = 1
+        # Batch reference faces (max 7 per call = 1 snapshot + 7 refs = 8 total)
+        batch_size = 7
         for i in range(0, len(face_files), batch_size):
             batch = face_files[i : i + batch_size]
             ref_imgs = []
@@ -277,7 +255,7 @@ async def match_face_with_immich(
                 }
             ]
 
-            resp = client.chat(model=FACE_MATCH_MODEL, messages=messages)
+            resp = client.chat(model=VISION_PRIMARY, messages=messages)
             text = resp["message"]["content"]
             start = text.find("{")
             end = text.rfind("}") + 1
@@ -361,13 +339,19 @@ async def run() -> None:
 
                         log.info("tapo.snapshot_captured", success=success, size=size_bytes)
 
-                        # Vision analysis: scene + face matching in ONE call
+                        # Vision analysis: Gemini Flash (primary) → Mistral (fallback), both via Ollama
                         if success and VISION_ENABLED:
                             vision = await analyze_scene(snap_path)
                             if vision:
-                                # Fallback to "unknown" if no name matched
-                                if not vision.get("person_name"):
-                                    vision["person_name"] = "unknown"
+                                # If person is present but unidentified, try Immich face matching
+                                if (
+                                    vision.get("person_present")
+                                    and vision.get("person_name") == "unknown"
+                                ):
+                                    matched_name = await match_face_with_immich(snap_path)
+                                    if matched_name:
+                                        vision["person_name"] = matched_name
+                                        log.info("tapo.face_identified", name=matched_name)
 
                                 for attr, val in vision.items():
                                     event_v = build_signed_event(
