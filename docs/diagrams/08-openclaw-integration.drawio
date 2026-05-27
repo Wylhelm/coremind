@@ -1,0 +1,121 @@
+<mxfile host="app.diagrams.net" modified="2026-05-27T00:00:00.000Z" agent="coremind-docs" version="24.0.0">
+  <diagram name="OpenClaw Integration (v2)" id="openclaw-v2">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="CoreMind v2 ⇄ OpenClaw — Adapter Boundary" style="text;html=1;align=center;fontSize=20;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="280" y="20" width="640" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="sub" value="Bidirectional. v2: Autonomy slider promotions, investigation escalations, and meta-loop reports via channels." style="text;html=1;align=center;fontSize=11;fontStyle=2" vertex="1" parent="1">
+          <mxGeometry x="200" y="55" width="800" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- CoreMind side -->
+        <mxCell id="cm" value="CoreMind daemon (v2)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;fontSize=13;fontStyle=1;verticalAlign=top;align=center" vertex="1" parent="1">
+          <mxGeometry x="40" y="95" width="380" height="580" as="geometry" />
+        </mxCell>
+        <mxCell id="cm-l0" value="L0 Discovery (auto-detect devices)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2F1;strokeColor=#00695C;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="70" y="140" width="320" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="cm-l1" value="L1 Perception (plugin host, signature verify)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1565C0;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="70" y="185" width="320" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="cm-l2" value="L2 World Model + Embeddings (SurrealDB)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="70" y="230" width="320" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="cm-l3" value="L3 Memory (Qdrant + snapshot_embeddings)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="70" y="275" width="320" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="cm-l4" value="L4 Reasoning (compressed prompts, investigations)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="70" y="320" width="320" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="cm-l5" value="L5 Intention (self-prompts → unified actuator)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="70" y="365" width="320" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="cm-l6" value="L6 Action (autonomy slider + executor)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="70" y="410" width="320" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="cm-l7" value="L7 Reflection (graduation proposals)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#6A1B9A;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="70" y="455" width="320" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="cm-l8" value="L8 Meta (observe → evaluate → tune)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE4EC;strokeColor=#880E4F;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="70" y="500" width="320" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="cm-notify" value="Notify Router (quiet hours + topic dedup)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="70" y="545" width="320" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="cm-audit" value="Audit Journal (signed, hash-chained)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="70" y="590" width="320" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="cm-safety" value="MetaSafetyValidator (hard boundaries)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="70" y="635" width="320" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Adapter -->
+        <mxCell id="adapter" value="OpenClaw Adapter (v2)&#xa;Python bridge + JSONL queue&#xa;&#xa;CoreMind side:&#xa; • coremind-openclaw.service&#xa; • gRPC → daemon&#xa;&#xa;Bridge side:&#xa; • coremind-bridge.service&#xa; • notify_queue.jsonl → G-Bot&#xa; • heartbeat delivery&#xa;&#xa;v2 additions:&#xa; • Slider promotion approvals&#xa; • Investigation escalations&#xa; • Meta-loop weekly reports" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#E65100;fontSize=10;fontStyle=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8" vertex="1" parent="1">
+          <mxGeometry x="490" y="180" width="260" height="310" as="geometry" />
+        </mxCell>
+
+        <!-- OpenClaw side -->
+        <mxCell id="oc" value="OpenClaw gateway" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E5F5;strokeColor=#6A1B9A;fontSize=13;fontStyle=1;verticalAlign=top;align=center" vertex="1" parent="1">
+          <mxGeometry x="820" y="95" width="320" height="520" as="geometry" />
+        </mxCell>
+        <mxCell id="oc-channels" value="Channels&#xa;Telegram · Signal · Discord · Email" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6A1B9A;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="850" y="140" width="260" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="oc-skills" value="Skills (callable operations)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6A1B9A;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="850" y="195" width="260" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="oc-cron" value="Cron / Scheduler" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6A1B9A;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="850" y="240" width="260" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="oc-approvals" value="Approval workflow&#xa;(+ slider promotion routing)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6A1B9A;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="850" y="285" width="260" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="oc-secrets" value="Secrets / Identity" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6A1B9A;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="850" y="340" width="260" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="oc-mem0" value="Mem0 (optional semantic memory backend)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6A1B9A;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="850" y="385" width="260" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="oc-llm" value="LLM router (LiteLLM-compatible)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6A1B9A;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="850" y="430" width="260" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="oc-reports" value="Weekly reports delivery&#xa;(meta-loop learning reports)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6A1B9A;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="850" y="475" width="260" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- User -->
+        <mxCell id="user" value="User on Telegram / Signal / …" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ECEFF1;strokeColor=#546E7A;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="900" y="700" width="200" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- Arrows -->
+        <mxCell id="ev1" value="WorldEvent (signed)" style="endArrow=classic;html=1;strokeWidth=2;fontSize=10;exitX=0;exitY=0.2;entryX=1;entryY=0.3" edge="1" parent="1" source="adapter" target="cm-l1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ev2" value="Action (signed)" style="endArrow=classic;html=1;strokeWidth=2;fontSize=10;dashed=1;exitX=0;exitY=0.6;entryX=1;entryY=0.5" edge="1" parent="1" source="adapter" target="cm-l6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ev3" value="ingress: messages,&#xa;skill calls, approvals,&#xa;slider decisions" style="endArrow=classic;html=1;strokeWidth=2;fontSize=9" edge="1" parent="1" source="oc-channels" target="adapter">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ev4" value="egress: notify · ask&#xa;· invoke skill&#xa;· escalation&#xa;· reports" style="endArrow=classic;html=1;strokeWidth=2;fontSize=9;dashed=1" edge="1" parent="1" source="adapter" target="oc-skills">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="u1" value="reply / approve / dismiss" style="endArrow=classic;html=1;strokeWidth=2;fontSize=10" edge="1" parent="1" source="user" target="oc-channels">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Boundary contract -->
+        <mxCell id="boundary" value="Boundary Contract (unchanged in v2)&#xa;&#xa;1. Adapter signs every WorldEvent with its plugin keypair.&#xa;2. Adapter consumes Actions and returns ActionResult.&#xa;3. No shared state — neither side writes to the other's DB.&#xa;4. Independent failure domains — OpenClaw down ≠ CoreMind down.&#xa;&#xa;v2 additions: Slider promotion proposals routed through approval workflow.&#xa;Investigation escalations delivered as rich notifications with evidence." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9E9E9E;align=left;fontSize=10;verticalAlign=top;spacingLeft=8;spacingTop=5" vertex="1" parent="1">
+          <mxGeometry x="40" y="710" width="780" height="140" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -195,11 +195,68 @@ Emit a single JSON object matching the schema. Your observations text should be 
 """
 
 
+_USER_V3 = """\
+## About {{ user_name }}
+
+{% if about_user is defined and about_user %}
+{{ about_user }}
+{% else %}
+(You have been watching {{ user_name }}'s world. Trust the patterns you see in the sensors and data.)
+{% endif %}
+
+## Narrative Identity (your accumulated understanding)
+
+{% if narrative_context is defined and narrative_context %}
+{{ narrative_context }}
+{% else %}
+(no narrative context yet — build it from observations)
+{% endif %}
+
+## World State (compressed — changes + similar past states)
+
+{{ world_context }}
+
+## Semantic Memory (relevant past observations)
+
+{% if memory_excerpt %}
+{{ memory_excerpt }}
+{% else %}
+(no relevant memories)
+{% endif %}
+
+## Your task
+
+Analyze the above. Focus on what is NEW or DIFFERENT:
+- Cross-domain connections (health↔home, finance↔calendar, camera↔routine)
+- Causal hypotheses (WHY is this happening?)
+- Things that deserve deeper investigation
+- Falsifiable predictions about what will happen next
+
+{% if previous_questions is defined and previous_questions %}
+## Questions you're tracking from previous cycles
+
+{{ previous_questions }}
+
+Review these — can you answer any of them with new data?
+{% endif %}
+
+## Required schema
+
+```json
+{{ schema_json }}
+```
+
+Emit a single JSON object matching the schema. Your observations text should be in
+{{ language_name }} (user-facing). Be insightful, not mechanical.
+"""
+
+
 _TEMPLATES: dict[str, str] = {
     "reasoning.heavy.system.v1": _SYSTEM_HEAVY_V1,
     "reasoning.heavy.user.v1": _USER_V2,
     "reasoning.heavy.system.v2": _SYSTEM_HEAVY_V2,
     "reasoning.heavy.user.v2": _USER_V2,
+    "reasoning.heavy.user.v3": _USER_V3,
     "reasoning.fast.system.v1": _SYSTEM_FAST_V1,
     "reasoning.fast.user.v1": _USER_V2,
 }

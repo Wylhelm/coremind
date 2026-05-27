@@ -1,0 +1,140 @@
+<mxfile host="app.diagrams.net" modified="2026-05-27T00:00:00.000Z" agent="coremind-docs" version="24.0.0">
+  <diagram name="Meta-Loop (L8)" id="meta-loop">
+    <mxGraphModel dx="1400" dy="1100" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="CoreMind v2 — L8 Meta-Loop (Self-Improvement)" style="text;html=1;align=center;fontSize=20;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="300" y="20" width="600" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" value="Observe → Evaluate → Learn → Tune — within hard safety boundaries" style="text;html=1;align=center;fontSize=11;fontStyle=2" vertex="1" parent="1">
+          <mxGeometry x="300" y="55" width="600" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Four-phase cycle -->
+        <mxCell id="observe" value="1. OBSERVE&#xa;&#xa;Collect metrics from L2–L7:&#xa;  • intent_repeat_rate&#xa;  • notification_ignore_rate&#xa;  • domain_approval_rate&#xa;  • plugin_error_rate&#xa;  • token_per_useful_intent&#xa;  • investigation_success_rate&#xa;  • low_quality_intent_rate" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE4EC;strokeColor=#880E4F;fontSize=10;fontStyle=1;align=left;spacingLeft=10;verticalAlign=top;spacingTop=8" vertex="1" parent="1">
+          <mxGeometry x="60" y="100" width="280" height="200" as="geometry" />
+        </mxCell>
+
+        <mxCell id="evaluate" value="2. EVALUATE&#xa;&#xa;Compare observations to thresholds:&#xa;  • intent_repeat_rate &gt; 3/h?&#xa;  • notification_ignore_rate &gt; 70%?&#xa;  • domain_approval_rate &lt; 50%?&#xa;  • plugin_error_rate &gt; 5%/h?&#xa;  • tokens/intent &gt; 5000?&#xa;  • investigation_success &lt; 60%?" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE4EC;strokeColor=#880E4F;fontSize=10;fontStyle=1;align=left;spacingLeft=10;verticalAlign=top;spacingTop=8" vertex="1" parent="1">
+          <mxGeometry x="400" y="100" width="280" height="200" as="geometry" />
+        </mxCell>
+
+        <mxCell id="learn" value="3. LEARN&#xa;&#xa;Match to adjustment policies:&#xa;  • lower_salience_when_quiet&#xa;  • raise_salience_when_noisy&#xa;  • increase_cooldown_on_ignored&#xa;  • propose_slider_promotion&#xa;  • throttle_failing_plugin" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE4EC;strokeColor=#880E4F;fontSize=10;fontStyle=1;align=left;spacingLeft=10;verticalAlign=top;spacingTop=8" vertex="1" parent="1">
+          <mxGeometry x="740" y="100" width="280" height="200" as="geometry" />
+        </mxCell>
+
+        <mxCell id="tune" value="4. TUNE&#xa;&#xa;Apply bounded adjustments:&#xa;  • Polling intervals (30s – 24h)&#xa;  • Salience thresholds (0.2 – 0.7)&#xa;  • Notification cooldowns (1min – 24h)&#xa;  • Investigation priorities&#xa;  • Propose slider promotion (+0.1, needs user approval)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE4EC;strokeColor=#880E4F;fontSize=10;fontStyle=1;align=left;spacingLeft=10;verticalAlign=top;spacingTop=8" vertex="1" parent="1">
+          <mxGeometry x="1080" y="100" width="280" height="200" as="geometry" />
+        </mxCell>
+
+        <!-- Cycle arrows -->
+        <mxCell id="e1" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#880E4F" edge="1" parent="1" source="observe" target="evaluate">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#880E4F" edge="1" parent="1" source="evaluate" target="learn">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#880E4F" edge="1" parent="1" source="learn" target="tune">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- MetaSafetyValidator (hard gate) -->
+        <mxCell id="safety-gate" value="MetaSafetyValidator  ⛔  HARD GATE" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="300" y="340" width="600" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Forbidden paths -->
+        <mxCell id="forbidden" value="FORBIDDEN — L8 can NEVER modify:" style="text;html=1;align=center;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="160" y="410" width="400" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="f1" value="🔒  autonomy.hard_ask rules (finance, locks, messaging always ASK)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBEE;strokeColor=#C62828;fontSize=10;align=left;spacingLeft=10" vertex="1" parent="1">
+          <mxGeometry x="100" y="445" width="460" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="f2" value="🔒  Quiet hours configuration" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBEE;strokeColor=#C62828;fontSize=10;align=left;spacingLeft=10" vertex="1" parent="1">
+          <mxGeometry x="100" y="480" width="460" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="f3" value="🔒  Secrets / credentials (access or modify)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBEE;strokeColor=#C62828;fontSize=10;align=left;spacingLeft=10" vertex="1" parent="1">
+          <mxGeometry x="100" y="515" width="460" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="f4" value="🔒  Plugin permissions" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBEE;strokeColor=#C62828;fontSize=10;align=left;spacingLeft=10" vertex="1" parent="1">
+          <mxGeometry x="100" y="550" width="460" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="f5" value="🔒  Audit logging (cannot disable)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBEE;strokeColor=#C62828;fontSize=10;align=left;spacingLeft=10" vertex="1" parent="1">
+          <mxGeometry x="100" y="585" width="460" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="f6" value="🔒  The meta-loop's own safety bounds (self-referential lock)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBEE;strokeColor=#C62828;fontSize=10;align=left;spacingLeft=10" vertex="1" parent="1">
+          <mxGeometry x="100" y="620" width="460" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Policy table (right side) -->
+        <mxCell id="policy-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#9E9E9E;dashed=1" vertex="1" parent="1">
+          <mxGeometry x="640" y="400" width="420" height="290" as="geometry" />
+        </mxCell>
+        <mxCell id="policy-title" value="Adjustment Policies" style="text;html=1;align=center;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="660" y="405" width="380" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="pol1" value="lower_salience_when_quiet&#xa;  Trigger: intents_per_hour &lt; 1 for 6h&#xa;  Action: min_salience -= 0.05" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9E9E9E;fontSize=10;align=left;spacingLeft=8" vertex="1" parent="1">
+          <mxGeometry x="660" y="435" width="380" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="pol2" value="raise_salience_when_noisy&#xa;  Trigger: low_quality_intents &gt; 5/h&#xa;  Action: min_salience += 0.05" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9E9E9E;fontSize=10;align=left;spacingLeft=8" vertex="1" parent="1">
+          <mxGeometry x="660" y="485" width="380" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="pol3" value="increase_cooldown_on_ignored&#xa;  Trigger: notification_ignore_rate &gt; 70% for topic&#xa;  Action: double cooldown for that topic" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9E9E9E;fontSize=10;align=left;spacingLeft=8" vertex="1" parent="1">
+          <mxGeometry x="660" y="535" width="380" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="pol4" value="propose_slider_promotion&#xa;  Trigger: domain_approval_rate &gt; 80% for 10+ actions&#xa;  Action: propose +0.1 (needs user approval)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9E9E9E;fontSize=10;align=left;spacingLeft=8" vertex="1" parent="1">
+          <mxGeometry x="660" y="585" width="380" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="pol5" value="throttle_failing_plugin&#xa;  Trigger: plugin_error_rate &gt; 50%&#xa;  Action: double poll interval for that plugin" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9E9E9E;fontSize=10;align=left;spacingLeft=8" vertex="1" parent="1">
+          <mxGeometry x="660" y="635" width="380" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Storage + audit -->
+        <mxCell id="storage" value="SurrealDB&#xa;meta_observation&#xa;meta_adjustment" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="100" y="690" width="180" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Rollback -->
+        <mxCell id="rollback" value="coremind meta rollback &lt;id&gt;&#xa;Every adjustment is reversible." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#6A1B9A;fontSize=10;align=left;spacingLeft=8" vertex="1" parent="1">
+          <mxGeometry x="340" y="700" width="260" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Safety arrows -->
+        <mxCell id="e-tune-safety" value="every adjustment&#xa;checked" style="endArrow=classic;html=1;strokeWidth=2;fontSize=9;strokeColor=#C62828" edge="1" parent="1" source="tune" target="safety-gate">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1220" y="330" />
+              <mxPoint x="900" y="340" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Report to user -->
+        <mxCell id="report" value="Weekly &quot;Learning Report&quot;&#xa;→ User sees what L8 changed and why&#xa;(transparency principle)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#6A1B9A;fontSize=10;align=left;spacingLeft=8" vertex="1" parent="1">
+          <mxGeometry x="660" y="710" width="350" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Data source arrows from layers -->
+        <mxCell id="src-l4" value="L4" style="endArrow=classic;html=1;strokeWidth=1;dashed=1;fontSize=9;entryX=0;entryY=0.5" edge="1" parent="1" target="observe">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="20" y="150" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="src-l5" value="L5" style="endArrow=classic;html=1;strokeWidth=1;dashed=1;fontSize=9;entryX=0;entryY=0.7" edge="1" parent="1" target="observe">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="20" y="220" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="src-l6" value="L6" style="endArrow=classic;html=1;strokeWidth=1;dashed=1;fontSize=9;entryX=0;entryY=0.9" edge="1" parent="1" target="observe">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="20" y="270" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

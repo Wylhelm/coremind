@@ -1,21 +1,28 @@
-<mxfile host="app.diagrams.net" modified="2026-04-28T00:00:00.000Z" agent="coremind-docs" version="24.0.0">
-  <diagram name="Data Model" id="data-model">
-    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="900" math="0" shadow="0">
+<mxfile host="app.diagrams.net" modified="2026-05-27T00:00:00.000Z" agent="coremind-docs" version="24.0.0">
+  <diagram name="Data Model (v2)" id="data-model-v2">
+    <mxGraphModel dx="1600" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1400" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
 
-        <mxCell id="title" value="CoreMind — Core Data Model" style="text;html=1;align=center;fontSize=20;fontStyle=1" vertex="1" parent="1">
-          <mxGeometry x="320" y="20" width="560" height="40" as="geometry" />
+        <!-- Title -->
+        <mxCell id="title" value="CoreMind v2 — Core Data Model (Extended)" style="text;html=1;align=center;fontSize=20;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="400" y="20" width="600" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" value="Original types retained (blue/green/orange/red). New v2 types in teal and magenta." style="text;html=1;align=center;fontSize=11;fontStyle=2" vertex="1" parent="1">
+          <mxGeometry x="400" y="55" width="600" height="20" as="geometry" />
         </mxCell>
 
-        <mxCell id="we" value="WorldEvent" style="shape=table;startSize=30;container=1;collapsible=0;childLayout=tableLayout;fontSize=12;fontStyle=1;fillColor=#DAE8FC;strokeColor=#6C8EBF" vertex="1" parent="1">
-          <mxGeometry x="80" y="100" width="280" height="320" as="geometry" />
+        <!-- ═══ ORIGINAL TYPES ═══ -->
+
+        <!-- WorldEvent (blue table) -->
+        <mxCell id="we" value="WorldEvent" style="shape=table;startSize=30;container=1;collapsible=0;childLayout=tableLayout;fontSize=12;fontStyle=1;fillColor=#BBDEFB;strokeColor=#1565C0" vertex="1" parent="1">
+          <mxGeometry x="40" y="100" width="280" height="300" as="geometry" />
         </mxCell>
-        <mxCell id="we-r1" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="we">
+        <mxCell id="we-r1" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=11;" vertex="1" parent="we">
           <mxGeometry y="30" width="280" height="30" as="geometry" />
         </mxCell>
-        <mxCell id="we-c1" value="id : ULID" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;fontSize=11;align=left;spacingLeft=8" vertex="1" parent="we-r1">
+        <mxCell id="we-c1" value="id : ULID" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;fontSize=11;align=left;spacingLeft=8" vertex="1" parent="we-r1">
           <mxGeometry width="280" height="30" as="geometry" />
         </mxCell>
         <mxCell id="we-r2" value="" style="shape=tableRow;horizontal=0;startSize=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;" vertex="1" parent="we">
@@ -61,41 +68,101 @@
           <mxGeometry width="280" height="30" as="geometry" />
         </mxCell>
         <mxCell id="we-r9" value="" style="shape=tableRow;horizontal=0;startSize=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;" vertex="1" parent="we">
-          <mxGeometry y="270" width="280" height="50" as="geometry" />
+          <mxGeometry y="270" width="280" height="30" as="geometry" />
         </mxCell>
-        <mxCell id="we-c9" value="context? : tags, trend, related entities" style="shape=partialRectangle;html=1;whiteSpace=wrap;strokeColor=inherit;fillColor=none;top=0;left=0;bottom=0;right=0;fontSize=11;align=left;spacingLeft=8" vertex="1" parent="we-r9">
-          <mxGeometry width="280" height="50" as="geometry" />
-        </mxCell>
-
-        <mxCell id="ent" value="Entity" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=12;fontStyle=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=10" vertex="1" parent="1">
-          <mxGeometry x="430" y="100" width="280" height="190" as="geometry" />
-        </mxCell>
-        <mxCell id="ent-fields" value="• type : Person | Room | Device | Project …&#xa;• id : stable within type&#xa;• display_name&#xa;• properties : Map&lt;str, Property&gt;&#xa;  – value, unit, confidence, last_updated&#xa;• created_at / updated_at&#xa;• source_plugins : []" style="text;html=1;align=left;verticalAlign=top;fontSize=11;spacingLeft=10" vertex="1" parent="1">
-          <mxGeometry x="430" y="135" width="280" height="155" as="geometry" />
+        <mxCell id="we-c9" value="context? : tags, trend, related_entities" style="shape=partialRectangle;html=1;whiteSpace=wrap;strokeColor=inherit;fillColor=none;top=0;left=0;bottom=0;right=0;fontSize=11;align=left;spacingLeft=8" vertex="1" parent="we-r9">
+          <mxGeometry width="280" height="30" as="geometry" />
         </mxCell>
 
-        <mxCell id="rel" value="Relationship" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=12;fontStyle=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=10" vertex="1" parent="1">
-          <mxGeometry x="430" y="320" width="280" height="170" as="geometry" />
+        <!-- Entity (green) -->
+        <mxCell id="ent" value="Entity" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=12;fontStyle=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8" vertex="1" parent="1">
+          <mxGeometry x="380" y="100" width="280" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-fields" value="• type : Person | Room | Device | …&#xa;• id : stable within type&#xa;• display_name&#xa;• properties : Map&lt;str, Property&gt;&#xa;  – value, unit, confidence, last_updated&#xa;• created_at / updated_at&#xa;• source_plugins : []" style="text;html=1;align=left;verticalAlign=top;fontSize=11;spacingLeft=10" vertex="1" parent="1">
+          <mxGeometry x="380" y="130" width="280" height="150" as="geometry" />
+        </mxCell>
+
+        <!-- Relationship (green) -->
+        <mxCell id="rel" value="Relationship" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=12;fontStyle=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8" vertex="1" parent="1">
+          <mxGeometry x="380" y="310" width="280" height="160" as="geometry" />
         </mxCell>
         <mxCell id="rel-fields" value="• id&#xa;• type : owns | lives-in | sent-to …&#xa;• from : EntityRef&#xa;• to : EntityRef&#xa;• properties&#xa;• weight : 0.0 – 1.0 (decayable)&#xa;• created_at / last_reinforced" style="text;html=1;align=left;verticalAlign=top;fontSize=11;spacingLeft=10" vertex="1" parent="1">
-          <mxGeometry x="430" y="355" width="280" height="135" as="geometry" />
+          <mxGeometry x="380" y="340" width="280" height="130" as="geometry" />
         </mxCell>
 
-        <mxCell id="intent" value="Intent" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=12;fontStyle=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=10" vertex="1" parent="1">
-          <mxGeometry x="780" y="100" width="320" height="220" as="geometry" />
+        <!-- Intent (orange) -->
+        <mxCell id="intent" value="Intent" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=12;fontStyle=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8" vertex="1" parent="1">
+          <mxGeometry x="720" y="100" width="300" height="210" as="geometry" />
         </mxCell>
-        <mxCell id="intent-fields" value="• id, created_at&#xa;• question : str (natural language)&#xa;• grounding : EntityRef[]   (must cite L2)&#xa;• reasoning_trace : L4 output&#xa;• proposed_action : ActionProposal?&#xa;• salience : 0.0 – 1.0&#xa;• confidence : 0.0 – 1.0&#xa;• status : pending | executing | done&#xa;            | dismissed | failed" style="text;html=1;align=left;verticalAlign=top;fontSize=11;spacingLeft=10" vertex="1" parent="1">
-          <mxGeometry x="780" y="135" width="320" height="185" as="geometry" />
-        </mxCell>
-
-        <mxCell id="action" value="Action  (signed + journaled)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8CECC;strokeColor=#B85450;fontSize=12;fontStyle=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=10" vertex="1" parent="1">
-          <mxGeometry x="780" y="350" width="320" height="240" as="geometry" />
-        </mxCell>
-        <mxCell id="action-fields" value="• id, intent_id, timestamp&#xa;• category : safe | suggest | ask&#xa;• operation : plugin-qualified&#xa;     e.g. homeassistant.turn_on&#xa;• parameters : object&#xa;• result : object?&#xa;• signature : ed25519&#xa;• reversible_by : action-id | manual steps&#xa;&#xa;Forced-approval classes:&#xa;  finance · communication · system · custom" style="text;html=1;align=left;verticalAlign=top;fontSize=11;spacingLeft=10" vertex="1" parent="1">
-          <mxGeometry x="780" y="385" width="320" height="205" as="geometry" />
+        <mxCell id="intent-fields" value="• id, created_at&#xa;• question : str (natural language)&#xa;• grounding : EntityRef[]  (must cite L2)&#xa;• reasoning_trace : L4 output&#xa;• proposed_action : ActionProposal?&#xa;• salience : 0.0 – 1.0&#xa;• confidence : 0.0 – 1.0&#xa;• status : pending | executing | done&#xa;           | dismissed | failed" style="text;html=1;align=left;verticalAlign=top;fontSize=11;spacingLeft=10" vertex="1" parent="1">
+          <mxGeometry x="720" y="130" width="300" height="180" as="geometry" />
         </mxCell>
 
-        <mxCell id="evt-rel-ent" value="updates" style="endArrow=classic;html=1;strokeWidth=2;fontSize=10" edge="1" parent="1" source="we" target="ent">
+        <!-- Action (red) -->
+        <mxCell id="action" value="Action  (signed + journaled)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=12;fontStyle=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8" vertex="1" parent="1">
+          <mxGeometry x="720" y="340" width="300" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="action-fields" value="• id, intent_id, timestamp&#xa;• category : safe | suggest | ask&#xa;• operation : plugin-qualified&#xa;     e.g. homeassistant.turn_on&#xa;• parameters : object&#xa;• result : object?&#xa;• signature : ed25519&#xa;• reversible_by : action-id | manual steps&#xa;&#xa;Forced-approval classes:&#xa;  finance · messaging · locks · security" style="text;html=1;align=left;verticalAlign=top;fontSize=11;spacingLeft=10" vertex="1" parent="1">
+          <mxGeometry x="720" y="370" width="300" height="210" as="geometry" />
+        </mxCell>
+
+        <!-- ═══ NEW v2 TYPES ═══ -->
+
+        <!-- Section separator -->
+        <mxCell id="v2-sep" value="── v2 New Types ──" style="text;html=1;align=center;fontSize=14;fontStyle=3" vertex="1" parent="1">
+          <mxGeometry x="400" y="520" width="600" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- AutonomyConfig (magenta) -->
+        <mxCell id="autonomy" value="AutonomyConfig" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE4EC;strokeColor=#880E4F;fontSize=12;fontStyle=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8" vertex="1" parent="1">
+          <mxGeometry x="40" y="570" width="280" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="autonomy-fields" value="• default_slider : float (0.4)&#xa;• domains : Map&lt;str, DomainConfig&gt;&#xa;  – slider : float (0.0–1.0)&#xa;  – action_classes : list[str]&#xa;• hard_ask : list[HardAskRule]&#xa;  – action_class, reason&#xa;• graduation : GraduationConfig&#xa;  – enabled, min_approvals (10)&#xa;  – min_approval_rate (0.8)&#xa;  – max_promotion (0.1)&#xa;  – promotion_cooldown_days (7)" style="text;html=1;align=left;verticalAlign=top;fontSize=10;spacingLeft=10" vertex="1" parent="1">
+          <mxGeometry x="40" y="600" width="280" height="170" as="geometry" />
+        </mxCell>
+
+        <!-- DeviceCapabilities (teal) -->
+        <mxCell id="device" value="DeviceCapabilities" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2F1;strokeColor=#00695C;fontSize=12;fontStyle=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8" vertex="1" parent="1">
+          <mxGeometry x="380" y="570" width="280" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="device-fields" value="• device_id : str&#xa;• device_name : str&#xa;• device_type : DeviceType enum&#xa;  (Light|Switch|Thermostat|Vacuum&#xa;   Lock|Media|Cover|Camera|Sensor)&#xa;• room : str?&#xa;• capabilities : list[Capability]&#xa;  – action: ActionType&#xa;  – parameter_mapping&#xa;• source_plugin : str&#xa;• last_seen : datetime" style="text;html=1;align=left;verticalAlign=top;fontSize=10;spacingLeft=10" vertex="1" parent="1">
+          <mxGeometry x="380" y="600" width="280" height="170" as="geometry" />
+        </mxCell>
+
+        <!-- InvestigationRun (orange) -->
+        <mxCell id="investigation" value="InvestigationRun" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=12;fontStyle=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8" vertex="1" parent="1">
+          <mxGeometry x="720" y="570" width="300" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="investigation-fields" value="• investigation_id : str&#xa;• anomaly_description : str&#xa;• hypothesis : str&#xa;• status : InvestigationStatus&#xa;  (FORMED → DESIGNING_TEST →&#xa;   EXECUTING_TEST → ANALYZING →&#xa;   RESOLVED | UNRESOLVED | ESCALATED)&#xa;• tests : list[InvestigationTest]&#xa;• results : list[InvestigationResult]&#xa;• conclusion : str?&#xa;• confidence : float" style="text;html=1;align=left;verticalAlign=top;fontSize=10;spacingLeft=10" vertex="1" parent="1">
+          <mxGeometry x="720" y="600" width="300" height="170" as="geometry" />
+        </mxCell>
+
+        <!-- MetaObservation (magenta) -->
+        <mxCell id="metaobs" value="MetaObservation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE4EC;strokeColor=#880E4F;fontSize=12;fontStyle=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8" vertex="1" parent="1">
+          <mxGeometry x="40" y="810" width="280" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="metaobs-fields" value="• observation_id : str&#xa;• kind : str (intent_repeat_rate,&#xa;  notification_ignore_rate, …)&#xa;• value : float&#xa;• threshold : float&#xa;• observed_at : datetime&#xa;• metadata : dict" style="text;html=1;align=left;verticalAlign=top;fontSize=10;spacingLeft=10" vertex="1" parent="1">
+          <mxGeometry x="40" y="840" width="280" height="130" as="geometry" />
+        </mxCell>
+
+        <!-- AdjustmentRecord (magenta) -->
+        <mxCell id="adjustment" value="AdjustmentRecord" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE4EC;strokeColor=#880E4F;fontSize=12;fontStyle=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8" vertex="1" parent="1">
+          <mxGeometry x="380" y="810" width="280" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="adjustment-fields" value="• adjustment_id : str&#xa;• policy_name : str&#xa;• parameter_path : str&#xa;• old_value / new_value : Any&#xa;• reason : str&#xa;• applied_at : datetime&#xa;• rollback_at : datetime?" style="text;html=1;align=left;verticalAlign=top;fontSize=10;spacingLeft=10" vertex="1" parent="1">
+          <mxGeometry x="380" y="840" width="280" height="130" as="geometry" />
+        </mxCell>
+
+        <!-- Embedding types (teal) -->
+        <mxCell id="embed-group" value="Embedding Types" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2F1;strokeColor=#00695C;fontSize=12;fontStyle=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8" vertex="1" parent="1">
+          <mxGeometry x="720" y="810" width="300" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="embed-fields" value="EntityEmbedding&#xa;  • entity_id, vector (768d)&#xa;  • text_repr, computed_at&#xa;&#xa;SnapshotEmbedding&#xa;  • snapshot_id, vector (768d)&#xa;  • entity_count, summary, timestamp&#xa;&#xa;SnapshotDiff&#xa;  • added / removed / changed entities&#xa;  • unchanged_count, total_count&#xa;&#xa;CompressedPrompt&#xa;  • summary, changes, similar_states&#xa;  • stats, fallback_text" style="text;html=1;align=left;verticalAlign=top;fontSize=10;spacingLeft=10" vertex="1" parent="1">
+          <mxGeometry x="720" y="840" width="300" height="190" as="geometry" />
+        </mxCell>
+
+        <!-- ═══ RELATIONSHIPS (arrows) ═══ -->
+        <mxCell id="evt-ent" value="updates" style="endArrow=classic;html=1;strokeWidth=2;fontSize=10" edge="1" parent="1" source="we" target="ent">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="ent-rel" value="connected by" style="endArrow=classic;html=1;strokeWidth=2;fontSize=10" edge="1" parent="1" source="ent" target="rel">
@@ -107,9 +174,22 @@
         <mxCell id="int-act" value="produces" style="endArrow=classic;html=1;strokeWidth=2;fontSize=10" edge="1" parent="1" source="intent" target="action">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
+        <mxCell id="act-autonomy" value="governed by" style="endArrow=classic;html=1;strokeWidth=1;dashed=1;fontSize=9;strokeColor=#880E4F" edge="1" parent="1" source="action" target="autonomy">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-device" value="discovered as" style="endArrow=classic;html=1;strokeWidth=1;dashed=1;fontSize=9;strokeColor=#00695C" edge="1" parent="1" source="ent" target="device">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="int-invest" value="triggers" style="endArrow=classic;html=1;strokeWidth=1;dashed=1;fontSize=9;strokeColor=#E65100" edge="1" parent="1" source="intent" target="investigation">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="metaobs-adj" value="triggers" style="endArrow=classic;html=1;strokeWidth=2;fontSize=9;strokeColor=#880E4F" edge="1" parent="1" source="metaobs" target="adjustment">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
 
-        <mxCell id="store-note" value="Persistence&#xa;  • WorldEvent → SurrealDB event table (append-only)&#xa;  • Entity / Relationship → SurrealDB graph tables&#xa;  • Intent / Action → SurrealDB + audit.log (Action only)&#xa;  • Semantic memory → Qdrant vectors (out of scope here)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#999;align=left;fontSize=10" vertex="1" parent="1">
-          <mxGeometry x="80" y="450" width="320" height="100" as="geometry" />
+        <!-- Persistence note -->
+        <mxCell id="store-note" value="Persistence&#xa;  • WorldEvent / Entity / Relationship / Intent / Action → SurrealDB&#xa;  • Action → also audit.log (signed, hash-chained)&#xa;  • Semantic memory → Qdrant vectors&#xa;  • InvestigationRun / MetaObservation / AdjustmentRecord → SurrealDB&#xa;  • DeviceCapabilities → capability_registry.json&#xa;  • Embedding vectors → Qdrant snapshot_embeddings (768d, cosine)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9E9E9E;align=left;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="40" y="1010" width="480" height="120" as="geometry" />
         </mxCell>
 
       </root>

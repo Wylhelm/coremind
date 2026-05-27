@@ -159,9 +159,53 @@ the JSON object.
 """
 
 
+_USER_V2 = """\
+## Current local time
+
+Il est {{ local_time }} ({{ local_timezone }}).
+**TOUS les horodatages ci-dessous sont en UTC.** Ne confonds pas l'heure UTC avec l'heure locale.
+
+## World state (compressed — changes + context)
+
+{{ world_context }}
+
+## Recent reasoning cycles (summary)
+
+{{ reasoning_summary }}
+
+## Recent intents (for loop avoidance)
+
+{{ recent_intents_summary }}
+
+## Active procedural patterns
+
+{{ patterns_summary }}
+
+## Recent user conversations
+
+{{ conversations_summary }}
+
+## Active predictions (from predictive memory)
+
+{{ predictions_summary }}
+
+## Required response schema (JSON Schema)
+
+```json
+{{ schema_json }}
+```
+
+Focus on what is NEW or DIFFERENT, not on unchanged background state.
+Emit a single JSON object matching the schema.  Limit yourself to at most
+{{ max_questions }} high-salience questions.  Do not include any text outside
+the JSON object.
+"""
+
+
 _TEMPLATES: dict[str, str] = {
     "intention.system.v1": _SYSTEM_V1,
     "intention.user.v1": _USER_V1,
+    "intention.user.v2": _USER_V2,
 }
 
 

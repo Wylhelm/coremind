@@ -198,6 +198,10 @@ class CoreMindDaemon:
         self._response_listener_stop: asyncio.Event = asyncio.Event()
         self._conversation_listener_stop: asyncio.Event = asyncio.Event()
         self._conversation_listener_task: asyncio.Task[None] | None = None
+        self._embedding_prune_task: asyncio.Task[None] | None = None
+        self._embedding_prune_stop: asyncio.Event = asyncio.Event()
+        self._embedding_pipeline_memory: object | None = None
+        self._embedding_pipeline_encoder: object | None = None
         self._presence_detector_task: asyncio.Task[None] | None = None
         self._conversation_handler: ConversationHandler | None = None
         # Telegram message id → intent_id mapping for reply matching.
@@ -345,6 +349,8 @@ class CoreMindDaemon:
 
         if config.intention.enabled:
             reasoning_journal = config.audit_log_path.parent / "reasoning.log"
+            pipeline_intention = None
+            pipeline_reasoning = None
             llm_cfg = LLMConfig()
             if hasattr(config, "llm") and config.llm.intention.model:
                 llm_cfg.intention = LayerConfig(
@@ -362,6 +368,7 @@ class CoreMindDaemon:
                 router=router,
                 event_bus=event_bus,
                 predictive_memory=None,  # Set after semantic_memory init below
+                pipeline=pipeline_intention,
                 personalization=config.personalization,
                 config=IntentionLoopConfig(
                     event_driven=config.intention.event_driven,
@@ -431,6 +438,75 @@ class CoreMindDaemon:
                 predictive_memory = PredictiveMemory(semantic_memory)
                 log.info("daemon.predictive_memory_initialised")
 
+            # ----------------------------------------------------------
+            # Embedding pipeline (Phase 3E) — compressed prompts for L4/L5
+            # ----------------------------------------------------------
+            pipeline_intention = None
+            pipeline_reasoning = None
+            if config.embedding_pipeline.enabled:
+                try:
+                    from coremind.world.compressed_prompt import CompressedPromptBuilder
+                    from coremind.world.differ import SnapshotDiffer
+                    from coremind.world.embeddings import EmbeddingEncoder
+                    from coremind.world.pipeline import WorldEncodingPipeline
+                    from coremind.world.snapshot_memory import SnapshotMemory
+
+                    embed_cfg = config.embedding_pipeline
+                    llm_embed = config.llm.embedding
+
+                    # Reuse the same embedder instance (OllamaEmbedder) from semantic memory
+                    from coremind.memory.embeddings import OllamaEmbedder
+
+                    pipeline_embedder = OllamaEmbedder(
+                        endpoint=llm_embed.url,
+                        model=llm_embed.model,
+                        dimension=llm_embed.dimension,
+                    )
+                    shared_encoder = EmbeddingEncoder(
+                        pipeline_embedder,
+                        dimension=llm_embed.dimension,
+                        cache_size=embed_cfg.cache_size,
+                    )
+                    shared_memory = SnapshotMemory(
+                        embed_cfg.qdrant_url,
+                        collection=embed_cfg.collection_name,
+                        vector_size=llm_embed.dimension,
+                        timeout_seconds=embed_cfg.timeout_seconds,
+                    )
+                    await shared_memory.ensure_collection()
+
+                    prompt_builder = CompressedPromptBuilder(
+                        memory=shared_memory, top_k=embed_cfg.top_k_similar
+                    )
+
+                    pipeline_intention = WorldEncodingPipeline(
+                        encoder=shared_encoder,
+                        differ=SnapshotDiffer(),
+                        memory=shared_memory,
+                        prompt_builder=prompt_builder,
+                    )
+                    pipeline_reasoning = WorldEncodingPipeline(
+                        encoder=shared_encoder,
+                        differ=SnapshotDiffer(),
+                        memory=shared_memory,
+                        prompt_builder=prompt_builder,
+                    )
+                    self._embedding_pipeline_memory = shared_memory
+                    self._embedding_pipeline_encoder = shared_encoder
+                    log.info("daemon.embedding_pipeline_initialised")
+                    # Start periodic pruning task
+                    self._embedding_prune_stop.clear()
+                    self._embedding_prune_task = asyncio.create_task(
+                        self._prune_snapshot_embeddings(
+                            shared_memory,
+                            keep_count=embed_cfg.prune_keep_count,
+                            interval=embed_cfg.prune_interval_seconds,
+                        ),
+                        name="coremind.embedding_prune",
+                    )
+                except Exception as exc:
+                    log.warning("daemon.embedding_pipeline_unavailable", error=str(exc))
+
             reasoning_loop = ReasoningLoop(
                 snapshot_provider=world_store,
                 memory=semantic_memory,  # type: ignore[arg-type]
@@ -438,6 +514,7 @@ class CoreMindDaemon:
                 persister=JsonlCyclePersister(reasoning_journal),
                 narrative=narrative_memory,
                 predictive_memory=None,  # Set after semantic_memory init below
+                pipeline=pipeline_reasoning,
                 config=reasoning_config,
                 personalization=config.personalization,
             )
@@ -879,6 +956,13 @@ class CoreMindDaemon:
                 await self._conversation_listener_task
             self._conversation_listener_task = None
 
+        if self._embedding_prune_task is not None:
+            self._embedding_prune_stop.set()
+            self._embedding_prune_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._embedding_prune_task
+            self._embedding_prune_task = None
+
         if self._presence_detector_task is not None:
             self._presence_detector_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -1020,6 +1104,38 @@ class CoreMindDaemon:
                 await asyncio.wait_for(
                     self._approval_expirer_stop.wait(),
                     timeout=_APPROVAL_EXPIRER_INTERVAL_SECONDS,
+                )
+            except TimeoutError:
+                continue
+
+    async def _prune_snapshot_embeddings(
+        self,
+        memory: object,
+        *,
+        keep_count: int,
+        interval: float,
+    ) -> None:
+        """Periodically prune old snapshot embeddings from Qdrant.
+
+        Runs until :attr:`_embedding_prune_stop` is set.  Errors are logged
+        but never terminate the loop.
+
+        Args:
+            memory: SnapshotMemory instance with a ``prune()`` method.
+            keep_count: Maximum embeddings to retain.
+            interval: Seconds between prune sweeps.
+        """
+        while not self._embedding_prune_stop.is_set():
+            try:
+                pruned = await memory.prune(keep_count=keep_count)  # type: ignore[attr-defined]
+                if pruned > 0:
+                    log.info("embedding.pruned", count=pruned, kept=keep_count)
+            except Exception:
+                log.exception("embedding.prune_failed")
+            try:
+                await asyncio.wait_for(
+                    self._embedding_prune_stop.wait(),
+                    timeout=interval,
                 )
             except TimeoutError:
                 continue

@@ -1,0 +1,125 @@
+<mxfile host="app.diagrams.net" modified="2026-05-27T00:00:00.000Z" agent="coremind-docs" version="24.0.0">
+  <diagram name="Embedding World" id="embedding-world">
+    <mxGraphModel dx="1400" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="CoreMind v2 — JEPA-Inspired Embedding Pipeline" style="text;html=1;align=center;fontSize=20;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="280" y="20" width="640" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" value="Compress 15–30K token snapshots into ~2.5K token prompts for L4/L5. 80%+ token reduction." style="text;html=1;align=center;fontSize=11;fontStyle=2" vertex="1" parent="1">
+          <mxGeometry x="280" y="55" width="640" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Container: L2 World Model -->
+        <mxCell id="l2-box" value="L2 — World Model" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#2E7D32;fontSize=14;fontStyle=1;verticalAlign=top;align=center;dashed=1" vertex="1" parent="1">
+          <mxGeometry x="60" y="90" width="1080" height="440" as="geometry" />
+        </mxCell>
+
+        <!-- Inputs -->
+        <mxCell id="current" value="Current WorldSnapshot&#xa;(48 entities, 24K tokens raw)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="100" y="150" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="previous" value="Previous WorldSnapshot&#xa;(from last reasoning cycle)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="100" y="240" width="260" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- SnapshotDiffer -->
+        <mxCell id="differ" value="SnapshotDiffer&#xa;&#xa;Computes:&#xa;  • added entities&#xa;  • removed entities&#xa;  • changed entities (with diffs)&#xa;  • unchanged_count&#xa;  • total_count" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2F1;strokeColor=#00695C;fontSize=11;fontStyle=1;align=left;spacingLeft=10;verticalAlign=top;spacingTop=8" vertex="1" parent="1">
+          <mxGeometry x="440" y="140" width="240" height="170" as="geometry" />
+        </mxCell>
+
+        <!-- EmbeddingEncoder -->
+        <mxCell id="encoder" value="EmbeddingEncoder&#xa;&#xa;Ollama nomic-embed-text&#xa;  • dimension: 768&#xa;  • distance: cosine&#xa;  • batch encoding&#xa;  • LRU cache (1000 entities)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2F1;strokeColor=#00695C;fontSize=11;fontStyle=1;align=left;spacingLeft=10;verticalAlign=top;spacingTop=8" vertex="1" parent="1">
+          <mxGeometry x="440" y="340" width="240" height="150" as="geometry" />
+        </mxCell>
+
+        <!-- CompressedPromptBuilder -->
+        <mxCell id="builder" value="CompressedPromptBuilder&#xa;&#xa;Combines:&#xa;  1. Summary line (entity count + changed)&#xa;  2. Changed entities (detail)&#xa;  3. Top-K similar past states&#xa;  4. Summary statistics&#xa;  5. Optional: full fallback text" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2F1;strokeColor=#00695C;fontSize=11;fontStyle=1;align=left;spacingLeft=10;verticalAlign=top;spacingTop=8" vertex="1" parent="1">
+          <mxGeometry x="760" y="150" width="280" height="170" as="geometry" />
+        </mxCell>
+
+        <!-- Output: CompressedPrompt -->
+        <mxCell id="output" value="CompressedPrompt&#xa;~2,500 tokens&#xa;(vs 15–30K in v1)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;fontSize=13;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="800" y="380" width="200" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Qdrant store -->
+        <mxCell id="qdrant" value="Qdrant&#xa;snapshot_embeddings&#xa;(last 1000, 768d, cosine)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="100" y="370" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Downstream consumers -->
+        <mxCell id="l4" value="L4 — Reasoning&#xa;(anomalies, patterns, predictions)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="460" y="580" width="260" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="l5" value="L5 — Intention&#xa;(grounded intents)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="780" y="580" width="260" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- Fallback path -->
+        <mxCell id="fallback" value="Fallback (if Ollama unreachable):&#xa;Use v1-style full JSON snapshot.&#xa;L8 meta-loop detects degradation&#xa;and lowers reasoning frequency." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFEBEE;strokeColor=#C62828;align=left;fontSize=10;spacingLeft=8" vertex="1" parent="1">
+          <mxGeometry x="60" y="580" width="320" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Similarity query -->
+        <mxCell id="similarity" value="Similarity Query&#xa;&quot;Find 5 most similar past states&quot;&#xa;→ temporal pattern recognition" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2F1;strokeColor=#00695C;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="100" y="480" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Token comparison box -->
+        <mxCell id="comparison" value="Token Reduction Comparison&#xa;&#xa;v1: Full snapshot → LLM&#xa;  • 48 entities × 500 tokens avg = 24,000 tokens&#xa;  • Changed since last cycle: 3 (90%+ noise)&#xa;&#xa;v2: Compressed prompt → LLM&#xa;  • Summary: 100 tokens&#xa;  • Changed entities detail: 1,500 tokens&#xa;  • Similar past states: 600 tokens&#xa;  • Stats: 300 tokens&#xa;  • Total: ~2,500 tokens (90% reduction)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#E65100;align=left;fontSize=10;verticalAlign=top;spacingLeft=8;spacingTop=5" vertex="1" parent="1">
+          <mxGeometry x="60" y="700" width="380" height="200" as="geometry" />
+        </mxCell>
+
+        <!-- Architecture note -->
+        <mxCell id="arch-note" value="JEPA Insight (Yann LeCun):&#xa;Most cognitive work happens in embedding space,&#xa;not in token space. Rich intermediary embeddings&#xa;beat verbose text representations.&#xa;&#xa;We adapt this pragmatically: entity/snapshot&#xa;embeddings enable similarity queries and compression&#xa;without building a full JEPA model." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F3E5F5;strokeColor=#6A1B9A;align=left;fontSize=10;verticalAlign=top;spacingLeft=8;spacingTop=5" vertex="1" parent="1">
+          <mxGeometry x="500" y="700" width="380" height="150" as="geometry" />
+        </mxCell>
+
+        <!-- Arrows -->
+        <mxCell id="e1" style="endArrow=classic;html=1;strokeWidth=2" edge="1" parent="1" source="current" target="differ">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" style="endArrow=classic;html=1;strokeWidth=2" edge="1" parent="1" source="previous" target="differ">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="SnapshotDiff" style="endArrow=classic;html=1;strokeWidth=2;fontSize=10" edge="1" parent="1" source="differ" target="builder">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="entity&#xa;embeddings" style="endArrow=classic;html=1;strokeWidth=2;fontSize=9" edge="1" parent="1" source="encoder" target="builder">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" style="endArrow=classic;html=1;strokeWidth=2" edge="1" parent="1" source="builder" target="output">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" value="store" style="endArrow=classic;html=1;strokeWidth=2;fontSize=9" edge="1" parent="1" source="encoder" target="qdrant">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" value="top-K similar" style="endArrow=classic;html=1;strokeWidth=1;dashed=1;fontSize=9" edge="1" parent="1" source="qdrant" target="builder">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="380" y="410" />
+              <mxPoint x="380" y="250" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e8" style="endArrow=classic;html=1;strokeWidth=2" edge="1" parent="1" source="output" target="l4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" style="endArrow=classic;html=1;strokeWidth=2" edge="1" parent="1" source="output" target="l5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" style="endArrow=classic;html=1;strokeWidth=1;dashed=1" edge="1" parent="1" source="qdrant" target="similarity">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" style="endArrow=classic;html=1;strokeWidth=2" edge="1" parent="1" source="current" target="encoder">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

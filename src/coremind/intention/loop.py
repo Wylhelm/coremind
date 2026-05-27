@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from coremind.conversation.schemas import ConversationContext
+    from coremind.world.pipeline import WorldEncodingPipeline
 
 import structlog
 from pydantic import BaseModel, Field
@@ -188,6 +189,7 @@ class IntentionLoop:
         event_bus: EventBus | None = None,
         predictive_memory: object | None = None,
         conversation_handler: ConversationContextProvider | None = None,
+        pipeline: WorldEncodingPipeline | None = None,
         config: IntentionLoopConfig | None = None,
         personalization: PersonalizationConfig | None = None,
         clock: Clock = _utc_now,
@@ -202,6 +204,7 @@ class IntentionLoop:
         self._event_bus = event_bus
         self._predictive_memory = predictive_memory
         self._conversation_handler = conversation_handler
+        self._pipeline = pipeline
         self._config = config or IntentionLoopConfig()
         self._personalization = personalization or PersonalizationConfig()
         self._clock = clock
@@ -434,23 +437,45 @@ class IntentionLoop:
         local_tz = get_timezone(self._personalization)
         local_now = now.astimezone(local_tz)
 
-        user = render_prompt(
-            self._config.template_user,
-            snapshot_json=_snapshot_to_json(snapshot, self._config.max_entities_in_prompt),
-            local_time=local_now.strftime("%H:%M"),
-            local_timezone=str(local_tz),
-            reasoning_summary=_reasoning_summary(cycles),
-            recent_intents_summary=_recent_intents_summary(recent_intents),
-            patterns_summary=(
-                await self._patterns.active_patterns_summary()
-                if self._patterns is not None
-                else "(none)"
-            ),
-            predictions_summary=_predictions_summary(predictions),
-            conversations_summary=conversations_summary,
-            schema_json=json.dumps(QuestionBatch.model_json_schema(), indent=2),
-            max_questions=self._config.max_questions,
-        )
+        # Build user prompt — use compressed world context when pipeline is available.
+        if self._pipeline is not None:
+            compressed = await self._pipeline.process(snapshot)
+            template_user = "intention.user.v2"
+            user = render_prompt(
+                template_user,
+                world_context=compressed.to_prompt_text(),
+                local_time=local_now.strftime("%H:%M"),
+                local_timezone=str(local_tz),
+                reasoning_summary=_reasoning_summary(cycles),
+                recent_intents_summary=_recent_intents_summary(recent_intents),
+                patterns_summary=(
+                    await self._patterns.active_patterns_summary()
+                    if self._patterns is not None
+                    else "(none)"
+                ),
+                predictions_summary=_predictions_summary(predictions),
+                conversations_summary=conversations_summary,
+                schema_json=json.dumps(QuestionBatch.model_json_schema(), indent=2),
+                max_questions=self._config.max_questions,
+            )
+        else:
+            user = render_prompt(
+                self._config.template_user,
+                snapshot_json=_snapshot_to_json(snapshot, self._config.max_entities_in_prompt),
+                local_time=local_now.strftime("%H:%M"),
+                local_timezone=str(local_tz),
+                reasoning_summary=_reasoning_summary(cycles),
+                recent_intents_summary=_recent_intents_summary(recent_intents),
+                patterns_summary=(
+                    await self._patterns.active_patterns_summary()
+                    if self._patterns is not None
+                    else "(none)"
+                ),
+                predictions_summary=_predictions_summary(predictions),
+                conversations_summary=conversations_summary,
+                schema_json=json.dumps(QuestionBatch.model_json_schema(), indent=2),
+                max_questions=self._config.max_questions,
+            )
 
         try:
             batch = await self._llm.complete_structured(

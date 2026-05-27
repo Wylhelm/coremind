@@ -161,6 +161,40 @@ class LLMConfig(BaseModel):
     embedding: EmbeddingLLMConfig = Field(default_factory=EmbeddingLLMConfig)
 
 
+class EmbeddingPipelineConfig(BaseModel):
+    """Configuration for the L2 embedding world pipeline (Phase 3E).
+
+    Controls the WorldEncodingPipeline that produces compressed prompts for
+    L4/L5 instead of full JSON snapshots.  Encoder URL and model are read
+    from ``llm.embedding`` — this section only holds pipeline-specific knobs.
+
+    Attributes:
+        enabled: Whether to use embedding-based compressed prompts.
+        cache_size: Maximum cached entity vectors before LRU eviction.
+        timeout_seconds: Per-request timeout for the embedding encoder.
+        qdrant_url: Qdrant HTTP URL for snapshot similarity storage.
+        collection_name: Qdrant collection for snapshot embeddings.
+        top_k_similar: Number of similar past states to include in prompts.
+        exclude_recent_seconds: Exclude recent snapshots from similarity search.
+        prune_keep_count: Maximum stored snapshot embeddings before pruning.
+        prune_interval_seconds: How often to prune old embeddings (seconds).
+        fallback_on_error: Fall back to full JSON prompts on encoder failure.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    enabled: bool = False
+    cache_size: int = Field(default=5000, ge=100)
+    timeout_seconds: float = Field(default=10.0, gt=0.0)
+    qdrant_url: str = "http://localhost:6333"
+    collection_name: str = "snapshot_embeddings"
+    top_k_similar: int = Field(default=3, ge=1, le=20)
+    exclude_recent_seconds: float = Field(default=600.0, ge=0.0)
+    prune_keep_count: int = Field(default=1000, ge=100)
+    prune_interval_seconds: float = Field(default=21600.0, ge=60.0)
+    fallback_on_error: bool = True
+
+
 class DaemonConfig(BaseModel):
     """Validated daemon configuration.
 
@@ -189,6 +223,7 @@ class DaemonConfig(BaseModel):
     autonomy: AutonomyConfig = Field(default_factory=AutonomyConfig)
     personalization: PersonalizationConfig = Field(default_factory=PersonalizationConfig)
     meta: MetaConfig = Field(default_factory=MetaConfig)
+    embedding_pipeline: EmbeddingPipelineConfig = Field(default_factory=EmbeddingPipelineConfig)
 
 
 def load_config() -> DaemonConfig:

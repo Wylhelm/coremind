@@ -1,0 +1,142 @@
+<mxfile host="app.diagrams.net" modified="2026-05-27T00:00:00.000Z" agent="coremind-docs" version="24.0.0">
+  <diagram name="Autonomy Slider" id="autonomy-slider">
+    <mxGraphModel dx="1400" dy="1100" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="CoreMind v2 — Autonomy Slider &amp; Agency Resolution" style="text;html=1;align=center;fontSize=20;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="280" y="20" width="640" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" value="Replaces v1 binary Safe/Suggest/Ask with per-domain graduated trust (0.0–1.0)" style="text;html=1;align=center;fontSize=11;fontStyle=2" vertex="1" parent="1">
+          <mxGeometry x="280" y="55" width="640" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- L5 Intent input -->
+        <mxCell id="L5" value="L5 Intention&#xa;Intent { question, grounding, proposed_action, confidence }" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="400" y="90" width="440" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- Decision 1: Hard-ASK -->
+        <mxCell id="hard-ask" value="Hard-ASK class?&#xa;(finance · locks · messaging · security&#xa;· plugin.install · config.modify)" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=11;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="420" y="180" width="400" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- Decision 2: Slider Resolution -->
+        <mxCell id="slider-resolve" value="resolve_agency(action_class, confidence, slider)&#xa;&#xa;Domain slider lookup → threshold comparison" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;fontSize=11;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="400" y="340" width="440" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- Outcomes -->
+        <mxCell id="safe" value="SAFE&#xa;confidence ≥ slider × 1.0&#xa;(high trust + high confidence)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="60" y="500" width="260" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="suggest" value="SUGGEST&#xa;confidence ≥ slider × 0.6&#xa;(moderate trust zone)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="500" y="500" width="260" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="ask" value="ASK&#xa;confidence &lt; slider × 0.6&#xa;or hard-ASK class" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="940" y="500" width="260" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Execution paths -->
+        <mxCell id="exec-safe" value="Execute silently&#xa;journal only" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2E7D32;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="60" y="600" width="260" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="exec-suggest" value="Execute + notify user&#xa;(auto after 30s grace)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#F9A825;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="500" y="600" width="260" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="exec-ask" value="Approval Gate&#xa;(Telegram · Dashboard · CLI)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#C62828;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="940" y="600" width="260" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Unified Actuator -->
+        <mxCell id="actuator" value="Unified Actuator — dispatch to effector plugin" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2F1;strokeColor=#00695C;fontSize=11;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="280" y="680" width="520" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Audit Journal -->
+        <mxCell id="journal" value="Audit Journal&#xa;~/.coremind/audit.log&#xa;(signed · hash-chained · ed25519)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#FFF9C4;strokeColor=#F9A825;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="280" y="750" width="240" height="75" as="geometry" />
+        </mxCell>
+
+        <!-- L7/L8 Graduation Flow -->
+        <mxCell id="grad-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#E65100;dashed=1" vertex="1" parent="1">
+          <mxGeometry x="850" y="700" width="370" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="grad-title" value="Graduation (Automatic Slider Promotion)" style="text;html=1;align=center;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="870" y="705" width="330" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="grad-desc" value="L7/L8 can propose slider increase when:&#xa;  • Domain has ≥ 10 approvals in window&#xa;  • Approval rate ≥ 80%&#xa;  • ≥ 7 days since last promotion&#xa;  • Proposed increase ≤ 0.1&#xa;&#xa;User MUST approve before it takes effect.&#xa;Logged as autonomy_change in SurrealDB." style="text;html=1;align=left;verticalAlign=top;fontSize=10;spacingLeft=8" vertex="1" parent="1">
+          <mxGeometry x="860" y="730" width="340" height="120" as="geometry" />
+        </mxCell>
+
+        <!-- Domain Slider Table -->
+        <mxCell id="slider-table" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E5F5;strokeColor=#6A1B9A;dashed=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="700" width="200" height="250" as="geometry" />
+        </mxCell>
+        <mxCell id="slider-title" value="Default Domain Sliders" style="text;html=1;align=center;fontSize=11;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="50" y="705" width="180" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="slider-values" value="weather ········· 1.0&#xa;lights ·········· 0.8&#xa;calendar ········ 0.8&#xa;hvac ············ 0.7&#xa;media ··········· 0.7&#xa;presence ········ 0.6&#xa;notifications ··· 0.6&#xa;health ·········· 0.5&#xa;default ········· 0.4&#xa;vacuum ·········· 0.3&#xa;messaging ······· 0.2&#xa;locks ··········· 0.1&#xa;finance ········· 0.1" style="text;html=1;align=left;verticalAlign=top;fontSize=10;fontFamily=monospace;spacingLeft=8;spacingTop=4" vertex="1" parent="1">
+          <mxGeometry x="50" y="728" width="180" height="210" as="geometry" />
+        </mxCell>
+
+        <!-- Arrows -->
+        <mxCell id="e1" style="endArrow=classic;html=1;strokeWidth=2" edge="1" parent="1" source="L5" target="hard-ask">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="yes → always ASK" style="endArrow=classic;html=1;strokeWidth=2;fontSize=10;exitX=1;exitY=0.5;entryX=0.5;entryY=0;strokeColor=#C62828" edge="1" parent="1" source="hard-ask" target="ask">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1070" y="235" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e3" value="no → slider resolution" style="endArrow=classic;html=1;strokeWidth=2;fontSize=10" edge="1" parent="1" source="hard-ask" target="slider-resolve">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="high" style="endArrow=classic;html=1;strokeWidth=2;fontSize=10" edge="1" parent="1" source="slider-resolve" target="safe">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="medium" style="endArrow=classic;html=1;strokeWidth=2;fontSize=10" edge="1" parent="1" source="slider-resolve" target="suggest">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" value="low" style="endArrow=classic;html=1;strokeWidth=2;fontSize=10" edge="1" parent="1" source="slider-resolve" target="ask">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" style="endArrow=classic;html=1;strokeWidth=2" edge="1" parent="1" source="safe" target="exec-safe">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" style="endArrow=classic;html=1;strokeWidth=2" edge="1" parent="1" source="suggest" target="exec-suggest">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" style="endArrow=classic;html=1;strokeWidth=2" edge="1" parent="1" source="ask" target="exec-ask">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" style="endArrow=classic;html=1;strokeWidth=2" edge="1" parent="1" source="exec-safe" target="actuator">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" style="endArrow=classic;html=1;strokeWidth=2" edge="1" parent="1" source="exec-suggest" target="actuator">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" value="approved →" style="endArrow=classic;html=1;strokeWidth=2;dashed=1;fontSize=10" edge="1" parent="1" source="exec-ask" target="actuator">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1070" y="680" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e13" value="journal (all actions)" style="endArrow=classic;html=1;strokeWidth=2;fontSize=10" edge="1" parent="1" source="actuator" target="journal">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- v1 comparison note -->
+        <mxCell id="note" value="v1 → v2 change:  In v1, categories were fixed per action class.&#xa;In v2, categories are dynamically resolved from (action_class, confidence, domain_slider).&#xa;Hard-ASK classes remain immutable: no slider, no meta-loop, no user can override them." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9E9E9E;align=left;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="280" y="960" width="640" height="55" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

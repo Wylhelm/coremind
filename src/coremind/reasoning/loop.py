@@ -23,10 +23,13 @@ import json
 import uuid
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime, timedelta
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import structlog
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from coremind.world.pipeline import WorldEncodingPipeline
 
 from coremind.errors import LLMError, ReasoningError
 from coremind.personalization.config import PersonalizationConfig
@@ -142,6 +145,7 @@ class ReasoningLoop:
         *,
         narrative: object | None = None,
         predictive_memory: object | None = None,
+        pipeline: WorldEncodingPipeline | None = None,
         config: ReasoningLoopConfig | None = None,
         personalization: PersonalizationConfig | None = None,
         clock: Clock = _utc_now,
@@ -152,6 +156,7 @@ class ReasoningLoop:
         self._persister = persister
         self._narrative = narrative
         self._predictive_memory = predictive_memory
+        self._pipeline = pipeline
         self._config = config or ReasoningLoopConfig()
         self._personalization = personalization or PersonalizationConfig()
         self._clock = clock
@@ -314,7 +319,6 @@ class ReasoningLoop:
 
         memory_excerpt = await self._build_memory_excerpt(snapshot)
         narrative_context = await self._build_narrative_context()
-        snapshot_json = _snapshot_to_prompt_json(snapshot, self._config.max_entities_in_prompt)
         schema_json = json.dumps(ReasoningOutput.model_json_schema(), indent=2)
 
         system = render_prompt(
@@ -322,17 +326,34 @@ class ReasoningLoop:
             user_name=self._personalization.user_name,
             language_name=self._personalization.language_name,
         )
-        user = render_prompt(
-            self._config.template_user,
-            snapshot_json=snapshot_json,
-            memory_excerpt=memory_excerpt,
-            narrative_context=narrative_context,
-            schema_json=schema_json,
-            about_user=self._about_user_context,
-            previous_questions=self._load_investigation_questions(),
-            user_name=self._personalization.user_name,
-            language_name=self._personalization.language_name,
-        )
+
+        # Build user prompt — use compressed world context when pipeline is available.
+        if self._pipeline is not None:
+            compressed = await self._pipeline.process(snapshot)
+            user = render_prompt(
+                "reasoning.heavy.user.v3",
+                world_context=compressed.to_prompt_text(),
+                memory_excerpt=memory_excerpt,
+                narrative_context=narrative_context,
+                schema_json=schema_json,
+                about_user=self._about_user_context,
+                previous_questions=self._load_investigation_questions(),
+                user_name=self._personalization.user_name,
+                language_name=self._personalization.language_name,
+            )
+        else:
+            snapshot_json = _snapshot_to_prompt_json(snapshot, self._config.max_entities_in_prompt)
+            user = render_prompt(
+                self._config.template_user,
+                snapshot_json=snapshot_json,
+                memory_excerpt=memory_excerpt,
+                narrative_context=narrative_context,
+                schema_json=schema_json,
+                about_user=self._about_user_context,
+                previous_questions=self._load_investigation_questions(),
+                user_name=self._personalization.user_name,
+                language_name=self._personalization.language_name,
+            )
 
         layer = self._config.layer
         model_used = getattr(self._llm.config, layer).model

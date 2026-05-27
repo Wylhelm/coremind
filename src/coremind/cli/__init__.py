@@ -534,6 +534,141 @@ def world_snapshot() -> None:
     asyncio.run(_snapshot())
 
 
+@world.command("embed-stats")
+def world_embed_stats() -> None:
+    """Show embedding pipeline statistics (encoder cache + Qdrant)."""
+
+    async def _stats() -> None:
+        from coremind.config import load_config
+        from coremind.world.snapshot_memory import SnapshotMemory
+
+        config = load_config()
+        if not config.embedding_pipeline.enabled:
+            click.echo("Embedding pipeline is disabled in config.")
+            return
+
+        embed_cfg = config.embedding_pipeline
+        llm_embed = config.llm.embedding
+
+        memory = SnapshotMemory(
+            embed_cfg.qdrant_url,
+            collection=embed_cfg.collection_name,
+            vector_size=llm_embed.dimension,
+            timeout_seconds=embed_cfg.timeout_seconds,
+        )
+        count = await memory.count()
+
+        click.echo("Embedding Pipeline Statistics")
+        click.echo(f"  Collection:     {embed_cfg.collection_name}")
+        click.echo(f"  Qdrant URL:     {embed_cfg.qdrant_url}")
+        click.echo(f"  Stored:         {count} embeddings")
+        click.echo(f"  Max kept:       {embed_cfg.prune_keep_count}")
+        click.echo(f"  Encoder model:  {llm_embed.model}")
+        click.echo(f"  Encoder URL:    {llm_embed.url}")
+        click.echo(f"  Cache size:     {embed_cfg.cache_size}")
+
+    asyncio.run(_stats())
+
+
+@world.command("similar")
+@click.option("--limit", "-n", default=5, type=int, help="Number of similar states to show.")
+def world_similar(limit: int) -> None:
+    """Show top-K most similar past states to the current snapshot."""
+
+    async def _similar() -> None:
+        from coremind.config import load_config
+        from coremind.memory.embeddings import OllamaEmbedder
+        from coremind.world.embeddings import EmbeddingEncoder
+        from coremind.world.snapshot_memory import SnapshotMemory
+
+        config = load_config()
+        if not config.embedding_pipeline.enabled:
+            click.echo("Embedding pipeline is disabled in config.")
+            return
+
+        embed_cfg = config.embedding_pipeline
+        llm_embed = config.llm.embedding
+
+        # Get current snapshot
+        store = _open_store()
+        await store.connect()
+        try:
+            snapshot = await store.snapshot()
+        finally:
+            await store.close()
+
+        # Encode current snapshot
+        embedder = OllamaEmbedder(
+            endpoint=llm_embed.url,
+            model=llm_embed.model,
+            dimension=llm_embed.dimension,
+        )
+        encoder = EmbeddingEncoder(
+            embedder,
+            dimension=llm_embed.dimension,
+            cache_size=embed_cfg.cache_size,
+        )
+        embedding = await encoder.encode_snapshot(snapshot)
+
+        # Query Qdrant for similar
+        memory = SnapshotMemory(
+            embed_cfg.qdrant_url,
+            collection=embed_cfg.collection_name,
+            vector_size=llm_embed.dimension,
+            timeout_seconds=embed_cfg.timeout_seconds,
+        )
+        results = await memory.find_similar(embedding, k=limit)
+
+        if not results:
+            click.echo("No stored snapshot embeddings yet.")
+            return
+
+        now = datetime.now(UTC)
+        click.echo(f"Similar Past States (top {limit}):")
+        for i, r in enumerate(results, 1):
+            age = now - r.timestamp
+            seconds = age.total_seconds()
+            if seconds < 3600:  # noqa: PLR2004
+                age_str = f"{int(seconds // 60)}m ago"
+            elif seconds < 86400:  # noqa: PLR2004
+                age_str = f"{int(seconds // 3600)}h ago"
+            else:
+                age_str = f"{int(age.days)}d ago"
+            click.echo(f"  {i}. {age_str:>8s}  (sim={r.score:.2f}): {r.summary}")
+
+    asyncio.run(_similar())
+
+
+@world.command("prune")
+@click.option("--keep", default=1000, type=int, help="Number of embeddings to keep.")
+def world_prune(keep: int) -> None:
+    """Prune old snapshot embeddings from Qdrant."""
+
+    async def _prune() -> None:
+        from coremind.config import load_config
+        from coremind.world.snapshot_memory import SnapshotMemory
+
+        config = load_config()
+        if not config.embedding_pipeline.enabled:
+            click.echo("Embedding pipeline is disabled in config.")
+            return
+
+        embed_cfg = config.embedding_pipeline
+        llm_embed = config.llm.embedding
+
+        memory = SnapshotMemory(
+            embed_cfg.qdrant_url,
+            collection=embed_cfg.collection_name,
+            vector_size=llm_embed.dimension,
+            timeout_seconds=embed_cfg.timeout_seconds,
+        )
+        pruned = await memory.prune(keep_count=keep)
+        remaining = await memory.count()
+        click.echo(f"Pruned {pruned} old snapshot embeddings. Remaining: {remaining}.")
+
+    asyncio.run(_prune())
+
+
 # ---------------------------------------------------------------------------
 # memory group
 # ---------------------------------------------------------------------------
