@@ -339,6 +339,7 @@ class ReflectionLoop:
         self._clock = clock
         self._task: asyncio.Task[None] | None = None
         self._stop_event = asyncio.Event()
+        self._last_cycle_at: datetime | None = None
 
     @property
     def config(self) -> ReflectionLoopConfig:
@@ -384,6 +385,18 @@ class ReflectionLoop:
             return  # stop was requested during startup delay
         except TimeoutError:
             pass
+
+        # Anti-spam: if a reflection already ran recently (within interval),
+        # skip the first post-restart cycle and wait for the next window.
+        if self._last_cycle_at is not None:
+            elapsed = (self._clock() - self._last_cycle_at).total_seconds()
+            if elapsed < interval:
+                remaining = interval - elapsed
+                log.info("reflection.skipping_recent", last_cycle=str(self._last_cycle_at), wait_s=remaining)
+                try:
+                    await asyncio.wait_for(self._stop_event.wait(), timeout=remaining)
+                except TimeoutError:
+                    pass
 
         while not self._stop_event.is_set():
             try:
@@ -485,6 +498,7 @@ class ReflectionLoop:
             proposed_rules=len(rule_result.proposed_rule_ids),
             deprecated_rules=len(rule_result.deprecated_rule_ids),
         )
+        self._last_cycle_at = now
         return report
 
     # ------------------------------------------------------------------
