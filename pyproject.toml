@@ -72,7 +72,7 @@ packages = ["src/coremind"]
 line-length = 100
 target-version = "py312"
 src = ["src", "tests"]
-extend-exclude = ["**/_generated/**"]
+extend-exclude = ["**/_generated/**", "benchmarks/**"]
 
 [tool.ruff.lint]
 select = [
