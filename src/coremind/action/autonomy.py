@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -59,18 +59,16 @@ _DOMAIN_CLASSIFICATION: dict[str, str] = {
     "message.outbound": "messaging",
     "notification.send": "notifications",
     "homeassistant.send_notification": "notifications",
-    "notification": "notifications",
+    "safety.presence_alert": "notifications",
+    "notification": "messaging",
     "health": "health",
     "media": "media",
     "speaker": "media",
     "tv": "media",
     "presence": "presence",
     "notify_user": "presence",
-    "safety.presence_alert": "notifications",
     "homeassistant.turn_on": "lights",
     "homeassistant.turn_off": "lights",
-    "homeassistant.send_notification": "notifications",
-    "notification": "notifications",
 }
 
 # Pre-sorted for longest-prefix matching (computed once at import).
@@ -237,9 +235,7 @@ class AutonomyConfig(BaseModel):
 
     @field_validator("hard_ask", mode="before")
     @classmethod
-    def _coerce_hard_ask(
-        cls, v: object
-    ) -> list[dict[str, str]]:
+    def _coerce_hard_ask(cls, v: object) -> list[dict[str, str]]:
         """Accept both the design-doc TOML shape and a flat list of strings.
 
         TOML ``[autonomy.hard_ask]\\nclasses = [...]`` arrives as a dict
@@ -257,9 +253,7 @@ class AutonomyConfig(BaseModel):
 
     @field_validator("hard_safe", mode="before")
     @classmethod
-    def _coerce_hard_safe(
-        cls, v: object
-    ) -> list[dict[str, str]]:
+    def _coerce_hard_safe(cls, v: object) -> list[dict[str, str]]:
         """Same coercion logic as _coerce_hard_ask but for hard_safe rules."""
         if isinstance(v, dict):
             raw = v.get("classes", [])

@@ -254,9 +254,7 @@ class IntentionLoop:
 
         # Startup grace: use the dedicated config field (default 10 min).
         grace = self._config.startup_grace_seconds
-        log.info(
-            "intention.startup_grace", seconds=grace, event_driven=self._config.event_driven
-        )
+        log.info("intention.startup_grace", seconds=grace, event_driven=self._config.event_driven)
         with contextlib.suppress(TimeoutError):
             await asyncio.wait_for(self._stop_event.wait(), timeout=grace)
 

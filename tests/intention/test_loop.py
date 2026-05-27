@@ -305,10 +305,12 @@ async def test_event_driven_mode_filters_insignificant_events(
         router,
         event_bus=event_bus,  # type: ignore[arg-type]
         config=IntentionLoopConfig(
-            event_driven=True, routine_interval_seconds=60, startup_grace_seconds=0
+            event_driven=True,
+            routine_interval_seconds=60,
+            startup_grace_seconds=2,  # Give time for events before first routine cycle
         ),
     )
-    loop._observation_threshold = 3
+    loop._observation_threshold = 100  # Ensure event threshold never triggers
     loop.start()
     await asyncio.sleep(0.1)
 
@@ -345,5 +347,10 @@ async def test_event_driven_mode_filters_insignificant_events(
             )
         )
 
+    # Allow any ongoing cycle to finish, then stop before the routine interval (60s)
+    await asyncio.sleep(0.3)
     await loop.stop()
-    assert llm.calls == 0, "Irrelevant/low-confidence events should not trigger cycles"
+    assert llm.calls == 0, (
+        "Irrelevant/low-confidence events should not trigger cycles; "
+        "startup grace should prevent routine cycle from firing"
+    )

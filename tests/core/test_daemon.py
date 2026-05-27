@@ -64,6 +64,9 @@ class _FakeStore:
         self.applied.append(event)
         self.applied_event.set()
 
+    async def reconnect(self) -> None:
+        """No-op test double for reconnect."""
+
 
 # ---------------------------------------------------------------------------
 # stop() without start() — idempotency
@@ -115,12 +118,12 @@ async def test_handle_event_does_not_raise_on_signature_error() -> None:
 
 
 @pytest.mark.asyncio
-async def test_handle_event_does_not_raise_on_store_error() -> None:
-    """StoreError from apply_event is swallowed so the loop can continue."""
+async def test_handle_event_raises_on_store_error() -> None:
+    """StoreError from apply_event is re-raised so the robust loop can reconnect."""
     store = _FakeStore(fail_calls=1, fail_with=StoreError)
 
-    # Must not propagate the exception.
-    await _handle_event(_make_event(), store)
+    with pytest.raises(StoreError):
+        await _handle_event(_make_event(), store)
 
 
 # ---------------------------------------------------------------------------
@@ -202,26 +205,33 @@ async def test_ingest_loop_continues_after_signature_error() -> None:
 
 
 @pytest.mark.asyncio
-async def test_ingest_loop_continues_after_store_error() -> None:
-    """The loop processes a subsequent event after a StoreError on the first."""
+async def test_ingest_loop_robust_reconnects_after_store_error() -> None:
+    """The robust loop reconnects and continues processing events after a StoreError."""
     bus = EventBus()
     store = _FakeStore(fail_calls=1, fail_with=StoreError)
     daemon = CoreMindDaemon()
 
-    loop_task = asyncio.create_task(daemon._ingest_loop(bus, store))
+    loop_task = asyncio.create_task(daemon._ingest_loop_robust(bus, store))
     await asyncio.sleep(0)
 
-    await bus.publish(_make_event())  # will trigger StoreError
+    # First event triggers StoreError → robust wrapper reconnect + restart
+    await bus.publish(_make_event())
+    # Wait for the robust loop to catch the error, reconnect, and restart _ingest_loop
+    # (backoff is 2s)
+    await asyncio.sleep(3.0)
+
+    # Now publish events through the restarted loop
     second = _make_event()
     await bus.publish(second)
 
-    await asyncio.wait_for(store.applied_event.wait(), timeout=1.0)
+    await asyncio.wait_for(store.applied_event.wait(), timeout=3.0)
 
     loop_task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await loop_task
 
-    assert store.applied == [second]
+    assert len(store.applied) >= 1
+    assert store.applied[0] == second
 
 
 # ---------------------------------------------------------------------------

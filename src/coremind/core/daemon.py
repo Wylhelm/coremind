@@ -97,10 +97,14 @@ _MAX_TELEGRAM_MSG_MAPPINGS = 50
 
 
 class _StorePort(Protocol):
-    """Minimal interface consumed by the ingest loop."""
+    """Minimal interface consumed by the ingest loop and robust wrapper."""
 
     async def apply_event(self, event: WorldEventRecord) -> None:
         """Persist *event* to the World Model."""
+        ...
+
+    async def reconnect(self) -> None:
+        """Reconnect to the backing store after a connection loss."""
         ...
 
 
@@ -137,6 +141,10 @@ async def _handle_event(event: WorldEventRecord, world_store: _StorePort) -> Non
         )
     except StoreError:
         log.error("ingest.store_error", event_id=event.id, exc_info=True)
+        # Re-raise StoreError so the robust loop can trigger reconnection.
+        # SignatureError is permanent (bad key) — StoreError may be transient
+        # (connection loss) and should trigger recovery.
+        raise
 
 
 # ---------------------------------------------------------------------------
@@ -831,12 +839,35 @@ class CoreMindDaemon:
             )
 
     async def _ingest_loop_robust(self, event_bus: EventBus, world_store: _StorePort) -> None:
-        """Robust wrapper around _ingest_loop with automatic restart on crash."""
+        """Robust wrapper around _ingest_loop with automatic reconnect on crash.
+
+        StoreError (typically from a broken SurrealDB connection) triggers a
+        reconnection attempt before restarting the ingest loop.  Other
+        exceptions are logged and the loop restarts after a short delay.
+        """
+        consecutive_store_errors = 0
         while True:
             try:
+                consecutive_store_errors = 0
                 await self._ingest_loop(event_bus, world_store)
             except asyncio.CancelledError:
                 raise
+            except StoreError:
+                consecutive_store_errors += 1
+                backoff = min(consecutive_store_errors * 2, 30)
+                log.error(
+                    "daemon.ingest_reconnecting",
+                    attempt=consecutive_store_errors,
+                    backoff_s=backoff,
+                )
+                try:
+                    await world_store.reconnect()
+                except Exception:
+                    log.exception(
+                        "daemon.ingest_reconnect_failed",
+                        attempt=consecutive_store_errors,
+                    )
+                await asyncio.sleep(backoff)
             except Exception:
                 log.exception("daemon.ingest_crashed_restarting")
                 await asyncio.sleep(5)

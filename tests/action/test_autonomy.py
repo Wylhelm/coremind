@@ -73,11 +73,12 @@ class TestClassifyDomain:
         # "homeassistant.vacuum" is more specific than "homeassistant.turn_on"
         assert classify_domain("homeassistant.vacuum.start") == "vacuum"
 
-    def test_notification_send_maps_to_messaging(self) -> None:
-        assert classify_domain("notification.send.telegram") == "messaging"
+    def test_notification_send_maps_to_notifications(self) -> None:
+        # Longest-prefix: "notification.send" matches before "notification"
+        assert classify_domain("notification.send.telegram") == "notifications"
 
-    def test_notification_bare_maps_to_notifications(self) -> None:
-        assert classify_domain("notification") == "notifications"
+    def test_notification_bare_maps_to_messaging(self) -> None:
+        assert classify_domain("notification") == "messaging"
 
 
 # ---------------------------------------------------------------------------

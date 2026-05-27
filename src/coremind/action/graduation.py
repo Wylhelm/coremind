@@ -14,6 +14,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from coremind.action.autonomy import AutonomyConfig, GraduationConfig, classify_domain
 
+# Minimum slider value — below this demotion proposals are not generated.
+_MIN_SLIDER_DEMOTE: float = 0.1
+
 
 class SliderGraduationProposal(BaseModel):
     """A proposal to increase a domain's autonomy slider.
@@ -173,7 +176,7 @@ class GraduationEvaluator:
         if not self._config.enabled or not self._config.demotion_enabled:
             return None
 
-        if current_slider <= 0.1:
+        if current_slider <= _MIN_SLIDER_DEMOTE:
             return None  # Already at minimum.
 
         # Enforce cooldown.
@@ -200,9 +203,7 @@ class GraduationEvaluator:
         if rejection_rate < self._config.min_rejection_rate_for_demotion:
             return None
 
-        decrease = min(
-            self._config.max_demotion_per_proposal, current_slider - 0.1
-        )
+        decrease = min(self._config.max_demotion_per_proposal, current_slider - 0.1)
         new_slider = round(current_slider - decrease, 2)
 
         return SliderDemotionProposal(

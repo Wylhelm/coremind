@@ -6,6 +6,11 @@ services:
   # ── Backing stores ──
   surrealdb:
     image: surrealdb/surrealdb:latest
+    # ⚠️ Watchtower: label prevents auto-update (SurrealDB updates break
+    # the WebSocket connection and CoreMind doesn't auto-reconnect to
+    # restarted containers).  Only update manually after testing.
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
     command: start --user root --pass root surrealkv:/data
     ports:
       - "127.0.0.1:8001:8000"

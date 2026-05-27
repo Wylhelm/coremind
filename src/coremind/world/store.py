@@ -139,6 +139,8 @@ class WorldStore:
         Raises:
             StoreError: If the connection or authentication fails.
         """
+        # Close any previous connection first (safe to call even if self._db is None)
+        await self.close()
         try:
             self._db = AsyncSurreal(self._url)
             await self._db.connect(self._url)
@@ -147,6 +149,19 @@ class WorldStore:
         except Exception as exc:
             raise StoreError(f"failed to connect to SurrealDB at {self._url!r}") from exc
         log.info("world_store.connected", url=self._url)
+
+    async def reconnect(self) -> None:
+        """Reconnect to SurrealDB after a connection loss.
+
+        This is a lighter alternative to :meth:`connect` that logs
+        reconnection events distinctly, aiding ops visibility.
+
+        Raises:
+            StoreError: If the reconnection fails.
+        """
+        await self.connect()
+        await self.apply_schema()
+        log.info("world_store.reconnected", url=self._url)
 
     async def close(self) -> None:
         """Close the SurrealDB connection.

@@ -397,11 +397,11 @@ class ReflectionLoop:
                 elapsed = (self._clock() - last_ts).total_seconds()
                 if 0 < elapsed < interval:
                     remaining = interval - elapsed
-                    log.info("reflection.skipping_recent", last_cycle=str(last_ts), wait_s=remaining)
-                    try:
+                    log.info(
+                        "reflection.skipping_recent", last_cycle=str(last_ts), wait_s=remaining
+                    )
+                    with contextlib.suppress(TimeoutError):
                         await asyncio.wait_for(self._stop_event.wait(), timeout=remaining)
-                    except TimeoutError:
-                        pass
             except (ValueError, OSError):
                 pass  # corrupt marker — proceed normally
 
