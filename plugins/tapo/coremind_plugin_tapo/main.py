@@ -37,10 +37,10 @@ TAPO_PASSWORD: str = os.environ.get("TAPO_PASSWORD", "")
 RTSP_PORT: int = 554
 STREAM_PATH: str = "/stream1"
 
-# Vision models via Ollama Pro (no extra API costs)
+# Vision models — local (no API costs)
 OLLAMA_HOST: str = os.environ.get("OLLAMA_API_BASE", "http://10.0.0.175:11434")
-VISION_PRIMARY: str = "gemini-3-flash-preview:latest"  # Gemini via Ollama Pro
-VISION_FALLBACK: str = "mistral-large-3:675b-cloud"  # Mistral via Ollama Pro
+VISION_PRIMARY: str = "mistral-small3.2:24b"  # Text + Image — already loaded, 0 cost
+VISION_FALLBACK: str = "minicpm-v:8b"  # Lightweight vision model (~5GB)
 VISION_ENABLED: bool = True
 
 CONFIDENCE: float = 0.85
