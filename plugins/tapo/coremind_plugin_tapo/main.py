@@ -41,6 +41,7 @@ STREAM_PATH: str = "/stream1"
 OLLAMA_HOST: str = os.environ.get("OLLAMA_API_BASE", "http://10.0.0.175:11434")
 VISION_PRIMARY: str = "mistral-small3.2:24b"  # Text + Image — already loaded, 0 cost
 VISION_FALLBACK: str = "minicpm-v:8b"  # Lightweight vision model (~5GB)
+FACE_MATCH_MODEL: str = "minicpm-v:8b"  # Dedicated face matching model — avoids GPU OOM
 VISION_ENABLED: bool = True
 
 CONFIDENCE: float = 0.85
@@ -225,8 +226,9 @@ async def match_face_with_immich(
         buf = io.BytesIO()
         snap.save(buf, format="JPEG", quality=70)
 
-        # Batch reference faces (max 7 per call = 1 snapshot + 7 refs = 8 total)
-        batch_size = 7
+        # Batch reference faces (max 3 per call = 1 snapshot + 3 refs = 4 total)
+        # Small batches prevent GPU OOM on resource-constrained servers
+        batch_size = 3
         for i in range(0, len(face_files), batch_size):
             batch = face_files[i : i + batch_size]
             ref_imgs = []
@@ -250,7 +252,7 @@ async def match_face_with_immich(
                 }
             ]
 
-            resp = client.chat(model=VISION_PRIMARY, messages=messages)
+            resp = client.chat(model=FACE_MATCH_MODEL, messages=messages)
             text = resp["message"]["content"]
             start = text.find("{")
             end = text.rfind("}") + 1
