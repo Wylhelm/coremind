@@ -386,25 +386,24 @@ class ReflectionLoop:
         except TimeoutError:
             pass
 
-        # Anti-spam: check when the last reflection actually ran by querying
-        # recent cycles. If one ran within the interval, skip to next window.
-        try:
-            recent = await self._cycles.list_cycles(
-                since=self._clock() - timedelta(seconds=interval),
-                until=self._clock(),
-            )
-            if recent:
-                last_ts = recent[-1].cycle_at
+        # Anti-spam: check the last reflection timestamp from disk.
+        # In-memory stores don't survive restarts, so we use a file marker.
+        from pathlib import Path  # noqa: PLC0415
+
+        marker = Path.home() / ".coremind" / "run" / "last_reflection_at"
+        if marker.exists():
+            try:
+                last_ts = datetime.fromisoformat(marker.read_text().strip())
                 elapsed = (self._clock() - last_ts).total_seconds()
-                if elapsed < interval:
+                if 0 < elapsed < interval:
                     remaining = interval - elapsed
                     log.info("reflection.skipping_recent", last_cycle=str(last_ts), wait_s=remaining)
                     try:
                         await asyncio.wait_for(self._stop_event.wait(), timeout=remaining)
                     except TimeoutError:
                         pass
-        except Exception:
-            log.debug("reflection.could_not_check_recent", exc_info=True)
+            except (ValueError, OSError):
+                pass  # corrupt marker — proceed normally
 
         while not self._stop_event.is_set():
             try:
@@ -506,7 +505,12 @@ class ReflectionLoop:
             proposed_rules=len(rule_result.proposed_rule_ids),
             deprecated_rules=len(rule_result.deprecated_rule_ids),
         )
-        self._last_cycle_at = now
+        # Persist last reflection timestamp for anti-spam across restarts.
+        from pathlib import Path  # noqa: PLC0415
+
+        marker = Path.home() / ".coremind" / "run" / "last_reflection_at"
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text(now.isoformat())
         return report
 
     # ------------------------------------------------------------------
