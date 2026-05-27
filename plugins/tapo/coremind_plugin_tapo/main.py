@@ -156,17 +156,12 @@ async def analyze_scene(image_path: Path) -> dict[str, str | bool]:
 
         prompt = (
             "Describe this room in JSON: "
-            "person_present (boolean), person_name (string — identify who you see. "
-            "Guillaume is a man in his late 40s with short brown hair, often in a t-shirt. "
-            "Aurélie is a young woman in her 20s with long dark hair. "
-            "Julie is a woman in her 40s with brown hair. "
-            "Jeff is a man in his 40s, bald or shaved head. "
-            "If you cannot identify confidently, use 'unknown'), "
+            "person_present (boolean), "
             "activity (string), "
             "pets_visible (boolean), pet_description (string — "
             "3 black cats: Poukie (medium), Timimi (larger, caramel hints), Minuit (small). "
             "Identify cats by size/position if visible). "
-            'Example: {"person_present": true, "person_name": "Guillaume", '
+            'Example: {"person_present": true, '
             '"activity": "working at desk", "pets_visible": true, '
             '"pet_description": "Timimi on the couch"}'
         )
@@ -339,19 +334,20 @@ async def run() -> None:
 
                         log.info("tapo.snapshot_captured", success=success, size=size_bytes)
 
-                        # Vision analysis: Gemini Flash (primary) → Mistral (fallback), both via Ollama
+                        # Vision analysis: scene context + face matching
                         if success and VISION_ENABLED:
                             vision = await analyze_scene(snap_path)
                             if vision:
-                                # If person is present but unidentified, try Immich face matching
-                                if (
-                                    vision.get("person_present")
-                                    and vision.get("person_name") == "unknown"
-                                ):
+                                # Person identification: always use face matching
+                                # (visual comparison against reference photos —
+                                #  much more accurate than text description by the LLM)
+                                if vision.get("person_present"):
                                     matched_name = await match_face_with_immich(snap_path)
                                     if matched_name:
                                         vision["person_name"] = matched_name
                                         log.info("tapo.face_identified", name=matched_name)
+                                    else:
+                                        vision["person_name"] = "unknown"
 
                                 for attr, val in vision.items():
                                     event_v = build_signed_event(
