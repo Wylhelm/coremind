@@ -41,7 +41,7 @@ STREAM_PATH: str = "/stream1"
 OLLAMA_HOST: str = os.environ.get("OLLAMA_API_BASE", "http://10.0.0.175:11434")
 VISION_PRIMARY: str = "mistral-small3.2:24b"  # Text + Image — already loaded, 0 cost
 VISION_FALLBACK: str = "minicpm-v:8b"  # Lightweight vision model (~5GB)
-FACE_MATCH_MODEL: str = "minicpm-v:8b"  # Dedicated face matching model — avoids GPU OOM
+FACE_MATCH_MODEL: str = "mistral-small3.2:24b"  # Same as VISION_PRIMARY, already loaded
 VISION_ENABLED: bool = True
 
 CONFIDENCE: float = 0.85
@@ -226,9 +226,8 @@ async def match_face_with_immich(
         buf = io.BytesIO()
         snap.save(buf, format="JPEG", quality=70)
 
-        # Batch reference faces (max 3 per call = 1 snapshot + 3 refs = 4 total)
-        # Small batches prevent GPU OOM on resource-constrained servers
-        batch_size = 3
+        # Batch reference faces (1 per call — GPU VRAM constraint)
+        batch_size = 1
         for i in range(0, len(face_files), batch_size):
             batch = face_files[i : i + batch_size]
             ref_imgs = []
@@ -344,6 +343,8 @@ async def run() -> None:
                                 # (visual comparison against reference photos —
                                 #  much more accurate than text description by the LLM)
                                 if vision.get("person_present"):
+                                    # Brief cooldown — let GPU context from scene analysis clear
+                                    await asyncio.sleep(3)
                                     matched_name = await match_face_with_immich(snap_path)
                                     if matched_name:
                                         vision["person_name"] = matched_name
