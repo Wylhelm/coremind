@@ -112,6 +112,8 @@ ignore = [
     "PLR2004",
     "ANN",
 ] # assert/magic-values/annotations are fine in tests
+"tests/cli/test_meta_cli.py" = ["PLC0415"]
+"tests/dashboard/test_meta_views.py" = ["S105"]
 "scripts/**/*.py" = [
     "T20",
     "S603",
@@ -152,6 +154,8 @@ ignore = [
     "ASYNC221",
 ] # plugin code predates strict lint rules; retry loops add complexity
 "src/coremind/dashboard/views.py" = ["E402", "I001", "E501"]
+"src/coremind/dashboard/views_meta.py" = ["E501", "PLC0415"]
+"src/coremind/dashboard/server.py" = ["ERA001"]
 "src/coremind/plugin_host/server.py" = ["B008", "PLC0415"]
 "src/coremind/intention/loop.py" = ["E501", "PLR2004"]
 "src/coremind/core/daemon.py" = [
@@ -163,6 +167,7 @@ ignore = [
     "PTH123",
     "E501",
     "ASYNC230",
+    "ERA001",
 ]
 "src/coremind/action/effectors.py" = [
     "PLC0415",
@@ -176,6 +181,7 @@ ignore = [
 ]
 "src/coremind/action/executor.py" = ["E501"]
 "src/coremind/cli/__init__.py" = ["PLC0415", "PLR0915", "ANN202"]
+"src/coremind/cli/meta.py" = ["PLC0415"]
 "src/coremind/cli/reflect_ports.py" = ["PLC0415", "PLR0915", "ANN202"]
 "src/coremind/intention/prompts.py" = ["E501"]
 "src/coremind/reasoning/loop.py" = [

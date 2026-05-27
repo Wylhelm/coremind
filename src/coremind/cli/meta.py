@@ -188,8 +188,7 @@ def meta_policies() -> None:
     """List active meta-loop policies."""
     from coremind.meta.constants import DEFAULT_POLICIES
 
-    config = _load_config()
-    # Future: merge user overrides from config. For now, use defaults.
+    # Future: merge user overrides from _load_config(). For now, use defaults.
     policies = DEFAULT_POLICIES
 
     header = f"{'NAME':<35} {'ENABLED':<9} {'KIND':<30} {'THRESHOLD':<10} {'PARAMETER'}"

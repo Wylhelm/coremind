@@ -54,6 +54,7 @@ from coremind.intention.persistence import IntentStore
 from coremind.memory.narrative import NarrativeMemory
 from coremind.memory.procedural import ProceduralMemory
 from coremind.meta.loop import MetaLoop
+from coremind.meta.schemas import AdjustmentRecord
 from coremind.notify.adapters.dashboard import DashboardNotificationPort
 from coremind.notify.port import (
     ApprovalAction,
@@ -732,8 +733,8 @@ class CoreMindDaemon:
             meta_observer = MetaObserver(
                 intention_store=intents,
                 action_store=journal,
-                plugin_registry=registry,
-                narrative_store=narrative_memory,
+                plugin_registry=registry,  # type: ignore[arg-type]
+                narrative_store=narrative_memory,  # type: ignore[arg-type]
             )
 
             class _AdjustmentHistoryAdapter:
@@ -742,7 +743,7 @@ class CoreMindDaemon:
                 def __init__(self, store: InMemoryMetaStore) -> None:
                     self._store = store
 
-                def last_adjustment(self, parameter_path: str) -> object:
+                def last_adjustment(self, parameter_path: str) -> AdjustmentRecord | None:
                     for record in reversed(list(self._store._adjustments.values())):
                         if record.parameter_path == parameter_path:
                             return record
@@ -794,9 +795,9 @@ class CoreMindDaemon:
 
                 _meta_source = DaemonMetaSource(
                     meta_config=config.meta,
-                    meta_store=meta_store,  # type: ignore[possibly-undefined]
-                    approval_queue=meta_approval_queue,  # type: ignore[possibly-undefined]
-                    adjuster=meta_adjuster,  # type: ignore[possibly-undefined]
+                    meta_store=meta_store,
+                    approval_queue=meta_approval_queue,
+                    adjuster=meta_adjuster,
                 )
             dashboard_server = await _start_dashboard(
                 config=config.dashboard,
