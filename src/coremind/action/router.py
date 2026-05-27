@@ -21,7 +21,7 @@ from collections.abc import Iterable
 import structlog
 
 from coremind.action.approvals import ApprovalGate
-from coremind.action.autonomy import AutonomyConfig, resolve_agency
+from coremind.action.autonomy import AutonomyConfig, HardAskRule, resolve_agency
 from coremind.action.executor import Executor
 from coremind.action.journal import ActionJournal
 from coremind.intention.persistence import IntentStore
@@ -58,14 +58,14 @@ class ActionRouter:
         self._intents = intent_store
         self._journal = journal
         # Merge user_ask_classes into autonomy config's hard_ask.
-        extra_ask = tuple(user_ask_classes)
+        extra_ask = [HardAskRule(action_class=c) for c in user_ask_classes]
         if autonomy_config is None:
             self._autonomy = AutonomyConfig(
-                hard_ask=list(AutonomyConfig().hard_ask) + list(extra_ask),
+                hard_ask=list(AutonomyConfig().hard_ask) + extra_ask,
             )
         elif extra_ask:
             self._autonomy = autonomy_config.model_copy(
-                update={"hard_ask": list(autonomy_config.hard_ask) + list(extra_ask)},
+                update={"hard_ask": list(autonomy_config.hard_ask) + extra_ask},
             )
         else:
             self._autonomy = autonomy_config

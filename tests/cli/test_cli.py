@@ -31,7 +31,7 @@ from coremind.world.model import Entity, EntityRef, WorldEventRecord, WorldSnaps
 @pytest.fixture()
 def runner() -> CliRunner:
     """Provide a Click test runner (stderr always separate in Click 8.2+)."""
-    return CliRunner(mix_stderr=False)
+    return CliRunner()
 
 
 @pytest.fixture()

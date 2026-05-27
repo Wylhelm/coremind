@@ -1552,8 +1552,8 @@ async def autonomy_page(request: web.Request) -> web.Response:
 
         for name in sorted(all_domains):
             slider = all_domains[name]
-            has_hard_ask = any(name in rule for rule in config.hard_ask)
-            has_hard_safe = any(name in rule for rule in config.hard_safe)
+            has_hard_ask = any(name == rule.action_class for rule in config.hard_ask)
+            has_hard_safe = any(name == rule.action_class for rule in config.hard_safe)
             domains.append(
                 {
                     "name": name,

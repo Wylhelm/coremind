@@ -235,34 +235,43 @@ class AutonomyConfig(BaseModel):
 
     @field_validator("hard_ask", mode="before")
     @classmethod
-    def _coerce_hard_ask(cls, v: object) -> list[dict[str, str]]:
+    def _coerce_hard_ask(cls, v: object) -> object:
         """Accept both the design-doc TOML shape and a flat list of strings.
 
         TOML ``[autonomy.hard_ask]\\nclasses = [...]`` arrives as a dict
         with a ``classes`` key.  A raw list of class-name strings is also
         accepted for backward compatibility during migration.
+
+        Return type is ``object`` because Pydantic validators with
+        ``mode="before"`` receive raw TOML/JSON and must pass through
+        unrecognised shapes unchanged; Pydantic will then raise the
+        appropriate ``ValidationError``.
         """
         if isinstance(v, dict):
-            raw = v.get("classes", [])
+            raw: object = v.get("classes", [])
         elif isinstance(v, (list, tuple)):
-            raw = list(v)
+            raw = v
         else:
             return v  # let Pydantic raise the validation error
 
-        return [HardAskRule(action_class=r) if isinstance(r, str) else r for r in raw]
+        if not isinstance(raw, list):
+            return raw  # let Pydantic handle the type error
+        return [HardAskRule(action_class=str(r)) if isinstance(r, str) else r for r in raw]
 
     @field_validator("hard_safe", mode="before")
     @classmethod
-    def _coerce_hard_safe(cls, v: object) -> list[dict[str, str]]:
+    def _coerce_hard_safe(cls, v: object) -> object:
         """Same coercion logic as _coerce_hard_ask but for hard_safe rules."""
         if isinstance(v, dict):
-            raw = v.get("classes", [])
+            raw: object = v.get("classes", [])
         elif isinstance(v, (list, tuple)):
-            raw = list(v)
+            raw = v
         else:
             return v
 
-        return [HardSafeRule(action_class=r) if isinstance(r, str) else r for r in raw]
+        if not isinstance(raw, list):
+            return raw
+        return [HardSafeRule(action_class=str(r)) if isinstance(r, str) else r for r in raw]
 
     def _hard_ask_classes(self) -> tuple[str, ...]:
         """Extract action_class strings from hard_ask rules (for matching)."""

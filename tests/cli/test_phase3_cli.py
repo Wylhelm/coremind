@@ -25,8 +25,8 @@ from coremind.intention.schemas import ActionProposal, Intent, InternalQuestion
 
 @pytest.fixture()
 def runner() -> CliRunner:
-    """Click test runner with stderr separated."""
-    return CliRunner(mix_stderr=False)
+    """Click test runner (stderr always separate in Click 8.2+)."""
+    return CliRunner()
 
 
 @pytest.fixture()

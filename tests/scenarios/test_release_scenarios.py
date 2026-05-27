@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import tempfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -338,7 +339,7 @@ def test_s3_audit_verify_detects_tampered_journal(
         quiet_hours=QuietHoursConfig(enabled=False),
     )
 
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
     from unittest.mock import patch  # noqa: PLC0415 — local import to scope the patch
 
     with patch("coremind.cli.load_config", return_value=cfg):
@@ -370,6 +371,9 @@ async def test_s4_plugin_reconnects_after_crash_without_data_loss(
     reconnect arrive in the world store alongside the pre-crash events.
     """
     socket_path = tmp_path / "run" / "plugin_host.sock"
+    if len(str(socket_path)) > 100:
+        short_dir = Path(tempfile.mkdtemp(prefix="cm"))
+        socket_path = short_dir / "plugin_host.sock"
     bus = EventBus()
     store = _InMemoryStore()
 
