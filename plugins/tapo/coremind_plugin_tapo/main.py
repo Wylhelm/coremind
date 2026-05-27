@@ -343,8 +343,8 @@ async def run() -> None:
                                 # (visual comparison against reference photos —
                                 #  much more accurate than text description by the LLM)
                                 if vision.get("person_present"):
-                                    # Brief cooldown — let GPU context from scene analysis clear
-                                    await asyncio.sleep(3)
+                                    # Cooldown — let GPU context from scene analysis clear
+                                    await asyncio.sleep(10)
                                     matched_name = await match_face_with_immich(snap_path)
                                     if matched_name:
                                         vision["person_name"] = matched_name
