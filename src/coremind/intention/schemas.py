@@ -25,6 +25,7 @@ type IntentStatus = Literal[
     "approved",
     "rejected",
     "snoozed",
+    "cancelled",
     "executing",
     "done",
     "failed",
