@@ -66,6 +66,7 @@ _DOMAIN_CLASSIFICATION: dict[str, str] = {
     "tv": "media",
     "presence": "presence",
     "notify_user": "presence",
+    "safety.presence_alert": "notifications",
     "homeassistant.turn_on": "lights",
     "homeassistant.turn_off": "lights",
     "homeassistant.send_notification": "notifications",

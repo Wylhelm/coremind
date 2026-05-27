@@ -153,10 +153,10 @@ class PresenceDetector:
                 text=question_text,
             ),
             proposed_action=ActionProposal(
-                operation="notify_user",
-                parameters={"message": question_text},
+                operation="coremind.plugin.notification.send",
+                parameters={"title": "Pause bien-être", "message": question_text},
                 expected_outcome=f"Je te rappelle de faire une pause après {hours}h{minutes:02d}.",
-                action_class="safety.presence_alert",
+                action_class="notification.send",
             ),
             salience=0.88,
             confidence=0.82,
