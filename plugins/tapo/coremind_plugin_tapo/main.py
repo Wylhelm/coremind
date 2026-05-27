@@ -136,8 +136,15 @@ def build_signed_event(
     return unsigned
 
 
-async def analyze_scene(image_path: Path) -> dict[str, str | bool]:
-    """Analyze a snapshot via Ollama — Gemini Flash (primary) or Mistral (fallback)."""
+async def analyze_scene(
+    image_path: Path,
+    faces_dir: Path = Path.home() / ".coremind" / "faces",
+) -> dict[str, str | bool]:
+    """Analyze a snapshot via Ollama — scene context + face matching in ONE call.
+
+    Sends the snapshot + first reference face to the vision model.
+    One call avoids GPU OOM from back-to-back vision requests.
+    """
     try:
         from PIL import Image
         import ollama, json as _json
@@ -148,6 +155,18 @@ async def analyze_scene(image_path: Path) -> dict[str, str | bool]:
         img.save(buf, format="JPEG", quality=70)
         img_bytes = buf.getvalue()
 
+        # Load first reference face for person identification
+        ref_bytes: bytes | None = None
+        ref_name: str | None = None
+        if faces_dir.exists():
+            face_files = sorted(faces_dir.glob("*.jpg"))
+            if face_files:
+                ref = Image.open(face_files[0])
+                ref_buf = io.BytesIO()
+                ref.save(ref_buf, format="JPEG", quality=85)
+                ref_bytes = ref_buf.getvalue()
+                ref_name = face_files[0].stem
+
         host = OLLAMA_HOST.replace("http://", "").replace("https://", "").rstrip("/")
         if ":" in host:
             hp = host.split(":")
@@ -155,24 +174,31 @@ async def analyze_scene(image_path: Path) -> dict[str, str | bool]:
         else:
             client = ollama.Client(host=f"http://{host}:11434")
 
+        images = [img_bytes]
+        if ref_bytes:
+            images.append(ref_bytes)
+
         prompt = (
             "Describe this room in JSON: "
             "person_present (boolean), "
+            "person_name (string — if a reference photo is provided, "
+            "compare it to the person in the room. "
+            "If the faces match, return the reference person's name. "
+            "If they don't match or no reference is given, use 'unknown'), "
             "activity (string), "
             "pets_visible (boolean), pet_description (string — "
             "3 black cats: Poukie (medium), Timimi (larger, caramel hints), Minuit (small). "
             "Identify cats by size/position if visible). "
-            'Example: {"person_present": true, '
+            'Example: {"person_present": true, "person_name": "Guillaume", '
             '"activity": "working at desk", "pets_visible": true, '
             '"pet_description": "Timimi on the couch"}'
         )
 
-        # Try Gemini Flash first (faster, more reliable)
         for model in [VISION_PRIMARY, VISION_FALLBACK]:
             try:
                 resp = client.chat(
                     model=model,
-                    messages=[{"role": "user", "content": prompt, "images": [img_bytes]}],
+                    messages=[{"role": "user", "content": prompt, "images": images}],
                 )
                 text = resp["message"]["content"]
                 start = text.find("{")
@@ -335,22 +361,13 @@ async def run() -> None:
 
                         log.info("tapo.snapshot_captured", success=success, size=size_bytes)
 
-                        # Vision analysis: scene context + face matching
+                        # Vision analysis: scene + face matching in ONE call
                         if success and VISION_ENABLED:
                             vision = await analyze_scene(snap_path)
                             if vision:
-                                # Person identification: always use face matching
-                                # (visual comparison against reference photos —
-                                #  much more accurate than text description by the LLM)
-                                if vision.get("person_present"):
-                                    # Cooldown — let GPU context from scene analysis clear
-                                    await asyncio.sleep(10)
-                                    matched_name = await match_face_with_immich(snap_path)
-                                    if matched_name:
-                                        vision["person_name"] = matched_name
-                                        log.info("tapo.face_identified", name=matched_name)
-                                    else:
-                                        vision["person_name"] = "unknown"
+                                # Fallback to "unknown" if no name matched
+                                if not vision.get("person_name"):
+                                    vision["person_name"] = "unknown"
 
                                 for attr, val in vision.items():
                                     event_v = build_signed_event(
