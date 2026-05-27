@@ -36,6 +36,16 @@ from coremind.dashboard.views import (
     stats_json,
     submit_approval,
 )
+from coremind.dashboard.views_meta import (
+    meta_adjustments_json,
+    meta_approve_json,
+    meta_deny_json,
+    meta_observations_json,
+    meta_page,
+    meta_proposals_json,
+    meta_rollback_json,
+    meta_status_json,
+)
 
 log = structlog.get_logger(__name__)
 
@@ -85,6 +95,15 @@ def create_app(
     app.router.add_post("/api/autonomy/set", autonomy_set_json)
     app.router.add_get("/api/autonomy/proposals", autonomy_proposals_json)
     app.router.add_get("/logo.png", logo_png)
+    # Meta-loop (L8)
+    app.router.add_get("/meta", meta_page)
+    app.router.add_get("/api/meta/status", meta_status_json)
+    app.router.add_get("/api/meta/observations", meta_observations_json)
+    app.router.add_get("/api/meta/adjustments", meta_adjustments_json)
+    app.router.add_get("/api/meta/proposals", meta_proposals_json)
+    app.router.add_post("/api/meta/proposals/{id}/approve", meta_approve_json)
+    app.router.add_post("/api/meta/proposals/{id}/deny", meta_deny_json)
+    app.router.add_post("/api/meta/adjustments/{id}/rollback", meta_rollback_json)
     return app
 
 

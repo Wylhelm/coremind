@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import tempfile
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -30,6 +31,16 @@ from coremind.world.model import WorldEventRecord
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _short_socket(tmp_path: Path, name: str) -> Path:
+    """Return a socket path guaranteed to stay under the 107-char Unix limit."""
+    candidate = tmp_path / "run" / name
+    if len(str(candidate)) <= 100:
+        return candidate
+    short_dir = Path(tempfile.mkdtemp(prefix="cm"))
+    return short_dir / name
+
 
 _PLUGIN_ID = "coremind.plugin.test"
 _PLUGIN_VERSION = "1.0.0"
@@ -528,7 +539,7 @@ async def test_plugin_host_server_start_creates_socket(
     event_bus: EventBus,
 ) -> None:
     """PluginHostServer.start() creates a Unix socket at the configured path."""
-    socket_path = tmp_path / "run" / "plugin_host.sock"
+    socket_path = _short_socket(tmp_path, "plugin_host.sock")
     server = PluginHostServer(
         socket_path=socket_path,
         registry=registry,
@@ -549,7 +560,7 @@ async def test_plugin_host_server_stop_removes_server(
     event_bus: EventBus,
 ) -> None:
     """PluginHostServer.stop() without start() does not raise."""
-    socket_path = tmp_path / "run" / "plugin_host.sock"
+    socket_path = _short_socket(tmp_path, "plugin_host.sock")
     server = PluginHostServer(
         socket_path=socket_path,
         registry=registry,
@@ -566,7 +577,7 @@ async def test_plugin_host_server_removes_stale_socket(
     event_bus: EventBus,
 ) -> None:
     """PluginHostServer.start() removes a pre-existing stale socket file."""
-    socket_path = tmp_path / "run" / "plugin_host.sock"
+    socket_path = _short_socket(tmp_path, "plugin_host.sock")
     socket_path.parent.mkdir(parents=True, exist_ok=True)
     socket_path.write_bytes(b"stale")
 

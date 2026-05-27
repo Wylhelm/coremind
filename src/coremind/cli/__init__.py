@@ -1563,3 +1563,12 @@ def reflect_now(window_days: int) -> None:
         import traceback
 
         click.echo(traceback.format_exc(), err=True)
+
+
+# ---------------------------------------------------------------------------
+# meta group (external module)
+# ---------------------------------------------------------------------------
+
+from coremind.cli.meta import meta  # noqa: E402
+
+cli.add_command(meta)

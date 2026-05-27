@@ -18,6 +18,7 @@ import structlog
 from pydantic import BaseModel, ConfigDict, Field
 
 from coremind.action.autonomy import AutonomyConfig
+from coremind.meta.schemas import MetaConfig
 from coremind.personalization.config import PersonalizationConfig
 
 log = structlog.get_logger(__name__)
@@ -187,6 +188,7 @@ class DaemonConfig(BaseModel):
     llm: LLMConfig = Field(default_factory=LLMConfig)
     autonomy: AutonomyConfig = Field(default_factory=AutonomyConfig)
     personalization: PersonalizationConfig = Field(default_factory=PersonalizationConfig)
+    meta: MetaConfig = Field(default_factory=MetaConfig)
 
 
 def load_config() -> DaemonConfig:

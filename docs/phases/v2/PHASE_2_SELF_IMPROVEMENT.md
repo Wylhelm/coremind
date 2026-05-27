@@ -7,6 +7,22 @@
 
 ---
 
+## Subphases
+
+This phase is divided into 5 subphases for incremental implementation:
+
+| Subphase | Document | Scope | Prerequisites |
+| --- | --- | --- | --- |
+| **2A** | [PHASE_2A_META_SCHEMAS.md](PHASE_2A_META_SCHEMAS.md) | Pydantic models, constants, config types | None |
+| **2B** | [PHASE_2B_META_OBSERVER.md](PHASE_2B_META_OBSERVER.md) | `MetaObserver` — collects metrics from L1–L7 | 2A |
+| **2C** | [PHASE_2C_EVALUATOR_SAFETY.md](PHASE_2C_EVALUATOR_SAFETY.md) | `PolicyEvaluator` + `MetaSafetyValidator` — pure logic | 2A |
+| **2D** | [PHASE_2D_ADJUSTER_LOOP.md](PHASE_2D_ADJUSTER_LOOP.md) | `MetaAdjuster` + `MetaLoop` + daemon integration | 2A, 2B, 2C |
+| **2E** | [PHASE_2E_CLI_DASHBOARD.md](PHASE_2E_CLI_DASHBOARD.md) | CLI commands + dashboard `/meta` page | 2D |
+
+Implement in order. Each subphase has its own success criteria and test requirements.
+
+---
+
 ## 1. Problem Statement
 
 CoreMind v1 has **fixed parameters everywhere**:
@@ -220,22 +236,22 @@ FORBIDDEN_PARAMETER_PATHS = [
     # Approval gates
     "autonomy.hard_ask",
     "autonomy.hard_safe",
-    
+
     # Quiet hours
     "intention.quiet_hours",
     "notifications.quiet_hours",
-    
+
     # Secrets
     "secrets.*",
-    
+
     # Plugin permissions
     "plugins.*.permissions",
     "plugins.*.action_classes",
-    
+
     # Audit
     "audit.*",
     "logging.*",
-    
+
     # Meta-loop itself
     "meta.forbidden_parameter_paths",
     "meta.safety_bounds",
@@ -336,7 +352,7 @@ class AdjustmentRecord(BaseModel):
 ```python
 class MetaObserver:
     """Collects observations about system performance."""
-    
+
     def __init__(
         self,
         intention_store,
@@ -348,7 +364,7 @@ class MetaObserver:
         self._action = action_store
         self._plugins = plugin_registry
         self._narrative = narrative_store
-    
+
     async def observe_all(self) -> list[MetaObservation]:
         """Collect all observation kinds."""
         return [
@@ -360,7 +376,7 @@ class MetaObserver:
             await self._observe_investigation_success_rate(),
             await self._observe_low_quality_intent_rate(),
         ]
-    
+
     async def _observe_intent_repeat_rate(self) -> MetaObservation:
         """Compute the fraction of intents that are repeats in the last 6h."""
         window = timedelta(hours=6)
@@ -374,7 +390,7 @@ class MetaObserver:
             counts = Counter(keys)
             repeats = sum(c - 1 for c in counts.values() if c > 1)
             value = repeats / len(intents)
-        
+
         return MetaObservation(
             kind="intent_repeat_rate",
             value=value,
@@ -382,7 +398,7 @@ class MetaObserver:
             window_seconds=window.total_seconds(),
             metadata={"total_intents": len(intents)},
         )
-    
+
     async def _observe_notification_engagement_rate(self) -> MetaObservation:
         """Compute fraction of notifications user engaged with."""
         window = timedelta(days=7)
@@ -392,7 +408,7 @@ class MetaObserver:
         else:
             engaged = sum(1 for n in notifications if n.user_interacted)
             value = engaged / len(notifications)
-        
+
         return MetaObservation(
             kind="notification_engagement_rate",
             value=value,
@@ -400,13 +416,13 @@ class MetaObserver:
             window_seconds=window.total_seconds(),
             metadata={"total": len(notifications)},
         )
-    
+
     async def _observe_domain_approval_rates(self) -> list[MetaObservation]:
         """Per-domain approval rates."""
         window = timedelta(days=30)
         actions = await self._action.list_recent(window)
         observations = []
-        
+
         from collections import defaultdict
         per_domain: dict[str, list] = defaultdict(list)
         for a in actions:
@@ -414,7 +430,7 @@ class MetaObserver:
                 continue
             domain = classify_action(a.action_class)
             per_domain[domain].append(a)
-        
+
         for domain, domain_actions in per_domain.items():
             if len(domain_actions) < 10:
                 continue
@@ -428,7 +444,7 @@ class MetaObserver:
                 metadata={"domain": domain, "total": len(domain_actions), "approved": approved},
             ))
         return observations
-    
+
     async def _observe_plugin_error_rates(self) -> list[MetaObservation]:
         """Per-plugin error rates over last 1h."""
         window = timedelta(hours=1)
@@ -447,7 +463,7 @@ class MetaObserver:
                 metadata={"plugin_id": plugin.id, "total_calls": stats.total_calls, "errors": stats.errors},
             ))
         return observations
-    
+
     async def _observe_token_efficiency(self) -> MetaObservation:
         """Tokens per useful intent."""
         window = timedelta(hours=24)
@@ -461,7 +477,7 @@ class MetaObserver:
             window_seconds=window.total_seconds(),
             metadata={"tokens": token_count, "intents": intent_count},
         )
-    
+
     async def _observe_investigation_success_rate(self) -> MetaObservation:
         """Fraction of investigations that conclude successfully."""
         window = timedelta(days=7)
@@ -478,7 +494,7 @@ class MetaObserver:
             window_seconds=window.total_seconds(),
             metadata={"total": len(investigations)},
         )
-    
+
     async def _observe_low_quality_intent_rate(self) -> MetaObservation:
         """Fraction of intents below quality threshold."""
         window = timedelta(hours=24)
@@ -494,7 +510,7 @@ class MetaObserver:
             threshold=0.5,
             window_seconds=window.total_seconds(),
         )
-    
+
     def _intent_key(self, intent) -> str:
         """Hash an intent for repeat detection."""
         import hashlib
@@ -507,18 +523,18 @@ class MetaObserver:
 ```python
 class PolicyEvaluator:
     """Matches observations to policies and proposes adjustments."""
-    
+
     def __init__(self, policies: list[AdjustmentPolicy], history: AdjustmentHistory):
         self._policies = policies
         self._history = history
-    
+
     def evaluate(
         self,
         observations: list[MetaObservation],
     ) -> list[ProposedAdjustment]:
         proposals = []
         now = datetime.now(UTC)
-        
+
         for obs in observations:
             for policy in self._policies:
                 if not policy.enabled:
@@ -527,25 +543,25 @@ class PolicyEvaluator:
                     continue
                 if not self._matches_condition(obs.value, policy):
                     continue
-                
+
                 # Resolve parameter path (substitute wildcards from metadata)
                 param_path = self._resolve_path(policy.parameter_path, obs.metadata)
-                
+
                 # Check cooldown
                 last = self._history.last_adjustment(param_path)
                 if last and (now - last.applied_at).total_seconds() < policy.cooldown_seconds:
                     continue
-                
+
                 # Compute new value
                 old_value = self._read_current_value(param_path)
                 new_value = self._compute_new_value(old_value, policy)
-                
+
                 # Clamp to bounds
                 new_value = max(policy.min_value, min(policy.max_value, new_value))
-                
+
                 if new_value == old_value:
                     continue  # no change to make
-                
+
                 proposals.append(ProposedAdjustment(
                     policy=policy,
                     observation=obs,
@@ -553,9 +569,9 @@ class PolicyEvaluator:
                     old_value=old_value,
                     new_value=new_value,
                 ))
-        
+
         return proposals
-    
+
     def _matches_condition(self, value: float, policy: AdjustmentPolicy) -> bool:
         if policy.trigger_condition == "above":
             return value > policy.threshold
@@ -564,20 +580,20 @@ class PolicyEvaluator:
         elif policy.trigger_condition == "between":
             return policy.threshold <= value <= (policy.threshold_upper or policy.threshold)
         return False
-    
+
     def _resolve_path(self, template: str, metadata: dict) -> str:
         """Substitute <placeholders> with metadata values."""
         result = template
         for key, value in metadata.items():
             result = result.replace(f"<{key}>", str(value))
         return result
-    
+
     def _compute_new_value(self, old: float, policy: AdjustmentPolicy) -> float:
         # Special case: poll intervals are multiplied, not added
         if "poll_interval" in policy.parameter_path and policy.delta == 0.0:
             factor = 2.0 if policy.direction == "increase" else 0.5
             return old * factor
-        
+
         # Default: add or subtract delta
         if policy.direction == "increase":
             return old + policy.delta
@@ -590,7 +606,7 @@ class PolicyEvaluator:
 ```python
 class MetaSafetyValidator:
     """Enforces forbidden paths and hard bounds."""
-    
+
     def __init__(
         self,
         forbidden_paths: list[str],
@@ -598,7 +614,7 @@ class MetaSafetyValidator:
     ):
         self._forbidden = forbidden_paths
         self._bounds = hard_bounds
-    
+
     def validate(self, proposal: ProposedAdjustment) -> ValidationResult:
         # 1. Check forbidden paths
         for forbidden_pattern in self._forbidden:
@@ -607,7 +623,7 @@ class MetaSafetyValidator:
                     valid=False,
                     reason=f"Parameter path '{proposal.parameter_path}' is forbidden (matched '{forbidden_pattern}')",
                 )
-        
+
         # 2. Check hard bounds
         bounds = self._find_bounds(proposal.parameter_path)
         if bounds:
@@ -622,14 +638,14 @@ class MetaSafetyValidator:
                     valid=False,
                     reason=f"New value {proposal.new_value} above hard maximum {max_val}",
                 )
-        
+
         return ValidationResult(valid=True, reason="")
-    
+
     def _matches(self, path: str, pattern: str) -> bool:
         """Match path against pattern supporting * wildcards."""
         import fnmatch
         return fnmatch.fnmatch(path, pattern)
-    
+
     def _find_bounds(self, path: str) -> tuple[float, float] | None:
         # Exact match first
         if path in self._bounds:
@@ -651,7 +667,7 @@ class ValidationResult(BaseModel):
 ```python
 class MetaAdjuster:
     """Applies adjustments and propagates them to the running system."""
-    
+
     def __init__(
         self,
         config_store,
@@ -661,7 +677,7 @@ class MetaAdjuster:
         self._config = config_store
         self._narrative = narrative_store
         self._bus = event_bus
-    
+
     async def apply(self, proposal: ProposedAdjustment) -> AdjustmentRecord:
         # 1. Persist record
         record = AdjustmentRecord(
@@ -674,13 +690,13 @@ class MetaAdjuster:
             user_approved=not proposal.policy.requires_user_approval,
         )
         await self._narrative.save_adjustment(record)
-        
+
         # 2. Apply to config
         await self._config.set(proposal.parameter_path, proposal.new_value)
-        
+
         # 3. Notify components
         await self._bus.publish("meta.adjustment.applied", record.model_dump())
-        
+
         # 4. Audit log
         log.info(
             "meta.adjustment_applied",
@@ -689,21 +705,21 @@ class MetaAdjuster:
             old=proposal.old_value,
             new=proposal.new_value,
         )
-        
+
         return record
-    
+
     async def rollback(self, adjustment_id: str) -> None:
         record = await self._narrative.get_adjustment(adjustment_id)
         if not record:
             raise ValueError(f"Adjustment {adjustment_id} not found")
-        
+
         # Restore old value
         await self._config.set(record.parameter_path, record.old_value)
-        
+
         # Mark as rolled back
         record.rollback_at = datetime.now(UTC)
         await self._narrative.update_adjustment(record)
-        
+
         await self._bus.publish("meta.adjustment.rolled_back", record.model_dump())
 ```
 
@@ -712,7 +728,7 @@ class MetaAdjuster:
 ```python
 class MetaLoop:
     """Orchestrates the meta-loop. Runs periodically."""
-    
+
     def __init__(
         self,
         observer: MetaObserver,
@@ -729,17 +745,17 @@ class MetaLoop:
         self._approval_queue = approval_queue
         self._config = config
         self._task: asyncio.Task | None = None
-    
+
     async def start(self) -> None:
         if not self._config.enabled:
             log.info("meta.disabled")
             return
         self._task = asyncio.create_task(self._run_forever())
-    
+
     async def stop(self) -> None:
         if self._task:
             self._task.cancel()
-    
+
     async def _run_forever(self) -> None:
         while True:
             try:
@@ -747,20 +763,20 @@ class MetaLoop:
             except Exception as e:
                 log.exception("meta.tick_failed", error=str(e))
             await asyncio.sleep(self._config.observation_interval_seconds)
-    
+
     async def _tick(self) -> None:
         log.info("meta.tick_start")
-        
+
         # 1. Observe
         observations = await self._observer.observe_all()
         await self._save_observations(observations)
-        
+
         # 2. Evaluate
         proposals = self._evaluator.evaluate(observations)
         if not proposals:
             log.debug("meta.no_proposals")
             return
-        
+
         # 3. Validate & apply
         for proposal in proposals:
             validation = self._validator.validate(proposal)
@@ -772,16 +788,16 @@ class MetaLoop:
                     reason=validation.reason,
                 )
                 continue
-            
+
             if proposal.policy.requires_user_approval:
                 await self._approval_queue.add(proposal)
                 continue
-            
+
             try:
                 await self._adjuster.apply(proposal)
             except Exception as e:
                 log.exception("meta.apply_failed", policy=proposal.policy.name, error=str(e))
-        
+
         log.info("meta.tick_complete", observations=len(observations), proposals=len(proposals))
 ```
 
@@ -973,9 +989,9 @@ async def test_full_meta_loop_cycle(test_daemon, fake_action_history):
     # Seed history with high approval rate for lights
     for _ in range(15):
         fake_action_history.add(make_action("light.turn_on", category="ask", approved=True))
-    
+
     await test_daemon.meta_loop._tick()
-    
+
     # Should have created a graduation proposal
     proposals = await test_daemon.approval_queue.list()
     assert any(p.parameter_path == "autonomy.domains.lights" for p in proposals)
@@ -995,9 +1011,9 @@ async def test_meta_loop_cannot_modify_hard_ask(test_daemon):
         cooldown_seconds=0,
     )
     test_daemon.meta_loop._evaluator._policies.append(bad_policy)
-    
+
     await test_daemon.meta_loop._tick()
-    
+
     # The hard_ask config should be unchanged
     config = await test_daemon.config_store.get_all()
     assert "finance.transfer" in [r.action_class for r in config["autonomy"]["hard_ask"]]
@@ -1009,13 +1025,13 @@ async def test_rollback_works(test_daemon):
         parameter_path="intention.min_salience",
         old_value=0.35, new_value=0.40,
     ))
-    
+
     # Verify applied
     assert (await test_daemon.config_store.get("intention.min_salience")) == 0.40
-    
+
     # Rollback
     await test_daemon.meta_adjuster.rollback(record.adjustment_id)
-    
+
     # Verify reverted
     assert (await test_daemon.config_store.get("intention.min_salience")) == 0.35
 ```

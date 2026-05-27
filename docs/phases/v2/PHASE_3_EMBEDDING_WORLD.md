@@ -7,6 +7,22 @@
 
 ---
 
+## Subphases
+
+This phase is split into independent subphases for parallel agent sessions:
+
+| Subphase | Focus | Prerequisites | Effort |
+| --- | --- | --- | --- |
+| [3A — Snapshot Differ](PHASE_3A_SNAPSHOT_DIFFER.md) | Pure-logic diff between snapshots | None | 1–2h |
+| [3B — Embedding Encoder](PHASE_3B_EMBEDDING_ENCODER.md) | Ollama wrapper + caching | None | 2–3h |
+| [3C — Snapshot Memory](PHASE_3C_SNAPSHOT_MEMORY.md) | Qdrant storage + similarity search | 3B (type only) | 2–3h |
+| [3D — Compressed Prompt](PHASE_3D_COMPRESSED_PROMPT.md) | Builder + Pipeline orchestration | 3A, 3B, 3C | 2–3h |
+| [3E — Integration](PHASE_3E_INTEGRATION.md) | Wire into L4/L5 + CLI + config | 3D | 2–3h |
+
+**Parallelism:** 3A and 3B can run simultaneously. 3C can start once 3B defines `VECTOR_DIM`. 3D requires all three. 3E is last.
+
+---
+
 ## 1. Problem Statement
 
 CoreMind v1 sends the full `WorldSnapshot` JSON to the LLM at every reasoning cycle. Real-world measurements from production:
@@ -106,7 +122,7 @@ We already have `nomic-embed-text` running locally via Ollama at `10.0.0.175:114
 ```python
 class EmbeddingEncoder:
     """Wraps Ollama nomic-embed-text. Caches embeddings."""
-    
+
     def __init__(
         self,
         ollama_url: str = "http://10.0.0.175:11434",
@@ -119,14 +135,14 @@ class EmbeddingEncoder:
         self._cache_max = cache_size
         self._client = httpx.AsyncClient(timeout=10.0)
         self._stats = EncoderStats()
-    
+
     async def encode_text(self, text: str) -> list[float]:
         """Encode a string to a 768-d vector. Cached by content hash."""
         cache_key = self._hash(text)
         if cache_key in self._cache:
             self._stats.cache_hits += 1
             return self._cache[cache_key]
-        
+
         self._stats.cache_misses += 1
         try:
             response = await self._client.post(
@@ -139,21 +155,21 @@ class EmbeddingEncoder:
             self._stats.errors += 1
             log.warning("encoder.fail", error=str(e))
             raise EncoderError(f"Embedding failed: {e}") from e
-        
+
         # LRU eviction
         if len(self._cache) >= self._cache_max:
             self._cache.pop(next(iter(self._cache)))
         self._cache[cache_key] = vector
         return vector
-    
+
     async def encode_entity(self, entity: Entity) -> list[float]:
         """Encode a single entity."""
         text = self._entity_to_text(entity)
         return await self.encode_text(text)
-    
+
     async def encode_snapshot(self, snapshot: WorldSnapshot) -> list[float]:
         """Encode a full snapshot as a weighted average of entity embeddings.
-        
+
         Weights:
         - Recently-updated entities get higher weight
         - Larger entities (more attributes) get higher weight
@@ -161,14 +177,14 @@ class EmbeddingEncoder:
         if not snapshot.entities:
             # Zero vector for empty snapshot
             return [0.0] * 768
-        
+
         entity_vectors = await asyncio.gather(*[
             self.encode_entity(e) for e in snapshot.entities
         ])
         weights = [self._compute_weight(e) for e in snapshot.entities]
-        
+
         return self._weighted_average(entity_vectors, weights)
-    
+
     def _entity_to_text(self, entity: Entity) -> str:
         """Convert an entity to embedding-input text."""
         parts = [f"{entity.entity_type}:{entity.entity_id}"]
@@ -177,7 +193,7 @@ class EmbeddingEncoder:
         if entity.room:
             parts.append(f"room={entity.room}")
         return " | ".join(parts)
-    
+
     def _compute_weight(self, entity: Entity) -> float:
         # Base weight
         weight = 1.0
@@ -188,7 +204,7 @@ class EmbeddingEncoder:
         # Boost entities with more attributes
         weight *= 1 + min(len(entity.attributes), 10) / 10
         return weight
-    
+
     def _weighted_average(self, vectors: list[list[float]], weights: list[float]) -> list[float]:
         total_weight = sum(weights)
         if total_weight == 0:
@@ -198,7 +214,7 @@ class EmbeddingEncoder:
             for i, v in enumerate(vec):
                 result[i] += v * w / total_weight
         return result
-    
+
     def _hash(self, text: str) -> str:
         import hashlib
         return hashlib.sha256(text.encode()).hexdigest()
@@ -220,11 +236,11 @@ class SnapshotDiff(BaseModel):
     changed: list[tuple[Entity, Entity]] = Field(default_factory=list)  # (old, new)
     unchanged_count: int = 0
     total_current: int = 0
-    
+
     @property
     def has_changes(self) -> bool:
         return bool(self.added or self.removed or self.changed)
-    
+
     @property
     def change_summary(self) -> str:
         parts = []
@@ -237,7 +253,7 @@ class SnapshotDiff(BaseModel):
 
 class SnapshotDiffer:
     """Computes diffs between snapshots."""
-    
+
     def diff(
         self,
         current: WorldSnapshot,
@@ -248,16 +264,16 @@ class SnapshotDiffer:
                 added=list(current.entities),
                 total_current=len(current.entities),
             )
-        
+
         prev_by_key = {self._key(e): e for e in previous.entities}
         curr_by_key = {self._key(e): e for e in current.entities}
-        
+
         prev_keys = set(prev_by_key.keys())
         curr_keys = set(curr_by_key.keys())
-        
+
         added = [curr_by_key[k] for k in curr_keys - prev_keys]
         removed = [prev_by_key[k] for k in prev_keys - curr_keys]
-        
+
         changed: list[tuple[Entity, Entity]] = []
         unchanged = 0
         for k in prev_keys & curr_keys:
@@ -266,7 +282,7 @@ class SnapshotDiffer:
                 changed.append((old, new))
             else:
                 unchanged += 1
-        
+
         return SnapshotDiff(
             added=added,
             removed=removed,
@@ -274,10 +290,10 @@ class SnapshotDiffer:
             unchanged_count=unchanged,
             total_current=len(current.entities),
         )
-    
+
     def _key(self, entity: Entity) -> str:
         return f"{entity.entity_type}:{entity.entity_id}"
-    
+
     def _entities_differ(self, old: Entity, new: Entity) -> bool:
         # Compare attributes ignoring timestamps that always tick
         old_attrs = {k: v for k, v in old.attributes.items() if k not in IGNORED_ATTRS}
@@ -293,11 +309,11 @@ IGNORED_ATTRS = {"last_changed", "last_updated", "last_seen"}
 ```python
 class SnapshotMemory:
     """Stores and retrieves snapshot embeddings via Qdrant."""
-    
+
     def __init__(self, qdrant_url: str, collection: str = "snapshot_embeddings"):
         self._client = QdrantClient(url=qdrant_url)
         self._collection = collection
-    
+
     async def ensure_collection(self) -> None:
         """Create collection if not exists."""
         try:
@@ -307,7 +323,7 @@ class SnapshotMemory:
                 collection_name=self._collection,
                 vectors_config=VectorParams(size=768, distance=Distance.COSINE),
             )
-    
+
     async def store(
         self,
         snapshot_id: str,
@@ -330,7 +346,7 @@ class SnapshotMemory:
                 )
             ],
         )
-    
+
     async def find_similar(
         self,
         vector: list[float],
@@ -338,7 +354,7 @@ class SnapshotMemory:
         exclude_recent_seconds: float = 600.0,
     ) -> list[SimilarSnapshot]:
         """Find top-K most similar past snapshots.
-        
+
         Excludes very recent ones (within exclude_recent_seconds) to avoid
         matching against essentially-the-same state.
         """
@@ -361,7 +377,7 @@ class SnapshotMemory:
             )
             for r in results
         ]
-    
+
     async def prune(self, keep_count: int = 1000) -> int:
         """Keep only the most recent N embeddings. Returns count pruned."""
         # Get total
@@ -392,13 +408,13 @@ class CompressedPrompt(BaseModel):
     similar_states_text: str        # Top-K similar past states
     key_metrics_text: str           # Summary statistics
     full_fallback: str | None = None
-    
+
     @property
     def estimated_tokens(self) -> int:
         """Rough estimate: 1 token ≈ 4 chars."""
         full = self.to_prompt_text()
         return len(full) // 4
-    
+
     def to_prompt_text(self) -> str:
         """Render as final prompt text."""
         parts = [
@@ -426,7 +442,7 @@ class CompressedPrompt(BaseModel):
 class CompressedPromptBuilder:
     def __init__(self, memory: SnapshotMemory):
         self._memory = memory
-    
+
     async def build(
         self,
         snapshot: WorldSnapshot,
@@ -438,29 +454,29 @@ class CompressedPromptBuilder:
             f"{diff.total_current} entities, {diff.change_summary}. "
             f"Timestamp: {snapshot.timestamp.isoformat()}."
         )
-        
+
         # 2. Changes text — only changed entities
         changes_text = self._format_changes(diff)
-        
+
         # 3. Similar past states
         similar = await self._memory.find_similar(snapshot_embedding, k=3)
         similar_text = self._format_similar(similar)
-        
+
         # 4. Key metrics
         metrics = self._compute_metrics(snapshot)
         metrics_text = self._format_metrics(metrics)
-        
+
         return CompressedPrompt(
             summary=summary,
             changes_text=changes_text,
             similar_states_text=similar_text,
             key_metrics_text=metrics_text,
         )
-    
+
     def _format_changes(self, diff: SnapshotDiff) -> str:
         if not diff.has_changes:
             return "No changes since last cycle."
-        
+
         lines = []
         for entity in diff.added:
             lines.append(f"+ {entity.entity_id}: {self._brief(entity)}")
@@ -469,13 +485,13 @@ class CompressedPromptBuilder:
         for old, new in diff.changed:
             lines.append(f"~ {new.entity_id}: {self._diff_attrs(old, new)}")
         return "\n".join(lines)
-    
+
     def _brief(self, entity: Entity) -> str:
         """One-line entity summary."""
         important = sorted(entity.attributes.items())[:3]
         attrs = ", ".join(f"{k}={v}" for k, v in important)
         return f"({entity.entity_type}) {attrs}"
-    
+
     def _diff_attrs(self, old: Entity, new: Entity) -> str:
         """Show only changed attributes."""
         diffs = []
@@ -485,7 +501,7 @@ class CompressedPromptBuilder:
             if o != n:
                 diffs.append(f"{k}: {o} → {n}")
         return "; ".join(diffs)
-    
+
     def _format_similar(self, similar: list[SimilarSnapshot]) -> str:
         if not similar:
             return ""
@@ -494,7 +510,7 @@ class CompressedPromptBuilder:
             age = self._age_str(s.timestamp)
             lines.append(f"- {age} (similarity {s.score:.2f}): {s.summary}")
         return "\n".join(lines)
-    
+
     def _compute_metrics(self, snapshot: WorldSnapshot) -> dict[str, Any]:
         """Compute roll-up statistics."""
         metrics = {
@@ -504,13 +520,13 @@ class CompressedPromptBuilder:
         for entity in snapshot.entities:
             metrics["by_type"][entity.entity_type] = metrics["by_type"].get(entity.entity_type, 0) + 1
         return metrics
-    
+
     def _format_metrics(self, metrics: dict) -> str:
         lines = [f"Total entities: {metrics['total_entities']}"]
         for entity_type, count in sorted(metrics["by_type"].items()):
             lines.append(f"- {entity_type}: {count}")
         return "\n".join(lines)
-    
+
     def _age_str(self, timestamp: datetime) -> str:
         delta = datetime.now(UTC) - timestamp
         if delta.days > 0:
@@ -528,10 +544,10 @@ If the embedding service is unreachable:
 ```python
 class WorldEncodingPipeline:
     """Orchestrates encoder + differ + memory + prompt builder.
-    
+
     Gracefully falls back to full text snapshots on encoder failure.
     """
-    
+
     def __init__(
         self,
         encoder: EmbeddingEncoder,
@@ -544,14 +560,14 @@ class WorldEncodingPipeline:
         self._memory = memory
         self._prompt_builder = prompt_builder
         self._fallback_active = False
-    
+
     async def process(
         self,
         current: WorldSnapshot,
         previous: WorldSnapshot | None,
     ) -> CompressedPrompt:
         diff = self._differ.diff(current, previous)
-        
+
         try:
             embedding = await self._encoder.encode_snapshot(current)
             await self._memory.store(
@@ -562,17 +578,17 @@ class WorldEncodingPipeline:
                 timestamp=current.timestamp,
             )
             prompt = await self._prompt_builder.build(current, diff, embedding)
-            
+
             if self._fallback_active:
                 log.info("encoding.recovered")
                 self._fallback_active = False
             return prompt
-        
+
         except EncoderError as e:
             if not self._fallback_active:
                 log.warning("encoding.fallback_active", error=str(e))
                 self._fallback_active = True
-            
+
             # Return text fallback
             return CompressedPrompt(
                 summary=f"{diff.total_current} entities (embedding service unavailable)",
@@ -581,7 +597,7 @@ class WorldEncodingPipeline:
                 key_metrics_text="",
                 full_fallback=self._format_full_snapshot(current),
             )
-    
+
     def _format_full_snapshot(self, snapshot: WorldSnapshot) -> str:
         """V1-style full text. Used only on fallback."""
         return json.dumps([e.model_dump() for e in snapshot.entities], indent=2, default=str)
@@ -690,7 +706,7 @@ During migration, run both prompts in parallel and compare results:
 ```python
 class PromptComparator:
     """Run both prompts side-by-side for validation."""
-    
+
     async def compare(
         self,
         snapshot: WorldSnapshot,
@@ -700,12 +716,12 @@ class PromptComparator:
         old_prompt = build_intention_prompt_v1(snapshot)
         old_tokens = self._count_tokens(old_prompt)
         old_response = await self._llm.complete(old_prompt)
-        
+
         # New path
         new_prompt = build_intention_prompt_v2(compressed)
         new_tokens = self._count_tokens(new_prompt)
         new_response = await self._llm.complete(new_prompt)
-        
+
         return ComparisonResult(
             old_tokens=old_tokens,
             new_tokens=new_tokens,
@@ -803,10 +819,10 @@ def test_diff_ignores_timestamps():
 async def test_encoder_caches_repeated_text():
     encoder = EmbeddingEncoder(ollama_url="http://test", cache_size=10)
     encoder._client = mock_client_returning([0.1] * 768)
-    
+
     v1 = await encoder.encode_text("hello")
     v2 = await encoder.encode_text("hello")
-    
+
     assert v1 == v2
     assert encoder._stats.cache_hits == 1
     assert encoder._stats.cache_misses == 1
@@ -826,7 +842,7 @@ async def test_encoder_weights_recent_higher():
 async def test_pipeline_falls_back_on_encoder_failure():
     failing_encoder = MockFailingEncoder()
     pipeline = WorldEncodingPipeline(failing_encoder, differ, memory, builder)
-    
+
     result = await pipeline.process(snapshot, None)
     assert result.full_fallback is not None
     assert pipeline._fallback_active is True
@@ -835,14 +851,14 @@ async def test_pipeline_falls_back_on_encoder_failure():
 async def test_pipeline_recovers_after_encoder_returns():
     encoder = MockToggleableEncoder(fail=True)
     pipeline = WorldEncodingPipeline(encoder, ...)
-    
+
     # First call: fallback
     r1 = await pipeline.process(snapshot, None)
     assert pipeline._fallback_active
-    
+
     # Encoder recovers
     encoder.fail = False
-    
+
     # Second call: normal path
     r2 = await pipeline.process(snapshot2, snapshot)
     assert not pipeline._fallback_active
@@ -857,10 +873,10 @@ async def test_token_reduction_target():
     """Compressed prompt should be ≥80% smaller than full snapshot."""
     pipeline = WorldEncodingPipeline(real_encoder, ...)
     full_snapshot_size = count_tokens(json.dumps(real_snapshot.model_dump()))
-    
+
     compressed = await pipeline.process(real_snapshot, None)
     compressed_size = count_tokens(compressed.to_prompt_text())
-    
+
     reduction = (full_snapshot_size - compressed_size) / full_snapshot_size
     assert reduction >= 0.8, f"Only {reduction:.0%} reduction (target ≥80%)"
 
@@ -870,7 +886,7 @@ async def test_similar_snapshots_retrieved():
     pipeline = WorldEncodingPipeline(real_encoder, ...)
     for i in range(10):
         await pipeline.process(make_snapshot(f"sample{i}"), None)
-    
+
     similar = await pipeline._memory.find_similar(known_vector, k=3)
     assert len(similar) == 3
 ```
@@ -882,16 +898,16 @@ async def test_similar_snapshots_retrieved():
 async def test_compressed_prompt_preserves_reasoning_quality():
     """Run 50 cycles with both prompts. Conclusions should be ≥80% similar."""
     comparator = PromptComparator(real_llm)
-    
+
     results = []
     for snapshot in load_50_real_snapshots():
         compressed = await pipeline.process(snapshot, prev)
         result = await comparator.compare(snapshot, compressed)
         results.append(result)
-    
+
     avg_similarity = sum(r.similarity_score for r in results) / len(results)
     avg_token_reduction = sum(r.token_reduction_pct for r in results) / len(results)
-    
+
     assert avg_similarity >= 0.80, f"Response quality degraded: {avg_similarity:.2%}"
     assert avg_token_reduction >= 80, f"Token reduction insufficient: {avg_token_reduction:.1f}%"
 ```

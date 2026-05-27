@@ -53,6 +53,7 @@ from coremind.intention.loop import IntentionLoop, IntentionLoopConfig
 from coremind.intention.persistence import IntentStore
 from coremind.memory.narrative import NarrativeMemory
 from coremind.memory.procedural import ProceduralMemory
+from coremind.meta.loop import MetaLoop
 from coremind.notify.adapters.dashboard import DashboardNotificationPort
 from coremind.notify.port import (
     ApprovalAction,
@@ -185,6 +186,7 @@ class CoreMindDaemon:
         self._intention_loop: IntentionLoop | None = None
         self._reasoning_loop: ReasoningLoop | None = None
         self._reflection_loop: ReflectionLoop | None = None
+        self._meta_loop: MetaLoop | None = None
         self._predictive_memory: PredictiveMemory | None = None
         self._anomaly_checker_task: asyncio.Task[None] | None = None
         self._approval_expirer_task: asyncio.Task[None] | None = None
@@ -696,8 +698,106 @@ class CoreMindDaemon:
             self._reflection_loop = reflection_loop
             log.info("daemon.reflection_loop_started")
 
+        # ----------------------------------------------------------
+        # L8: Meta-loop (self-improvement)
+        # ----------------------------------------------------------
+        if config.meta.enabled:
+            from coremind.meta.adjuster import MetaAdjuster
+            from coremind.meta.constants import (
+                DEFAULT_POLICIES,
+                FORBIDDEN_PARAMETER_PATHS,
+                HARD_BOUNDS,
+            )
+            from coremind.meta.evaluator import PolicyEvaluator
+            from coremind.meta.observer import MetaObserver
+            from coremind.meta.safety_validator import MetaSafetyValidator
+            from coremind.meta.stores import (
+                InMemoryApprovalQueue,
+                InMemoryConfigStore,
+                InMemoryMetaStore,
+                LoggingMetaEventBus,
+            )
+
+            meta_config_store = InMemoryConfigStore(
+                {
+                    "intention.min_salience": config.intention.min_salience,
+                    "intention.min_confidence": config.intention.min_confidence,
+                    "intention.interval_seconds": float(config.intention.interval_seconds),
+                }
+            )
+            meta_store = InMemoryMetaStore()
+            meta_event_bus = LoggingMetaEventBus()
+            meta_approval_queue = InMemoryApprovalQueue()
+
+            meta_observer = MetaObserver(
+                intention_store=intents,
+                action_store=journal,
+                plugin_registry=registry,
+                narrative_store=narrative_memory,
+            )
+
+            class _AdjustmentHistoryAdapter:
+                """Adapter from InMemoryMetaStore to AdjustmentHistoryProtocol."""
+
+                def __init__(self, store: InMemoryMetaStore) -> None:
+                    self._store = store
+
+                def last_adjustment(self, parameter_path: str) -> object:
+                    for record in reversed(list(self._store._adjustments.values())):
+                        if record.parameter_path == parameter_path:
+                            return record
+                    return None
+
+            class _ConfigReaderAdapter:
+                """Adapter from InMemoryConfigStore to sync ConfigReaderProtocol."""
+
+                def __init__(self, store: InMemoryConfigStore) -> None:
+                    self._store = store
+
+                def get(self, dotted_path: str) -> float:
+                    try:
+                        val = self._store._data[dotted_path]
+                        return float(val)
+                    except (KeyError, TypeError, ValueError):
+                        return 0.0
+
+            meta_evaluator = PolicyEvaluator(
+                policies=DEFAULT_POLICIES,
+                adjustment_history=_AdjustmentHistoryAdapter(meta_store),
+                config_reader=_ConfigReaderAdapter(meta_config_store),
+            )
+            meta_validator = MetaSafetyValidator(FORBIDDEN_PARAMETER_PATHS, HARD_BOUNDS)
+            meta_adjuster = MetaAdjuster(
+                config_store=meta_config_store,
+                meta_store=meta_store,
+                event_bus=meta_event_bus,
+            )
+
+            meta_loop = MetaLoop(
+                observer=meta_observer,
+                evaluator=meta_evaluator,
+                validator=meta_validator,
+                adjuster=meta_adjuster,
+                meta_store=meta_store,
+                approval_queue=meta_approval_queue,
+                config=config.meta,
+            )
+            await meta_loop.start()
+            self._meta_loop = meta_loop
+            log.info("daemon.meta_loop_started")
+
         if config.dashboard.enabled:
             configure_dashboard_timezone(get_timezone(config.personalization))
+            _meta_source: object | None = None
+            if self._meta_loop is not None:
+                from coremind.dashboard.adapters_meta import DaemonMetaSource
+
+                _meta_source = DaemonMetaSource(
+                    meta_config=config.meta,
+                    meta_store=meta_store,  # type: ignore[possibly-undefined]
+                    approval_queue=meta_approval_queue,  # type: ignore[possibly-undefined]
+                    adjuster=meta_adjuster,  # type: ignore[possibly-undefined]
+                )
             dashboard_server = await _start_dashboard(
                 config=config.dashboard,
                 world_store=world_store,
@@ -707,6 +807,7 @@ class CoreMindDaemon:
                 event_bus=event_bus,
                 reasoning_log=config.audit_log_path.parent / "reasoning.log",
                 reflection=report_store if config.intention.enabled else None,
+                meta_source=_meta_source,
             )
             self._dashboard_server = dashboard_server
 
@@ -723,6 +824,10 @@ class CoreMindDaemon:
 
         Safe to call even when :meth:`start` was never invoked.  Idempotent.
         """
+        if self._meta_loop is not None:
+            await self._meta_loop.stop()
+            self._meta_loop = None
+
         if self._intention_loop is not None:
             await self._intention_loop.stop()
             self._intention_loop = None
@@ -1290,6 +1395,7 @@ async def _start_dashboard(
     event_bus: EventBus,
     reasoning_log: Path,
     reflection: object | None = None,
+    meta_source: object | None = None,
 ) -> DashboardServer:
     """Construct and start the read-only web dashboard.
 
@@ -1321,6 +1427,7 @@ async def _start_dashboard(
         reflection=reflection,  # type: ignore[arg-type]
         notifications=dashboard_port,
         events=event_bus,
+        meta=meta_source,  # type: ignore[arg-type]
     )
     auth = _build_dashboard_auth(config)
     server = DashboardServer(

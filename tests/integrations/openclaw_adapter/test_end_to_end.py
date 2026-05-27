@@ -8,6 +8,7 @@ Marked as integration because it binds real sockets.
 
 from __future__ import annotations
 
+import tempfile
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -34,6 +35,15 @@ pytestmark = pytest.mark.integration
 
 PLUGIN_ID = "coremind.plugin.openclaw_adapter"
 SCHEMA_DIR = Path("integrations/openclaw-adapter/coremind_side/coremind_plugin_openclaw/schemas")
+
+
+def _short_socket(tmp_path: Path, name: str) -> Path:
+    """Return a socket path guaranteed to stay under the 107-char Unix limit."""
+    candidate = tmp_path / name
+    if len(str(candidate)) <= 100:
+        return candidate
+    short_dir = Path(tempfile.mkdtemp(prefix="cm"))
+    return short_dir / name
 
 
 # ---------------------------------------------------------------------------
@@ -82,7 +92,7 @@ class _FakeCoreMindHost(plugin_pb2_grpc.CoreMindHostServicer):
 
 @pytest_asyncio.fixture
 async def openclaw_server(tmp_path: Path) -> AsyncIterator[tuple[str, _FakeOpenClawServicer]]:
-    socket = tmp_path / "openclaw.sock"
+    socket = _short_socket(tmp_path, "oc.sock")
     address = f"unix://{socket}"
     servicer = _FakeOpenClawServicer()
     server = grpc.aio.server()
@@ -97,7 +107,7 @@ async def openclaw_server(tmp_path: Path) -> AsyncIterator[tuple[str, _FakeOpenC
 
 @pytest_asyncio.fixture
 async def coremind_host(tmp_path: Path) -> AsyncIterator[tuple[Path, _FakeCoreMindHost]]:
-    socket = tmp_path / "host.sock"
+    socket = _short_socket(tmp_path, "h.sock")
     address = f"unix://{socket}"
     servicer = _FakeCoreMindHost()
     server = grpc.aio.server()
@@ -142,7 +152,7 @@ async def test_ingest_event_roundtrip(
     """Signed event → CoreMindHalf → daemon host, verified end-to-end."""
     host_socket, host_servicer = coremind_host
     key = Ed25519PrivateKey.generate()
-    half_socket = tmp_path / "half.sock"
+    half_socket = _short_socket(tmp_path, "half.sock")
 
     forwarder = DaemonForwarder(
         host_socket=host_socket,
@@ -194,10 +204,10 @@ async def test_ingest_rejects_bad_signature(tmp_path: Path) -> None:
     """CoreMindHalf.IngestEvent must reject a signature from a different key."""
     plugin_key = Ed25519PrivateKey.generate()
     attacker_key = Ed25519PrivateKey.generate()
-    half_socket = tmp_path / "half.sock"
+    half_socket = _short_socket(tmp_path, "half.sock")
 
     forwarder = DaemonForwarder(
-        host_socket=tmp_path / "noop.sock",  # never connected to
+        host_socket=_short_socket(tmp_path, "noop.sock"),  # never connected to
         plugin_id=PLUGIN_ID,
     )
     half = CoreMindHalfServer(
@@ -246,7 +256,7 @@ async def test_forwarder_raises_unavailable_when_daemon_down(tmp_path: Path) -> 
     propagates the error so the caller can return ``UNAVAILABLE`` promptly.
     """
     forwarder = DaemonForwarder(
-        host_socket=tmp_path / "does_not_exist.sock",
+        host_socket=_short_socket(tmp_path, "gone.sock"),
         plugin_id=PLUGIN_ID,
     )
     key = Ed25519PrivateKey.generate()

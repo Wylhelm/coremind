@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import tempfile
 from pathlib import Path
 
 import grpc.aio
@@ -124,6 +125,9 @@ async def test_signed_plugin_events_land_in_world_store(
     - Every event targets a ``host`` entity named ``testhost``.
     """
     socket_path = tmp_path / "run" / "plugin_host.sock"
+    if len(str(socket_path)) > 100:
+        short_dir = Path(tempfile.mkdtemp(prefix="cm"))
+        socket_path = short_dir / "plugin_host.sock"
     event_bus = EventBus()
     store = _InMemoryStore()
 

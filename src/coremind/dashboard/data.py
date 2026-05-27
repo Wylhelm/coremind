@@ -21,6 +21,7 @@ from coremind.action.autonomy import AutonomyConfig
 from coremind.action.graduation import SliderGraduationProposal
 from coremind.action.schemas import Action
 from coremind.intention.schemas import Intent, IntentStatus
+from coremind.meta.schemas import AdjustmentRecord, MetaObservation, MetaStatus, ProposedAdjustment
 from coremind.notify.adapters.dashboard import DashboardNotificationPort
 from coremind.reasoning.schemas import ReasoningOutput
 from coremind.reflection.schemas import StoredReflectionReport
@@ -144,6 +145,42 @@ class AutonomySource(Protocol):
         """Approve and apply a graduation proposal."""
 
 
+class MetaSource(Protocol):
+    """Read/write port over the meta-loop (L8) for dashboard consumption."""
+
+    async def get_status(self) -> MetaStatus:
+        """Return current meta-loop status summary."""
+
+    async def list_observations(
+        self,
+        *,
+        kind: str | None = None,
+        since: datetime | None = None,
+        limit: int = 100,
+    ) -> list[MetaObservation]:
+        """Return observations filtered by kind and time window."""
+
+    async def list_adjustments(
+        self,
+        *,
+        since: datetime | None = None,
+        limit: int = 100,
+    ) -> list[AdjustmentRecord]:
+        """Return adjustment records, newest-first."""
+
+    async def list_proposals(self) -> list[ProposedAdjustment]:
+        """Return pending proposals awaiting user approval."""
+
+    async def approve_proposal(self, proposal_id: str) -> None:
+        """Approve and apply a pending proposal."""
+
+    async def deny_proposal(self, proposal_id: str) -> None:
+        """Deny and remove a pending proposal."""
+
+    async def rollback_adjustment(self, adjustment_id: str) -> None:
+        """Rollback a previously applied adjustment."""
+
+
 @dataclass(frozen=True)
 class DashboardDataSources:
     """Container for every read port the dashboard may consume.
@@ -160,3 +197,4 @@ class DashboardDataSources:
     notifications: DashboardNotificationPort | None = None
     events: EventSubscriber | None = None
     autonomy: AutonomySource | None = None
+    meta: MetaSource | None = None

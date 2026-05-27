@@ -419,6 +419,8 @@ _OVERVIEW_BODY = """
   <div class="stat-card warn"><div class="stat-value" data-testid="pending-intents">{{ pending_intents }}</div><div class="stat-label">Pending Intents</div></div>
   <div class="stat-card warn"><div class="stat-value" data-testid="pending-approvals">{{ pending_notifications }}</div><div class="stat-label">Approvals</div></div>
   <div class="stat-card ok"><div class="stat-value" id="uptime-stat">--</div><div class="stat-label">Uptime</div></div>
+  <div class="stat-card"><div class="stat-value" data-testid="meta-adjustments">{{ meta_adjustments_today }}</div><div class="stat-label">Meta Adjustments</div></div>
+  {% if meta_pending_proposals > 0 %}<div class="stat-card warn"><div class="stat-value" data-testid="meta-proposals">{{ meta_pending_proposals }}</div><div class="stat-label">Meta Proposals</div></div>{% endif %}
 </div>
 
 <div class="cockpit-grid">
@@ -884,6 +886,7 @@ _NAV: list[tuple[str, str]] = [
     ("/actions", "Actions"),
     ("/reflection", "Reflection"),
     ("/autonomy", "Autonomy"),
+    ("/meta", "Meta"),
 ]
 
 
@@ -1005,6 +1008,12 @@ async def overview(request: web.Request) -> web.Response:
         # when a matching :class:`ApprovalResponse` is submitted), unlike
         # ``history`` which is the lifetime delivery log.
         pending_notifications = len(data.notifications.pending())
+    meta_adjustments_today = 0
+    meta_pending_proposals = 0
+    if data.meta is not None:
+        status = await data.meta.get_status()
+        meta_adjustments_today = status.adjustments_count
+        meta_pending_proposals = status.pending_proposals_count
     html = _render(
         "/",
         "Overview",
@@ -1016,6 +1025,8 @@ async def overview(request: web.Request) -> web.Response:
         journal_entries=journal_entries,
         reflection_reports=reflection_reports,
         pending_notifications=pending_notifications,
+        meta_adjustments_today=meta_adjustments_today,
+        meta_pending_proposals=meta_pending_proposals,
     )
     return web.Response(text=html, content_type="text/html")
 
