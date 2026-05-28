@@ -23,6 +23,10 @@ from coremind.world.model import Entity, WorldSnapshot
 
 log = structlog.get_logger(__name__)
 
+# Safety net for embedder context limits (nomic-embed-text = 8192 tokens).
+# Entity texts longer than this are truncated before embedding.
+_MAX_TEXT_LENGTH: int = 2000
+
 
 # ---------------------------------------------------------------------------
 # Protocol for raw embedders
@@ -104,7 +108,7 @@ class EmbeddingEncoder:
         # Limit concurrent embed calls to avoid overwhelming Ollama.
         # Without this, encode_snapshot sends 100+ concurrent requests
         # via asyncio.gather, saturating the embed server.
-        self._concurrency = asyncio.Semaphore(4)
+        self._concurrency = asyncio.Semaphore(2)
 
     @property
     def stats(self) -> EncoderStats:
@@ -192,11 +196,15 @@ class EmbeddingEncoder:
 
         Format: ``type:display_name | prop1=val1 | prop2=val2``
         Properties are sorted alphabetically for determinism.
+        Truncated to _MAX_TEXT_LENGTH to prevent embedder context overflow.
         """
         parts = [f"{entity.type}:{entity.display_name}"]
         for attr, value in sorted(entity.properties.items()):
             parts.append(f"{attr}={value}")
-        return " | ".join(parts)
+        text = " | ".join(parts)
+        if len(text) > _MAX_TEXT_LENGTH:
+            text = text[:_MAX_TEXT_LENGTH]
+        return text
 
     def _compute_weight(self, entity: Entity) -> float:
         """Compute embedding weight for weighted average.
