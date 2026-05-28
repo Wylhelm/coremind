@@ -65,6 +65,8 @@ def build_signed_event(
     value: float | str | bool,
     unit: str | None = None,
     confidence: float = CONFIDENCE,
+    entity_type: str = "entity",
+    entity_id: str = "gog:workspace",
 ) -> plugin_pb2.WorldEvent:
     event_id = uuid.uuid4().hex
     ts = _make_timestamp(datetime.now(UTC))
@@ -83,7 +85,7 @@ def build_signed_event(
         source=PLUGIN_ID,
         source_version=PLUGIN_VERSION,
         signature=b"",
-        entity=plugin_pb2.EntityRef(type="entity", entity_id="gog:workspace"),
+        entity=plugin_pb2.EntityRef(type=entity_type, entity_id=entity_id),
         attribute=attribute,
         value=pb_value,
         confidence=confidence,
@@ -126,8 +128,10 @@ async def poll_gmail(
                 stub,
                 private_key,
                 metadata,
-                f"gmail_thread_{thread_id}",
+                "summary",
                 summary,
+                entity_type="gmail_thread",
+                entity_id=thread_id,
             )
         log.info("gog.gmail_polled", unread=unread_count)
         # Clear previous gmail error on success
@@ -177,8 +181,10 @@ async def poll_calendar(
                 stub,
                 private_key,
                 metadata,
-                f"calendar_event_{event_id}",
+                "summary",
                 event_str,
+                entity_type="calendar_event",
+                entity_id=event_id,
             )
         log.info("gog.calendar_polled", events=event_count)
         # Clear previous calendar error on success
@@ -202,8 +208,16 @@ async def _emit(
     metadata: tuple,
     attribute: str,
     value: str | float | bool,
+    entity_type: str = "entity",
+    entity_id: str = "gog:workspace",
 ) -> None:
-    event = build_signed_event(private_key, attribute=attribute, value=value)
+    event = build_signed_event(
+        private_key,
+        attribute=attribute,
+        value=value,
+        entity_type=entity_type,
+        entity_id=entity_id,
+    )
     with contextlib.suppress(grpc.RpcError):
         await stub.EmitEvent(event, metadata=metadata)
 
