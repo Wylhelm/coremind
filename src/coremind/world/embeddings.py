@@ -101,6 +101,8 @@ class EmbeddingEncoder:
         self._cache: dict[str, list[float]] = {}
         self._cache_max = cache_size
         self._stats = EncoderStats()
+        # Limit concurrent embed calls to avoid overwhelming Ollama
+        self._semaphore = asyncio.Semaphore(4)
 
     @property
     def stats(self) -> EncoderStats:
@@ -170,7 +172,12 @@ class EmbeddingEncoder:
         if not snapshot.entities:
             return [0.0] * self._dimension
 
-        entity_vectors = await asyncio.gather(*(self.encode_entity(e) for e in snapshot.entities))
+        # Encode each entity with concurrency limit to avoid overwhelming Ollama
+        async def _encode_one(entity: Entity) -> list[float]:
+            async with self._semaphore:
+                return await self.encode_entity(entity)
+
+        entity_vectors = await asyncio.gather(*(_encode_one(e) for e in snapshot.entities))
         weights = [self._compute_weight(e) for e in snapshot.entities]
         return self._weighted_average(entity_vectors, weights)
 
