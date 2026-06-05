@@ -40,6 +40,66 @@ MAX_CONTEXT_MESSAGES = 20
 # Max conversation active time before auto-archive (seconds) — 24h
 CONVERSATION_TTL_SECONDS = 86400
 
+# Dismissal/resolution phrases — user is saying "drop this topic"
+_DISMISSAL = {
+    "oublie ça",
+    "oublie cela",
+    "oublie",
+    "laisse tomber",
+    "laisse faire",
+    "passons à autre chose",
+    "passe à autre chose",
+    "on passe à autre chose",
+    "c'est réglé",
+    "c'est ok",
+    "c'est correct",
+    "c'est bon",
+    "c'est fini",
+    "c'est clos",
+    "sujet clos",
+    "on oublie",
+    "j'oublie",
+    "peu importe",
+    "pas grave",
+    "c'est pas grave",
+    "laisse",
+    "abandonne",
+    "next",
+    "suivant",
+    "on s'en fout",
+    "je m'en fous",
+    "tant pis",
+    "ça va",
+    "c'est tout",
+    "c'est tout bon",
+    "prochaine chose",
+    "passer à la suite",
+    "avance",
+    "continue",
+    "next topic",
+    "move on",
+    "nevermind",
+    "forget it",
+    "drop it",
+}
+
+_DISMISSAL_MAX_LEN = max(len(p) for p in _DISMISSAL) + 5
+
+
+def _is_dismissal(text: str) -> bool:
+    """Check if *text* is telling CoreMind to drop/resolve the topic."""
+    cleaned = text.strip().lower().rstrip("!.?")
+    if cleaned in _DISMISSAL:
+        return True
+    # Short responses that start with dismissal prefixes
+    if len(cleaned) <= _DISMISSAL_MAX_LEN:
+        for prefix in ("oublie", "laisse", "passe à", "passons", "c'est réglé", "c'est ok",
+                        "c'est bon", "c'est fini", "c'est clos", "pas grave", "peu importe",
+                        "next", "nevermind", "forget", "drop"):
+            if cleaned.startswith(prefix):
+                return True
+    return False
+
 # Affirmative responses that should trigger action execution
 _AFFIRMATIVE = {
     "oui",
@@ -165,6 +225,20 @@ class ConversationHandler:
             message_id=user_id,
         )
         conversation.add_message(user_msg)
+
+        # Check if user is dismissing/resolving this conversation —
+        # if so, acknowledge and archive to prevent stale context loops.
+        if _is_dismissal(text):
+            conversation.add_message(Message(
+                role=MessageRole.COREMIND,
+                text="Compris, on passe à autre chose ! 👌",
+            ))
+            await self._store.archive(conversation.conversation_id)
+            log.info(
+                "conversation.dismissed",
+                conversation_id=conversation.conversation_id,
+            )
+            return "Compris, on passe à autre chose ! 👌", conversation
 
         # Check if this is an affirmative response to a pending conversation
         # action — if so, execute the action directly instead of LLM.
