@@ -48,12 +48,12 @@ INFLUX_BUCKET = os.environ.get("INFLUXDB_BUCKET", "apple_health")
 _METRICS: list[tuple[str, str, str | None]] = [
     (
         "step_count",
-        'from(bucket:"{bucket}") |> range(start: -24h) |> filter(fn:(r) => r._measurement == "step_count") |> filter(fn:(r) => r._field == "value") |> sum()',
+        'from(bucket:"{bucket}") |> range(start: -24h) |> filter(fn:(r) => r._measurement == "step_count") |> filter(fn:(r) => r._field == "value") |> group() |> max()',
         "steps",
     ),
     (
         "sleep_hours",
-        'from(bucket:"{bucket}") |> range(start: -7d) |> filter(fn:(r) => r._measurement == "sleep_analysis") |> filter(fn:(r) => r._field == "totalSleep") |> group() |> max()',
+        'from(bucket:"{bucket}") |> range(start: -2d) |> filter(fn:(r) => r._measurement == "sleep_analysis") |> filter(fn:(r) => r._field == "totalSleep") |> group() |> max()',
         "hours",
     ),
     (

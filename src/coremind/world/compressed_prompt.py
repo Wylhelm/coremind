@@ -95,9 +95,21 @@ class CompressedPromptBuilder:
         Returns:
             A CompressedPrompt ready for LLM consumption.
         """
+        # Include critical sensor values directly in summary so the LLM
+        # always sees them, even when they haven't changed (no diff entry).
+        critical_values: list[str] = []
+        for entity in snapshot.entities:
+            if entity.type == "health":
+                for k in ["sleep_hours", "resting_heart_rate", "steps"]:
+                    v = entity.properties.get(k)
+                    if v is not None:
+                        critical_values.append(f"{k}={v}")
+        critical_line = f" Health: {', '.join(critical_values)}." if critical_values else ""
+
         summary = (
-            f"{diff.total_current} entities, {diff.change_summary}. "
-            f"Timestamp: {snapshot.taken_at.isoformat()}."
+            f"{diff.total_current} entities, {diff.change_summary}."
+            f"{critical_line}"
+            f" Timestamp: {snapshot.taken_at.isoformat()}."
         )
 
         changes_text = self._format_changes(diff)

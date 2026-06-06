@@ -1,9 +1,42 @@
 # Phase 5 — Unified Actuator Surface
 
-**Target:** CoreMind v2  
-**Duration estimate:** 1 week  
-**Agent:** Opus in VS Code  
+**Target:** CoreMind v2
+**Duration estimate:** 1 week
+**Agent:** Opus in VS Code
 **Depends on:** Phase 1 (Autonomy Slider), Phase 4 (Auto-Investigation)
+
+---
+
+## Subphases
+
+| Subphase | File | Effort | Prerequisites |
+|---|---|---|---|
+| 5A | [Schemas & Package Scaffold](PHASE_5A_SCHEMAS.md) | 1–2h | None |
+| 5B | [Discovery Engine](PHASE_5B_DISCOVERY_ENGINE.md) | 3–4h | 5A |
+| 5C | [Capability Registry](PHASE_5C_CAPABILITY_REGISTRY.md) | 2–3h | 5A |
+| 5D | [Action Mapper](PHASE_5D_ACTION_MAPPER.md) | 2–3h | 5A, 5C |
+| 5E | [Unified Actuator & Integration](PHASE_5E_UNIFIED_ACTUATOR_INTEGRATION.md) | 3–4h | 5B, 5C, 5D |
+| 5F | [CLI & Dashboard](PHASE_5F_CLI_DASHBOARD.md) | 2–3h | 5E |
+
+### Parallelism
+
+```mermaid
+graph LR
+    A[5A Schemas] --> B[5B Discovery]
+    A --> C[5C Registry]
+    A --> D[5D Mapper]
+    C --> D
+    B --> E[5E Integration]
+    C --> E
+    D --> E
+    E --> F[5F CLI & Dashboard]
+```
+
+**Parallel lanes after 5A:**
+- **Lane 1:** 5B (Discovery Engine) — independent, only needs schemas.
+- **Lane 2:** 5C (Registry) → 5D (Mapper) — sequential, mapper depends on registry.
+
+5B and 5C can run simultaneously in two agent sessions.
 
 ---
 
@@ -61,7 +94,7 @@ class DiscoveryMethod(enum.Enum):
 ```python
 class DiscoveryEngine:
     """Runs on daemon startup and periodically (every 6h by default)."""
-    
+
     def __init__(
         self,
         ha_client: HomeAssistantClient | None = None,
@@ -75,7 +108,7 @@ class DiscoveryEngine:
             self._methods.append(DiscoveryMethod.MDNS)
         if plugin_registry:
             self._methods.append(DiscoveryMethod.PLUGIN_MANIFEST)
-    
+
     async def discover(self) -> list[DiscoveredDevice]:
         """Run all discovery methods, deduplicate, return devices."""
         all_devices: list[DiscoveredDevice] = []
@@ -98,12 +131,12 @@ async def _discover_via_ha(self) -> list[DiscoveredDevice]:
     for entity in states:
         entity_id = entity["entity_id"]
         domain = entity_id.split(".")[0]
-        
+
         # Map HA domains to capability types
         capability = HA_DOMAIN_CAPABILITY_MAP.get(domain)
         if capability is None:
             continue
-        
+
         device = DiscoveredDevice(
             id=f"ha:{entity_id}",
             name=entity.get("attributes", {}).get("friendly_name", entity_id),
@@ -136,14 +169,14 @@ HA_DOMAIN_CAPABILITY_MAP = {
 ```python
 class MDNSScanner:
     """Scans local network for smart home devices via mDNS."""
-    
+
     SERVICE_TYPES = [
         "_hap._tcp.local.",       # HomeKit (Hue, etc.)
         "_sonos._tcp.local.",     # Sonos
         "_googlecast._tcp.local.", # Chromecast
         "_spotify-connect._tcp.local.",
     ]
-    
+
     async def scan(self, timeout: float = 10.0) -> list[DiscoveredDevice]:
         """Scan mDNS for known service types."""
         devices = []
@@ -223,19 +256,19 @@ class DeviceCapabilities(BaseModel):
 
 class CapabilityRegistry:
     """In-memory + persisted registry of all known device capabilities."""
-    
+
     def __init__(self, store_path: Path) -> None:
         self._path = store_path
         self._devices: dict[str, DeviceCapabilities] = {}
         self._by_type: dict[DeviceType, list[str]] = defaultdict(list)
         self._by_action: dict[ActionType, list[str]] = defaultdict(list)
-    
+
     def register(self, device: DeviceCapabilities) -> None:
         self._devices[device.device_id] = device
         self._by_type[device.device_type].append(device.device_id)
         for cap in device.capabilities:
             self._by_action[cap.action].append(device.device_id)
-    
+
     def find_by_action(self, action: ActionType, room: str | None = None) -> list[DeviceCapabilities]:
         """Find all devices that can perform a given action, optionally filtered by room."""
         device_ids = self._by_action.get(action, [])
@@ -243,7 +276,7 @@ class CapabilityRegistry:
         if room:
             devices = [d for d in devices if d.room == room]
         return devices
-    
+
     def find_by_type(self, device_type: DeviceType) -> list[DeviceCapabilities]:
         return [self._devices[did] for did in self._by_type.get(device_type, [])]
 ```
@@ -255,10 +288,10 @@ The Action Mapper translates natural-language or structured goals into protocol-
 ```python
 class ActionMapper:
     """Maps high-level goals to protocol-specific operations."""
-    
+
     def __init__(self, registry: CapabilityRegistry) -> None:
         self._registry = registry
-    
+
     def resolve(
         self,
         goal: str,                     # e.g., "turn off all lights in the living room"
@@ -276,7 +309,7 @@ class ActionMapper:
         else:
             # Use LLM to disambiguate (lightweight call)
             candidates = self._llm_resolve(goal, room)
-        
+
         actions = []
         for device in candidates:
             for cap in device.capabilities:
@@ -295,7 +328,7 @@ class ActionMapper:
 
     def _llm_resolve(self, goal: str, room: str | None = None) -> list[DeviceCapabilities]:
         """Use a lightweight LLM call to resolve ambiguous goals to devices.
-        
+
         This is a SMALL call (~500 tokens) — just for disambiguation, not reasoning.
         """
         devices_summary = self._registry.to_compact_summary(room=room)
@@ -323,7 +356,7 @@ class ResolvedAction(BaseModel):
 ```python
 class UnifiedActuator:
     """Single entry point for all actions in CoreMind."""
-    
+
     def __init__(
         self,
         discovery: DiscoveryEngine,
@@ -335,7 +368,7 @@ class UnifiedActuator:
         self._registry = registry
         self._mapper = mapper
         self._executor = executor
-    
+
     async def refresh_devices(self) -> None:
         """Re-discover all devices."""
         devices = await self._discovery.discover()
@@ -343,7 +376,7 @@ class UnifiedActuator:
             capabilities = self._device_to_capabilities(device)
             self._registry.register(capabilities)
         await self._registry.persist()
-    
+
     async def act(
         self,
         goal: str,
@@ -355,7 +388,7 @@ class UnifiedActuator:
         confidence: float = 0.0,
     ) -> list[ActionResult]:
         """Execute a high-level goal.
-        
+
         Args:
             goal: Natural language description of what to do.
             action_type: Optional specific action type.
@@ -363,7 +396,7 @@ class UnifiedActuator:
             device_type: Optional device type filter.
             parameters: Optional action parameters.
             confidence: System confidence in this action (for autonomy slider).
-        
+
         Returns:
             One ActionResult per device targeted.
         """
@@ -371,14 +404,14 @@ class UnifiedActuator:
             goal, action_type=action_type, room=room,
             device_type=device_type, parameters=parameters,
         )
-        
+
         results = []
         for action in resolved:
             # Delegate to existing L6 executor
             result = await self._executor.execute_resolved(action, confidence)
             results.append(result)
         return results
-    
+
     def list_devices(self, room: str | None = None) -> list[DeviceCapabilities]:
         """List all known devices, optionally filtered by room."""
         devices = list(self._registry._devices.values())

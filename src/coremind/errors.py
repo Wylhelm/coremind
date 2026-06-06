@@ -76,3 +76,7 @@ class ReflectionError(CoreMindError):
 
 class PredictionError(CoreMindError):
     """Raised when the predictive memory layer cannot generate or verify a prediction."""
+
+
+class SelfModelError(CoreMindError):
+    """Raised when the self-model layer cannot complete an operation."""

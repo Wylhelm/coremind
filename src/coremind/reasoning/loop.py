@@ -493,7 +493,9 @@ class ReasoningLoop:
         """Append a key insight from this reasoning cycle to the narrative.
 
         Extracts the highest-confidence pattern or anomaly description as
-        the observation text.
+        the observation text.  Only observations with confidence >= 0.7 are
+        added to prevent low-confidence hallucinations from polluting the
+        narrative context.
         """
         if self._narrative is None:
             return
@@ -509,15 +511,23 @@ class ReasoningLoop:
     def _extract_key_insight(output: ReasoningOutput) -> str:
         """Extract the most salient insight from a reasoning cycle output.
 
-        Priority: high-severity anomaly > highest-confidence pattern > None.
+        Priority: high-severity anomaly > highest-confidence pattern (>= 0.7) >
+                  empty string.
+
+        Anomalies are gated by severity (only "high" is used).  Patterns
+        require confidence >= 0.7 to prevent low-confidence hallucinations
+        from entering the narrative loop.
         """
+        min_narrative_confidence = 0.7
+
         if output.anomalies:
             high = [a for a in output.anomalies if a.severity == "high"]
             if high:
                 return high[0].description
         if output.patterns:
             best = max(output.patterns, key=lambda p: p.confidence)
-            return best.description
+            if best.confidence >= min_narrative_confidence:
+                return best.description
         return ""
 
 

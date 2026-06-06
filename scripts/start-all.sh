@@ -94,6 +94,7 @@ PLUGINS=(
     "webcam"
     "health"
     "gog"
+    "worlddata"
 )
 
 # --- Launch function with retry ---

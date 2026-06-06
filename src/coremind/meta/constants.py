@@ -46,7 +46,7 @@ DEFAULT_POLICIES: list[AdjustmentPolicy] = [
         parameter_path="intention.min_salience",
         direction="decrease",
         delta=0.05,
-        min_value=0.20,
+        min_value=0.35,
         max_value=0.70,
         cooldown_seconds=21600.0,
     ),

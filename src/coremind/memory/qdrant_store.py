@@ -173,12 +173,12 @@ class QdrantVectorStore:
             )
 
         def _search() -> list[SearchHit]:
-            results = self._db.search(  # type: ignore[attr-defined]
+            results = self._db.query_points(  # type: ignore[attr-defined]
                 collection_name=collection,
-                query_vector=vector,
+                query=vector,
                 limit=k,
                 query_filter=query_filter,
-            )
+            ).points
             return [
                 SearchHit(
                     id=str(r.id),

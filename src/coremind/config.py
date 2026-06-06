@@ -20,6 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from coremind.action.autonomy import AutonomyConfig
 from coremind.meta.schemas import MetaConfig
 from coremind.personalization.config import PersonalizationConfig
+from coremind.self_model.config import SelfModelConfig
 
 log = structlog.get_logger(__name__)
 
@@ -224,6 +225,7 @@ class DaemonConfig(BaseModel):
     personalization: PersonalizationConfig = Field(default_factory=PersonalizationConfig)
     meta: MetaConfig = Field(default_factory=MetaConfig)
     embedding_pipeline: EmbeddingPipelineConfig = Field(default_factory=EmbeddingPipelineConfig)
+    self_model: SelfModelConfig = Field(default_factory=SelfModelConfig)
 
 
 def load_config() -> DaemonConfig:

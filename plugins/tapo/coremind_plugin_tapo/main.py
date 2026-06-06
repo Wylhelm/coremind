@@ -46,6 +46,10 @@ VISION_ENABLED: bool = True
 CONFIDENCE: float = 0.85
 CONFIDENCE_VISION: float = 0.75
 
+# Dead man's switch: if vision fails this many times consecutively, emit stale state
+# Prevents presence detector from accumulating hours of stale activity
+MAX_CONSECUTIVE_VISION_FAILURES: int = 6  # 30 min at 5 min intervals
+
 
 def load_config() -> dict:
     """Load tapo plugin config from TOML if present."""
@@ -162,12 +166,12 @@ async def analyze_scene(image_path: Path) -> dict[str, str | bool]:
             "Julie is a woman in her 40s with brown hair. "
             "Jeff is a man in his 40s, bald or shaved head. "
             "If you cannot identify confidently, use 'unknown'), "
-            "activity (string), "
+            'activity (one of: "working at desk", "relaxing on couch", "watching TV", "eating", "cooking", "cleaning", "just passing by", "not in room"), '
             "pets_visible (boolean), pet_description (string — "
             "3 black cats: Poukie (medium), Timimi (larger, caramel hints), Minuit (small). "
             "Identify cats by size/position if visible). "
             'Example: {"person_present": true, "person_name": "Guillaume", '
-            '"activity": "working at desk", "pets_visible": true, '
+            '"activity": "relaxing on couch", "pets_visible": true, '
             '"pet_description": "Timimi on the couch"}'
         )
 
@@ -302,6 +306,7 @@ async def run() -> None:
                 log.info("tapo.connected", plugin_id=PLUGIN_ID)
 
                 # Inner loop: normal operation
+                consecutive_vision_failures = 0
                 while True:
                     try:
                         snap_path = snapshot_dir / f"tapo_{datetime.now(UTC):%Y%m%d_%H%M%S}.jpg"
@@ -343,15 +348,40 @@ async def run() -> None:
                         if success and VISION_ENABLED:
                             vision = await analyze_scene(snap_path)
                             if vision:
-                                # If person is present but unidentified, try Immich face matching
-                                if (
-                                    vision.get("person_present")
-                                    and vision.get("person_name") == "unknown"
-                                ):
+                                consecutive_vision_failures = 0  # Reset on success
+                                # ALWAYS run face matching when a person is present.
+                                # Face match acts as CONFIRMATION — it only overrides
+                                # Gemini's text-based answer when Gemini says "unknown"
+                                # OR when face match gives the SAME answer as Gemini
+                                # (boosting confidence). Cross-model disagreement =
+                                # unreliable → trust Gemini's scene-level context.
+                                if vision.get("person_present"):
                                     matched_name = await match_face_with_immich(snap_path)
                                     if matched_name:
-                                        vision["person_name"] = matched_name
-                                        log.info("tapo.face_identified", name=matched_name)
+                                        original_name = vision.get("person_name", "unknown")
+                                        if original_name == "unknown":
+                                            # Gemini was unsure → trust face match
+                                            vision["person_name"] = matched_name
+                                            log.info(
+                                                "tapo.face_identified",
+                                                name=matched_name,
+                                                previous=original_name,
+                                            )
+                                        elif matched_name == original_name:
+                                            # Agreement → confidence confirmed
+                                            log.info(
+                                                "tapo.face_confirmed",
+                                                name=matched_name,
+                                            )
+                                        else:
+                                            # Disagreement → Gemini's scene context wins
+                                            # Face matching alone is too unreliable (no depth,
+                                            # angle, lighting context)
+                                            log.info(
+                                                "tapo.face_mismatch_ignored",
+                                                text_name=original_name,
+                                                face_name=matched_name,
+                                            )
 
                                 for attr, val in vision.items():
                                     event_v = build_signed_event(
@@ -365,6 +395,42 @@ async def run() -> None:
                                         log.info("tapo.vision_emitted", attribute=attr, value=val)
                                     except grpc.RpcError:
                                         break  # Reconnect on any emit failure
+                            else:
+                                consecutive_vision_failures += 1
+                                log.warning(
+                                    "tapo.vision_empty_result",
+                                    consecutive_failures=consecutive_vision_failures,
+                                    max_allowed=MAX_CONSECUTIVE_VISION_FAILURES,
+                                )
+                                if consecutive_vision_failures >= MAX_CONSECUTIVE_VISION_FAILURES:
+                                    # Dead man's switch: force stale state to stop presence accumulation
+                                    log.warning(
+                                        "tapo.vision_stale_forced_reset",
+                                        failures=consecutive_vision_failures,
+                                    )
+                                    stale_attrs = {
+                                        "person_present": False,
+                                        "person_name": "vision_stale",
+                                        "activity": "unknown",
+                                        "pets_visible": False,
+                                        "pet_description": "vision_model_unavailable",
+                                    }
+                                    for attr, val in stale_attrs.items():
+                                        event_v = build_signed_event(
+                                            private_key,
+                                            attribute=attr,
+                                            value=val,
+                                            confidence=0.1,  # Very low confidence = stale data
+                                        )
+                                        try:
+                                            await stub.EmitEvent(event_v, metadata=metadata)
+                                            log.info(
+                                                "tapo.vision_stale_emitted",
+                                                attribute=attr,
+                                                value=val,
+                                            )
+                                        except grpc.RpcError:
+                                            break
 
                     except grpc.RpcError as exc:
                         log.warning(

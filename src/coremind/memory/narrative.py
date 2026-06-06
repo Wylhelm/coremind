@@ -3,6 +3,11 @@
 Maintains a living summary of the user's life context as a JSON file at
 ~/.coremind/run/narrative_state.json.  New observations are appended with
 auto-decay after 7 days.
+
+Deduplication: observations are checked against existing patterns using
+token-set Jaccard similarity.  Near-duplicates (threshold 0.6) are rejected
+to prevent hallucination feedback loops where the LLM repeatedly reinforces
+its own fabricated observations.
 """
 
 from __future__ import annotations
@@ -23,6 +28,11 @@ _NARRATIVE_PATH = Path.home() / ".coremind" / "run" / "narrative_state.json"
 _OBSERVATION_TTL_DAYS = 7
 _MAX_PATTERNS = 20
 _MAX_CONCERNS = 20
+# Jaccard similarity threshold — observations above this are considered
+# duplicates of an existing pattern and rejected.
+_DEDUP_JACCARD_THRESHOLD = 0.6
+# Maximum times the same semantic observation can appear in recent_patterns.
+_MAX_SIMILAR_OCCURRENCES = 2
 
 
 def _utc_now() -> datetime:
@@ -132,10 +142,31 @@ class NarrativeMemory:
 
         Observations older than ``_OBSERVATION_TTL_DAYS`` are pruned on every
         append.  The list is capped at ``_MAX_PATTERNS`` entries.
+
+        Deduplication: rejects observations whose token-set Jaccard similarity
+        with an existing pattern exceeds ``_DEDUP_JACCARD_THRESHOLD``, or if
+        the same semantic content already appears ``_MAX_SIMILAR_OCCURRENCES``
+        times.
         """
         async with self._lock:
             now = self._clock()
             patterns = self._decay(self._state.recent_patterns, now)
+
+            # Deduplication: check similarity against existing patterns.
+            similar_count = 0
+            new_tokens = _tokenise(text)
+            for existing in patterns:
+                similarity = _jaccard(new_tokens, _tokenise(existing.text))
+                if similarity >= _DEDUP_JACCARD_THRESHOLD:
+                    similar_count += 1
+                    if similar_count >= _MAX_SIMILAR_OCCURRENCES:
+                        log.info(
+                            "narrative.duplicate_skipped",
+                            text=text[:80],
+                            similar_count=similar_count,
+                        )
+                        return
+
             patterns.append(TimestampedItem(text=text, recorded_at=now))
             if len(patterns) > _MAX_PATTERNS:
                 patterns = patterns[-_MAX_PATTERNS:]
@@ -150,6 +181,20 @@ class NarrativeMemory:
             )
             await self._save()
             log.info("narrative.observation_added", text=text[:80])
+
+    async def total_tokens(self, window: timedelta) -> int:
+        """Return total LLM tokens consumed in the given window.
+
+        Stub — narrative layer does not track tokens yet.
+        """
+        return 0
+
+    async def list_investigations(self, window: timedelta) -> list:
+        """Return investigation summaries for the given window.
+
+        Stub — narrative layer does not track investigations yet.
+        """
+        return []
 
     def _render_for_prompt(self) -> str:
         """Render the narrative state as a markdown snippet for LLM prompts."""
@@ -173,3 +218,24 @@ class NarrativeMemory:
         if not parts:
             return "(no narrative context yet)"
         return "\n".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# Deduplication helpers
+# ---------------------------------------------------------------------------
+
+
+def _tokenise(text: str) -> set[str]:
+    """Tokenise text to a lower-cased word set for Jaccard similarity."""
+    return {tok for tok in text.lower().split() if tok.isalnum()}
+
+
+def _jaccard(a: set[str], b: set[str]) -> float:
+    """Compute Jaccard similarity between two token sets."""
+    if not a or not b:
+        return 0.0
+    inter = len(a & b)
+    union = len(a | b)
+    if union == 0:
+        return 0.0
+    return inter / union

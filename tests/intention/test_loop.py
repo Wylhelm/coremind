@@ -354,3 +354,132 @@ async def test_event_driven_mode_filters_insignificant_events(
         "Irrelevant/low-confidence events should not trigger cycles; "
         "startup grace should prevent routine cycle from firing"
     )
+
+
+# --- Event listener resilience tests ---
+
+
+async def test_event_listener_restarts_after_crash(
+    tmp_path: Path, keypair: tuple[Ed25519PrivateKey, Ed25519PublicKey]
+) -> None:
+    """If the event listener task crashes, it auto-restarts and resumes processing."""
+    priv, pub = keypair
+    journal = ActionJournal(tmp_path / "audit.log", priv, pub)
+    await journal.load()
+    intents = IntentStore(tmp_path / "intents.jsonl")
+    port = DashboardNotificationPort()
+    effector = _FakeEffector()
+    executor = Executor(
+        journal,
+        intents,
+        lambda _op: effector,
+        notify_port=port,
+        suggest_grace=timedelta(milliseconds=1),
+        notify_journal=NotificationJournal(tmp_path / "notify_journal.jsonl"),
+    )
+    approvals = ApprovalGate(port, intents, journal, executor)
+    router = ActionRouter(executor, approvals, intents, journal)
+
+    batch = QuestionBatch(
+        questions=[
+            RawIntent(
+                question=InternalQuestion(id="q1", text="Test question?"),
+                model_confidence=0.99,
+                model_salience=0.9,
+            ),
+        ]
+    )
+    llm = _FakeLLM(batch)
+
+    event_bus = EventBus()
+    loop = IntentionLoop(
+        _StaticSnapshot(),
+        _EmptyReasoning(),
+        intents,
+        llm,
+        router,
+        event_bus=event_bus,  # type: ignore[arg-type]
+        config=IntentionLoopConfig(
+            event_driven=True, routine_interval_seconds=60, startup_grace_seconds=0
+        ),
+    )
+    loop.start()
+    await asyncio.sleep(0.05)
+
+    # Verify the listener task is running
+    assert loop._event_subscription_task is not None
+    assert not loop._event_subscription_task.done()
+
+    # Simulate a crash by cancelling the listener task externally
+    # and injecting an exception
+    original_task = loop._event_subscription_task
+    original_task.cancel()
+    await asyncio.sleep(0.1)
+
+    # The done-callback should have restarted the task
+    assert loop._listener_restart_count >= 1
+    assert loop._event_subscription_task is not None
+    assert loop._event_subscription_task is not original_task
+
+    await loop.stop()
+
+
+async def test_event_listener_respects_max_restarts(
+    tmp_path: Path, keypair: tuple[Ed25519PrivateKey, Ed25519PublicKey]
+) -> None:
+    """After max restarts, the listener degrades gracefully without infinite loops."""
+    priv, pub = keypair
+    journal = ActionJournal(tmp_path / "audit.log", priv, pub)
+    await journal.load()
+    intents = IntentStore(tmp_path / "intents.jsonl")
+    port = DashboardNotificationPort()
+    router = ActionRouter(
+        Executor(
+            journal,
+            intents,
+            lambda _op: _FakeEffector(),
+            notify_port=port,
+            notify_journal=NotificationJournal(tmp_path / "notify_journal.jsonl"),
+        ),
+        ApprovalGate(
+            port,
+            intents,
+            journal,
+            Executor(
+                journal,
+                intents,
+                lambda _op: _FakeEffector(),
+                notify_journal=NotificationJournal(tmp_path / "notify_journal.jsonl"),
+            ),
+        ),
+        intents,
+        journal,
+    )
+    llm = _FakeLLM(QuestionBatch(questions=[]))
+    event_bus = EventBus()
+
+    loop = IntentionLoop(
+        _StaticSnapshot(),
+        _EmptyReasoning(),
+        intents,
+        llm,
+        router,
+        event_bus=event_bus,  # type: ignore[arg-type]
+        config=IntentionLoopConfig(
+            event_driven=True, routine_interval_seconds=60, startup_grace_seconds=0
+        ),
+    )
+    loop._max_listener_restarts = 2  # Low limit for test speed
+    loop.start()
+    await asyncio.sleep(0.05)
+
+    # Kill the listener repeatedly
+    for _ in range(3):
+        if loop._event_subscription_task and not loop._event_subscription_task.done():
+            loop._event_subscription_task.cancel()
+            await asyncio.sleep(0.1)
+
+    # Should have hit the max restart limit
+    assert loop._listener_restart_count >= 2
+
+    await loop.stop()

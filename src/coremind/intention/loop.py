@@ -90,9 +90,9 @@ class IntentionLoopConfig(BaseModel):
     event_driven: bool = Field(default=True, description="Enable event-driven mode")
     interval_seconds: int = Field(default=600, ge=10)
     routine_interval_seconds: int = Field(
-        default=14400,
+        default=900,
         ge=60,
-        description="Interval for routine cycles in event-driven mode (default 4h)",
+        description="Fallback interval for routine cycles in event-driven mode (default 15 min)",
     )
     template_system: str = "intention.system.v1"
     template_user: str = "intention.user.v1"
@@ -214,9 +214,11 @@ class IntentionLoop:
         self._pending_observations: list[WorldEventRecord] = []
         # Bumped from 10 → 50 to prevent flooding when many event-emitting plugins
         # (GOG, presence, etc.) are active.  See 2026-05-26 incident.
-        self._observation_threshold = 50
+        self._observation_threshold = 200
         self._last_routine_cycle: datetime | None = None
         self._daemon_started_at: datetime | None = None
+        self._listener_restart_count = 0
+        self._max_listener_restarts = 5
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -228,11 +230,48 @@ class IntentionLoop:
             return
         self._daemon_started_at = self._clock()
         self._stop_event.clear()
+        self._listener_restart_count = 0
         if self._config.event_driven and self._event_bus is not None:
-            self._event_subscription_task = asyncio.create_task(
-                self._event_listener(), name="coremind.intention.event_listener"
-            )
+            self._start_event_listener()
         self._task = asyncio.create_task(self._scheduler(), name="coremind.intention")
+
+    def _start_event_listener(self) -> None:
+        """Create the event listener task with a done-callback for auto-restart."""
+        self._event_subscription_task = asyncio.create_task(
+            self._event_listener(), name="coremind.intention.event_listener"
+        )
+        self._event_subscription_task.add_done_callback(self._on_event_listener_done)
+
+    def _on_event_listener_done(self, task: asyncio.Task[None]) -> None:
+        """Handle event listener task completion — restart on unexpected exit."""
+        if self._stop_event.is_set():
+            return
+        if task.cancelled():
+            log.warning("intention.event_listener.cancelled")
+        else:
+            exc = task.exception()
+            if exc is None:
+                log.warning("intention.event_listener.exited_cleanly")
+            else:
+                log.critical(
+                    "intention.event_listener.crashed",
+                    error=str(exc),
+                    restart_count=self._listener_restart_count,
+                    exc_info=exc,
+                )
+        # Auto-restart with backoff (max 5 restarts).
+        if self._listener_restart_count < self._max_listener_restarts:
+            self._listener_restart_count += 1
+            log.info(
+                "intention.event_listener.restarting",
+                attempt=self._listener_restart_count,
+            )
+            self._start_event_listener()
+        else:
+            log.error(
+                "intention.event_listener.max_restarts_reached",
+                max=self._max_listener_restarts,
+            )
 
     async def stop(self) -> None:
         """Stop the scheduler."""
@@ -319,6 +358,11 @@ class IntentionLoop:
                         except Exception:
                             log.exception("intention.event_cycle_unexpected")
                         self._pending_observations.clear()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("intention.event_listener.fatal")
+            raise
         finally:
             with contextlib.suppress(Exception):
                 await subscription.aclose()
@@ -332,8 +376,9 @@ class IntentionLoop:
         Returns:
             True if the event should be buffered, False otherwise.
         """
-        # Filter for high-confidence events
-        if event.confidence < 0.7:
+        # Filter for reasonable-confidence events
+        # Most plugins emit at ~0.3; 0.7 was too aggressive (buffer never filled)
+        if event.confidence < 0.2:
             return False
 
         # Filter for specific entity types that are typically significant

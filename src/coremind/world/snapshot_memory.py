@@ -182,9 +182,9 @@ class SnapshotMemory:
         cutoff = datetime.now(UTC) - timedelta(seconds=exclude_recent_seconds)
 
         def _search() -> list[SimilarSnapshot]:
-            results = self._db.search(  # type: ignore[attr-defined]
+            results = self._db.query_points(
                 collection_name=self._collection,
-                query_vector=vector,
+                query=vector,
                 limit=k,
                 query_filter=Filter(
                     must=[
@@ -194,7 +194,7 @@ class SnapshotMemory:
                         )
                     ]
                 ),
-            )
+            ).points
             return [
                 SimilarSnapshot(
                     snapshot_id=str(r.id),

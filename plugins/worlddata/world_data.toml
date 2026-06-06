@@ -1,0 +1,17 @@
+# World Data Plugin — configuration example
+# Copy to: ~/.coremind/plugins/world_data.toml
+# Each collector can be individually enabled/disabled.
+
+[collectors.crypto]
+enabled = true
+coins = ["bitcoin", "ethereum"]
+
+[collectors.traffic]
+enabled = true
+cameras = [
+    "pont_pierre_laporte",
+    "autoroute_20_ouest",
+    "autoroute_40_nord",
+    "autoroute_73",
+    "boulevard_charest",
+]

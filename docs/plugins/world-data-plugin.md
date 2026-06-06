@@ -1,8 +1,9 @@
 # Plugin World Data — Sources de données externes pour le World Model
 
-> **Statut :** Planification — en attente de review Guillaume  
-> **Date :** 2026-05-27  
-> **Décision :** Ne pas coder avant GO
+> **Statut :** Spec validée — prête pour implémentation MVP  
+> **Date :** 2026-05-28 (révisé)  
+> **Décision :** Implémenter le MVP (crypto + trafic) en premier  
+> **Spéc liée :** [Self-Model Plugin](SELF_MODEL.md) — modélisation de Guillaume
 
 ---
 
@@ -180,6 +181,43 @@ plugin-world-data/
 
 **Exemple :**
 > "Panne Hydro dans ton secteur — 500 clients affectés, rétablissement estimé 18h30"
+
+---
+
+## Collecteurs — V1.3 : Données sociales (WhatsApp / Telegram)
+
+> 📎 **Note :** Ces collecteurs font le pont entre le World Data Plugin (données externes)
+> et le [Self-Model Plugin](SELF_MODEL.md) (modélisation de Guillaume).
+> Les métadonnées sociales sont collectées ici ; l'extraction de faits personnels
+> (relations, événements, buts) est gérée par le Self-Model.
+
+### 8. WhatsApp — Métadonnées sociales
+
+| Champ | Valeur |
+|-------|--------|
+| **API** | OpenClaw (Baileys) — déjà intégré au gateway |
+| **Fréquence** | Event-driven (à chaque message reçu) |
+| **Entités** | `social:whatsapp` |
+| **Attributs** | `active_contacts`, `message_count_24h`, `conversation_partners` |
+
+**Données collectées (métadonnées uniquement) :**
+- Fréquence des messages par contact
+- Heures d'activité sociale
+- Taille des groupes actifs
+
+**Ce qui N'EST PAS collecté :**
+- Contenu des messages personnels (vie privée des contacts)
+- Photos, médias partagés
+- Messages dans des groupes où Guillaume n'est pas admin
+
+### 9. Telegram — Métadonnées sociales
+
+| Champ | Valeur |
+|-------|--------|
+| **API** | OpenClaw — déjà configuré |
+| **Fréquence** | Event-driven (à chaque message) |
+| **Entités** | `social:telegram` |
+| **Attributs** | `active_contacts`, `group_activity`, `mention_count` |
 
 ---
 

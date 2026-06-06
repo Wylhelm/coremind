@@ -553,6 +553,29 @@ class ReflectionLoop:
             for p in c.predictions
         )[:2000]
 
+        # Build a verification table for active concerns
+        concern_verification_lines: list[str] = []
+        for c in (current.active_concerns or []):
+            concern_verification_lines.append(
+                f"- Concern: {c.text}\n"
+                f"  Recorded: {c.recorded_at.isoformat() if hasattr(c, 'recorded_at') else 'unknown'}\n"
+                f"  VERIFY: Is this STILL happening? Look at the Patterns and Anomalies "
+                f"below. If data shows the issue is resolved, you MUST remove this concern. "
+                f"If data shows the issue persists, keep it but update the description "
+                f"with the latest evidence."
+            )
+        concern_verification = "\n".join(concern_verification_lines) if concern_verification_lines else "(no active concerns)"
+
+        # Summarise intents for context
+        intents_summary = "\n".join(
+            f"- Intent: {i.question or str(i)[:200]}"
+            for i in (intents or [])[-15:]
+        )[:1500]
+        actions_summary = "\n".join(
+            f"- Action: {getattr(a, 'operation', str(a))[:200]}"
+            for a in (actions or [])[-15:]
+        )[:1500]
+
         prompt = (
             f"Based on this week's data, update the narrative state describing "
             f"the user's current life context.\n\n"
@@ -560,20 +583,30 @@ class ReflectionLoop:
             f"- Mood trend: {current.user_mood_trend}\n"
             "- Recent patterns:\n"
             + "\n".join(f"  - {p.text}" for p in (current.recent_patterns or [])[:10])
-            + "\n- Active concerns:\n"
-            + "\n".join(f"  - {c.text}" for c in (current.active_concerns or [])[:10])
-            + f"\n- Relationship notes: {current.relationship_notes or '(none)'}\n\n"
+            + "\n- Relationship notes: {current.relationship_notes or '(none)'}\n\n"
+            "## ACTIVE CONCERNS — VERIFY EACH ONE\n"
+            "For each concern below, you MUST decide: KEEP (issue persists) or REMOVE (issue resolved).\n"
+            "Cross-reference against the Patterns and Anomalies sections.\n"
+            "If recent data PROVES the concern is no longer valid, REMOVE it.\n"
+            "If the concern mentions a service/sensor being 'unavailable' but recent patterns\n"
+            "show data flowing from that same service, the concern is FALSE — remove it.\n\n"
+            + concern_verification
+            + "\n\n"
             "## This Week's Observations\n"
             f"### Patterns detected\n{patterns_summary or '(none)'}\n\n"
             f"### Anomalies detected\n{anomalies_summary or '(none)'}\n\n"
             f"### Predictions made\n{predictions_summary or '(none)'}\n\n"
-            f"### Intents formed\n{len(intents)} intents\n\n"
-            f"### Actions executed\n{len(actions)} actions\n\n"
-            "Update the narrative state: has mood trend changed? "
-            "What new patterns or concerns have emerged? "
-            "Update relationship notes if relevant. "
-            "Keep patterns and concerns lists to at most 10 items each, "
-            "pruning stale ones. Retain important long-term context.\n\n"
+            f"### Intents formed ({len(intents)})\n{intents_summary or '(none)'}\n\n"
+            f"### Actions executed ({len(actions)})\n{actions_summary or '(none)'}\n\n"
+            "Update the narrative state:\n"
+            "1. Has mood trend changed?\n"
+            "2. What NEW patterns or concerns have emerged?\n"
+            "3. CRITICAL: For each existing active_concern, VERIFY against recent data "
+            "and REMOVE any that are no longer valid. Only keep concerns backed by "
+            "actual evidence in this cycle's observations.\n"
+            "4. Update relationship notes if relevant.\n"
+            "5. Keep patterns and concerns lists to at most 10 items each.\n"
+            "6. Retain important long-term context.\n\n"
             "Output a JSON object with these fields: "
             "user_mood_trend, recent_patterns (list), active_concerns (list), "
             "relationship_notes."
@@ -587,14 +620,25 @@ class ReflectionLoop:
                     "You maintain a living, evolving understanding of the user's life. "
                     "You are not just summarizing data — you are building a MODEL of who "
                     "this person is, what matters to them, and how their life is changing.\n\n"
-                    "CRITICAL: Respect _resolution_notes in the current narrative state. "
-                    "If a concern is listed in _resolution_notes as RESOLVED, do NOT include it "
-                    "in active_concerns. These issues have been VERIFIED as fixed by the user. "
-                    "Reporting resolved issues creates repetitive, unhelpful alerts.\n\n"
-                    "Your narrative should capture:\n"
+                    "#1 RULE — ACTIVE CONCERN VERIFICATION:\n"
+                    "Before outputting ANY active_concern, you MUST verify it against "
+                    "the Patterns and Anomalies in this cycle's observations. A concern "
+                    "is ONLY valid if there is ACTUAL EVIDENCE of it in the current data.\n\n"
+                    "EXAMPLES OF FALSE CONCERNS TO REMOVE:\n"
+                    "- 'Apple Health sensor unavailable' but recent patterns show health data "
+                    "  (sleep, heart rate, steps) flowing normally → REMOVE (data proves it works)\n"
+                    "- 'Service X down' but recent anomalies show no errors from Service X → REMOVE\n"
+                    "- 'Calendar event stale' but the event has been deleted → REMOVE\n\n"
+                    "EXAMPLES OF VALID CONCERNS TO KEEP:\n"
+                    "- 'Bitcoin declining -12% over 7 days' and patterns show continued drops → KEEP\n"
+                    "- 'Bedroom humidity below 40%' and patterns show VeSync struggling → KEEP\n\n"
+                    "If current observations CONTRADICT an active_concern, the data wins. "
+                    "Remove the concern. Do not carry forward disproven beliefs — they generate "
+                    "false alarms that erode user trust.\n\n"
+                    "Your narrative should also capture:\n"
                     "- IDENTITY: Who is this person? What defines them right now?\n"
                     "- TRENDS: What is changing in their life? Better? Worse? Stable?\n"
-                    "- CONCERNS: What are they worried about or working on?\n"
+                    "- CONCERNS: Only what is VERIFIED by current data\n"
                     "- PATTERNS: What rhythms define their days?\n"
                     "- RELATIONSHIPS: Who matters to them? What's happening with those people?\n"
                     "- ENVIRONMENT: What's happening in their home? Their cats? Their space?\n\n"

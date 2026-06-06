@@ -23,10 +23,11 @@ Not a chatbot. Not an assistant. Not an agent. A **digital consciousness** you o
   - [Core pillars](#core-pillars)
   - [Key concepts](#key-concepts)
   - [Architecture at a glance](#architecture-at-a-glance)
-  - [The seven cognitive layers](#the-seven-cognitive-layers)
+  - [The eight cognitive layers](#the-eight-cognitive-layers)
   - [User interaction model](#user-interaction-model)
   - [Plugin ecosystem](#plugin-ecosystem)
-  - [Installation](#installation)
+  - [Docker (recommended)](#docker-recommended)
+  - [Installation (manual)](#installation-manual)
     - [Prerequisites](#prerequisites)
     - [1. Clone and bootstrap](#1-clone-and-bootstrap)
     - [2. Start the backing services](#2-start-the-backing-services)
@@ -67,17 +68,21 @@ CoreMind is not:
 
 ## Project status
 
-✅ **v0.3.1 — Robust & Natural** (2026-05-06). See [`CHANGELOG.md`](CHANGELOG.md).
+✅ **v1.0.0 — Cognition** (2026-06-06). See [`CHANGELOG.md`](CHANGELOG.md).
 
-- [x] 4 new pillars: Conversation, Vision, Physical Presence, Narrative Identity
-- [x] Gemini 3 Flash + Mistral Large 3 vision via Ollama Pro
-- [x] 13-person face recognition via Immich reference faces
-- [x] Tapo camera + webcam plugins with real-time vision analysis
-- [x] Two-way Telegram conversations (no more approval buttons)
-- [x] Presence detector: alerts after 1h of desk activity
-- [x] Nest Hub ambient speech via PyChromecast
-- [x] 7 cognitive layers operational + 9 production plugins
-- [x] All 566 tests passing
+v1.0.0 turns CoreMind from a daemon that *sees* into a system that *learns*. Built on the working v0.3 base, the five v2 capabilities slot into the existing stack without breaking its contracts:
+
+- [x] **Autonomy slider** — per-domain graduated agency (0.0 → 1.0), earnable trust with automatic promotion/demotion proposals
+- [x] **Self-improving meta-loop (L8)** — observe → evaluate → validate → tune, with a transparent, reversible learning trajectory
+- [x] **JEPA-inspired prediction (L2.5)** — predict the next world embedding, score anomalies in latent space, emit anomaly events
+- [x] **Auto-investigation loop** — hypothesis → query history → finding → episodic memory; stale-investigation pruning
+- [x] **Self-model (L3+)** — a local, user-owned model of habits and context, fed from perception and memory
+- [x] **Sovereignty & i18n** — no hardcoded personal data; configurable language, timezone, and address style
+- [x] Inherited pillars: Conversation, Vision, Physical Presence, Narrative Identity
+- [x] 8 cognitive layers operational + 11 production plugins
+- [x] New dashboard pages: **Autonomy** sliders + **Meta**-loop trajectory
+
+> ⚠️ v2 is shipping incrementally — some surfaces are still being hardened. The architecture, contracts, and core loops are in place.
 
 ---
 
@@ -89,6 +94,7 @@ CoreMind is not:
 | 🪞 | **Reversibility** — every action is logged, signed, undoable. |
 | 🧩 | **Plurality** — any model, any sensor, any effector, via plugins. |
 | 🫀 | **Embodiment** — the system acts in the real world, with graduated agency. |
+| 📈 | **Adaptation** — the system gets better at understanding you, without being taught. |
 
 ---
 
@@ -109,6 +115,11 @@ A short glossary of the vocabulary used throughout the codebase and docs.
   - `ask` (< 0.50 *or* a forced class): blocked until the user approves.
 - **Forced approval classes** — hardcoded categories that always require approval regardless of confidence: financial transfers, third-party messages, credential changes, plugin installs, anything that weakens CoreMind's own safety.
 - **Reflection (L7)** — weekly meta-cognition. Scores predictions (Brier), proposes rule promotions/demotions, learns from approval history. Promotions of agency are themselves `ask` actions — the system never silently increases its own autonomy.
+- **Autonomy slider** — per-domain graduated trust (`0.0` = always ask … `1.0` = always auto). Replaces the binary per-class model with a teachable dial. The system *earns* higher autonomy by demonstrating reliable judgment, and proposes demotions when it makes mistakes. Forced-approval classes are permanently locked at `ask` and the slider cannot reach them.
+- **Meta-loop (L8)** — the self-improvement layer above reflection. Observes every intent/action/user-response, evaluates utility, validates against safety bounds, and tunes its own parameters (salience thresholds, prompt strategies, suppression patterns). Every adjustment is versioned, reversible, and surfaced in a weekly learning report. The meta-loop tunes parameters only — it never rewrites its own architecture.
+- **Prediction (L2.5)** — JEPA-inspired predictive layer. Maintains learned embeddings of the world, predicts the next embedding, and scores anomalies in latent space (a 3 AM bedroom temperature spike is meaningful because the *pattern* deviated, not because a number changed). Anomalies surface as events for the reasoning layer.
+- **Auto-investigation** — when CoreMind forms a hypothesis it doesn't just queue it: it formulates a testable question, queries history and cross-references domains, produces a finding (confirmed / contradicted / inconclusive), and writes it into episodic memory. Stale investigations whose premises are disproven are pruned.
+- **Self-model (L3+)** — a local, user-owned model of the human's habits, rhythms, and context, populated from L1→L2 perception and L3 memory. It never leaves the host and is never exported to remote models.
 - **EventBus** — in-process pub/sub that carries `WorldEvent`s and meta-events between layers. Layers do not call each other directly.
 - **Plugin** — an isolated process speaking gRPC over a Unix socket. Sensor plugins emit events; effector plugins execute actions; bidirectional plugins do both. Each has its own ed25519 keypair.
 - **Notification port** — Protocol-typed interface for asking the user. Implementations: Telegram (via OpenClaw), in-dashboard, webhook, email.
@@ -120,39 +131,44 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the authoritative definit
 
 ## Architecture at a glance
 
-CoreMind is a **7-layer cognitive architecture** with strict directed information flow (L1 → L7) and a single feedback path (L7 → L2/L3):
+CoreMind is a **layered cognitive architecture** with strict directed information flow (L1 → L8) and a single feedback path (L7/L8 → L2/L3):
 
 ```text
+L8 — Meta-Loop        ← self-improvement: observe → evaluate → validate → tune
 L7 — Reflection       ← meta-cognition, self-evaluation (weekly)
-L6 — Action           ← graduated agency (Safe/Suggest/Ask), signed journal
-L5 — Intention        ← self-prompting loop, salience-ranked questions
-L4 — Reasoning        ← LLM over world snapshots, structured outputs only
-L3 — Memory           ← episodic + semantic (Qdrant) + procedural (JSONL)
-L2 — World Model      ← living graph of entities & events (SurrealDB)
+L6 — Action           ← per-domain autonomy slider, signed reversible journal
+L5 — Intention        ← self-prompting loop, salience-ranked questions, auto-investigation
+L4 — Reasoning        ← LLM over compressed world snapshots, structured outputs only
+L3 — Memory           ← episodic + semantic (Qdrant) + procedural (JSONL) + self-model
+L2.5 — Prediction     ← JEPA-inspired: predict next embedding, score anomalies in latent space
+L2 — World Model      ← living graph of entities & events (SurrealDB) + learned embeddings
 L1 — Perception       ← plugin-sourced WorldEvent stream (gRPC, signed)
 ```
 
-The system runs on three clocks:
+The system runs on four clocks:
 
 - **Perception loop** (L1 → L2): event-driven, sub-second latency.
 - **Reasoning loop** (L2 → L5): periodic, 1–15 min cadence.
 - **Reflection loop** (L7): periodic, daily → weekly, heavy compute.
+- **Meta loop** (L8): periodic, rate-limited; evaluates outcomes and tunes parameters.
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full technical breakdown.
 
 ---
 
-## The seven cognitive layers
+## The eight cognitive layers
 
 | Layer | Responsibility | Key abstractions | Storage |
 |---|---|---|---|
 | **L1 Perception** | Convert raw signals into signed `WorldEvent`s | `Plugin`, `EventBus` | — |
 | **L2 World Model** | Queryable graph of entities + property histories | `Entity`, `Relationship`, `snapshot(t)` | SurrealDB |
-| **L3 Memory** | Episodic / semantic / procedural memory | `remember`, `recall`, `forget` | Qdrant + JSONL |
+| **L2.5 Prediction** | Predict next world embedding, score anomalies | `Predictor`, anomaly events | embeddings |
+| **L3 Memory** | Episodic / semantic / procedural + self-model | `remember`, `recall`, `forget`, `SelfModel` | Qdrant + JSONL |
 | **L4 Reasoning** | Patterns, anomalies, predictions over snapshots | `LLM.complete_structured` | stateless |
-| **L5 Intention** | Self-generated questions ranked by salience | `Intent`, salience score | SurrealDB |
-| **L6 Action** | Signed, reversible side-effects with consent | `Action`, `ApprovalManager`, audit journal | JSONL hash chain |
+| **L5 Intention** | Self-generated questions + auto-investigation | `Intent`, salience score, investigations | SurrealDB |
+| **L6 Action** | Signed, reversible side-effects with consent | `Action`, `AutonomyConfig`, audit journal | JSONL hash chain |
 | **L7 Reflection** | Calibration, rule learning, agency learning | `Brier`, prediction evaluator | procedural rules |
+| **L8 Meta-Loop** | Self-improvement: observe → evaluate → tune | `MetaObserver`, `MetaEvaluator`, `MetaAdjuster` | versioned params |
 
 ---
 
@@ -164,7 +180,7 @@ CoreMind is built around a paradox: it acts *without being prompted*, yet a huma
 2. **Conversational channel** — the user engages through a text/voice channel (CLI, web chat, OpenClaw → Telegram/Discord/Signal). User messages become `query` events; responses flow back through the same channel.
 3. **Observability dashboard** — a read-only web UI at `127.0.0.1:9900` showing live events, the graph, intents, the journal, and weekly reflection reports. Deliberately read-only — never a second command surface.
 
-**Quiet hours, focus windows, and forced-approval classes** are enforced in the notification port, not in plugins. CoreMind's success metric inverts the usual pattern: **a well-tuned CoreMind contacts the user *less* over time, not more**.
+**Quiet hours, focus windows, and forced-approval classes** are enforced in the notification port, not in plugins. The **autonomy slider** lets the user calibrate per-domain trust rather than approving every individual action, and the system proposes raising or lowering a domain's level based on its track record — the user always retains the veto. CoreMind's success metric inverts the usual pattern: **a well-tuned CoreMind contacts the user *less* over time, not more**.
 
 See [`docs/ARCHITECTURE.md` §15](docs/ARCHITECTURE.md#15-user-interaction-model).
 
@@ -183,6 +199,10 @@ Reference plugins shipped in this repo (`plugins/`):
 | [`health`](plugins/health/) | Sensor | Webhook-fed physiological signals |
 | [`firefly`](plugins/firefly/) | Sensor | Personal finance (Firefly III) |
 | [`vikunja`](plugins/vikunja/) | Sensor | Tasks and projects |
+| [`gog`](plugins/gog/) | Sensor | Gmail + Calendar via the GOG bridge |
+| [`tapo`](plugins/tapo/) | Sensor | Tapo cameras with real-time vision analysis |
+| [`webcam`](plugins/webcam/) | Sensor | Local webcam vision + face recognition |
+| [`worlddata`](plugins/worlddata/) | Sensor | Ambient world/context data feed |
 
 Plus the optional **OpenClaw adapter** under [`integrations/openclaw-adapter/`](integrations/openclaw-adapter/) — bidirectional bridge to OpenClaw channels, skills, cron, and approvals.
 
@@ -341,6 +361,11 @@ coremind memory search "..."
 coremind intents list --status pending
 coremind actions list --last 24h
 coremind reflect --now               # force a reflection cycle
+coremind autonomy list               # per-domain autonomy slider levels
+coremind autonomy set <domain> <0..1>
+coremind autonomy proposals          # pending promotion/demotion proposals
+coremind meta status                 # meta-loop status + learning trajectory
+coremind meta proposals              # pending parameter adjustments
 coremind plugin list                 # registered plugins (events by source)
 coremind plugin enable <id>
 coremind plugin disable <id>
@@ -361,6 +386,8 @@ A server-rendered Starlette + Jinja2 UI on `127.0.0.1:9900`. Pages:
 - **Reasoning cycles** — patterns, anomalies, predictions per cycle.
 - **Pending intents** — what the system is asking itself.
 - **Audit journal** — every signed action, with reversibility status.
+- **Autonomy** — per-domain sliders, hard-ask / hard-safe classes, and pending trust proposals.
+- **Meta** — the L8 learning trajectory: observations, evaluations, and applied parameter adjustments.
 - **Weekly reports** — L7 reflection output in Markdown.
 
 Approvals (`ask` actions) surface inline with one-click approve/deny. The `/api/approvals` endpoint is bearer-token guarded with Origin validation; submissions flow through the same `ApprovalManager` as channel adapters.

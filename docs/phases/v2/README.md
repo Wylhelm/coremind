@@ -14,8 +14,10 @@
 | [`PHASE_1_AUTONOMY_SLIDER.md`](PHASE_1_AUTONOMY_SLIDER.md) | Per-domain graduated autonomy control | Coding agents (Opus) |
 | [`PHASE_2_SELF_IMPROVEMENT.md`](PHASE_2_SELF_IMPROVEMENT.md) | Meta-loop: observe→learn→adjust behavior (split into 2A–2E) | Coding agents (Opus) |
 | [`PHASE_3_EMBEDDING_WORLD.md`](PHASE_3_EMBEDDING_WORLD.md) | JEPA-inspired embedding-based world understanding (split into 3A–3E) | Coding agents (Opus) |
+| [`PHASE_3_5_JEPA_PREDICTION.md`](PHASE_3_5_JEPA_PREDICTION.md) | L2.5 predictive layer — predict next embedding, emit anomaly events (split into 3.5A–3.5E) | Coding agents (Opus) |
 | [`PHASE_4_AUTO_INVESTIGATION.md`](PHASE_4_AUTO_INVESTIGATION.md) | Active investigation loop — test hypotheses, resolve anomalies | Coding agents (Opus) |
 | [`PHASE_5_UNIFIED_ACTUATOR.md`](PHASE_5_UNIFIED_ACTUATOR.md) | Auto-discovery + unified actuator surface | Coding agents (Opus) |
+| [`PHASE_6_SELF_MODEL.md`](PHASE_6_SELF_MODEL.md) | Personal context understanding — self-model of the user (split into 6A–6I) | Coding agents (Opus) |
 
 ## Reading Order for Coding Agents
 

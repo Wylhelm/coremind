@@ -41,6 +41,13 @@ class _MockSearchResult:
         self.payload = payload
 
 
+class _MockQueryResponse:
+    """Mimics the Qdrant query_points response containing a .points list."""
+
+    def __init__(self, points: list[_MockSearchResult]) -> None:
+        self.points = points
+
+
 class _MockScrollPoint:
     def __init__(self, *, point_id: str, payload: dict[str, Any]) -> None:
         self.id = point_id
@@ -148,17 +155,19 @@ async def test_store_upserts_point_with_correct_payload() -> None:
 @pytest.mark.asyncio
 async def test_find_similar_excludes_recent_via_filter() -> None:
     mock = MagicMock()
-    mock.search.return_value = [
-        _MockSearchResult(
-            point_id="snap-old",
-            score=0.92,
-            payload={
-                "summary": "47 entities",
-                "entity_count": 47,
-                "timestamp": "2026-05-26T10:00:00+00:00",
-            },
-        )
-    ]
+    mock.query_points.return_value = _MockQueryResponse(
+        points=[
+            _MockSearchResult(
+                point_id="snap-old",
+                score=0.92,
+                payload={
+                    "summary": "47 entities",
+                    "entity_count": 47,
+                    "timestamp": "2026-05-26T10:00:00+00:00",
+                },
+            )
+        ]
+    )
     memory = _make_memory(mock)
 
     results = await memory.find_similar(_vec(), k=3)
@@ -169,7 +178,7 @@ async def test_find_similar_excludes_recent_via_filter() -> None:
     assert results[0].entity_count == 47
 
     # Verify a time-based filter was applied
-    call_kwargs = mock.search.call_args.kwargs
+    call_kwargs = mock.query_points.call_args.kwargs
     assert call_kwargs["query_filter"] is not None
     conditions = call_kwargs["query_filter"].must
     assert len(conditions) == 1
@@ -181,26 +190,28 @@ async def test_find_similar_excludes_recent_via_filter() -> None:
 async def test_find_similar_returns_correct_model() -> None:
     mock = MagicMock()
     ts_str = "2026-05-25T08:30:00+00:00"
-    mock.search.return_value = [
-        _MockSearchResult(
-            point_id="snap-a",
-            score=0.95,
-            payload={
-                "summary": "50 entities, 5 changed",
-                "entity_count": 50,
-                "timestamp": ts_str,
-            },
-        ),
-        _MockSearchResult(
-            point_id="snap-b",
-            score=0.88,
-            payload={
-                "summary": "48 entities, 1 changed",
-                "entity_count": 48,
-                "timestamp": "2026-05-24T14:00:00+00:00",
-            },
-        ),
-    ]
+    mock.query_points.return_value = _MockQueryResponse(
+        points=[
+            _MockSearchResult(
+                point_id="snap-a",
+                score=0.95,
+                payload={
+                    "summary": "50 entities, 5 changed",
+                    "entity_count": 50,
+                    "timestamp": ts_str,
+                },
+            ),
+            _MockSearchResult(
+                point_id="snap-b",
+                score=0.88,
+                payload={
+                    "summary": "48 entities, 1 changed",
+                    "entity_count": 48,
+                    "timestamp": "2026-05-24T14:00:00+00:00",
+                },
+            ),
+        ]
+    )
     memory = _make_memory(mock)
 
     results = await memory.find_similar(_vec(), k=5)

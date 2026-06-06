@@ -13,6 +13,7 @@ Usage::
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 import tomllib
@@ -241,8 +242,8 @@ async def _emit_state_change(
         try:
             await stub.EmitEvent(event, metadata=metadata)
         except grpc.RpcError as exc:
-            log.error("homeassistant.emit_failed", entity=entity_id, error=exc.details())
-            return
+            log.warning("homeassistant.emit_failed_reconnecting", entity=entity_id, error=exc.details())
+            raise  # Propagate to trigger reconnection in caller
         log.info(
             "homeassistant.emitted",
             entity=entity_id,
@@ -290,17 +291,37 @@ async def run(
                 stub = plugin_pb2_grpc.CoreMindHostStub(channel)  # type: ignore[no-untyped-call]
                 log.info("homeassistant.connected", plugin_id=PLUGIN_ID)
 
-                try:
-                    async for payload in ha_state_changes(
-                        session, ws_url, token, cfg.entity_prefixes
-                    ):
+                # Background heartbeat: force reconnection if daemon is unreachable
+                async def _heartbeat() -> None:
+                    while True:
+                        await asyncio.sleep(30)
                         try:
-                            await _emit_state_change(stub, private_key, payload)
-                        except grpc.RpcError:
-                            log.warning("homeassistant.rpc_error_reconnecting")
-                            break  # Exit WebSocket loop → reconnect everything
-                except (aiohttp.ClientError, RuntimeError) as exc:
-                    log.warning("homeassistant.ha_connection_lost", error=str(exc))
+                            await stub.HealthCheck(
+                                plugin_pb2.HealthCheckRequest(),
+                                metadata=(("x-plugin-id", PLUGIN_ID),),
+                            )
+                        except Exception:
+                            log.warning("homeassistant.heartbeat_failed_reconnecting")
+                            break  # will trigger reconnection below
+
+                heartbeat_task = asyncio.create_task(_heartbeat())
+
+                try:
+                    try:
+                        async for payload in ha_state_changes(
+                            session, ws_url, token, cfg.entity_prefixes
+                        ):
+                            try:
+                                await _emit_state_change(stub, private_key, payload)
+                            except grpc.RpcError:
+                                log.warning("homeassistant.rpc_error_reconnecting")
+                                break
+                    except (aiohttp.ClientError, RuntimeError) as exc:
+                        log.warning("homeassistant.ha_connection_lost", error=str(exc))
+                finally:
+                    heartbeat_task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await heartbeat_task
                     # Will reconnect via outer loop
 
         except asyncio.CancelledError:

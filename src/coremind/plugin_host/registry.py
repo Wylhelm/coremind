@@ -15,7 +15,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, NamedTuple
 
 import structlog
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
@@ -28,6 +28,19 @@ log = structlog.get_logger(__name__)
 
 _SEMVER_RE: re.Pattern[str] = re.compile(r"^\d+\.\d+\.\d+$")
 _PLUGIN_KIND_UNSPECIFIED: int = 0
+
+
+# ---------------------------------------------------------------------------
+# Plugin stats (consumed by MetaObserver)
+# ---------------------------------------------------------------------------
+
+
+class PluginStats(NamedTuple):
+    """Operational statistics for a single plugin."""
+
+    plugin_id: str
+    total_calls: int
+    errors: int
 
 
 # ---------------------------------------------------------------------------
@@ -252,6 +265,24 @@ class PluginRegistry:
         """
         record = self._records.get(plugin_id)
         return _record_to_info(record) if record is not None else None
+
+    async def get_all_stats(self, window_seconds: float) -> list[PluginStats]:
+        """Return per-plugin operational statistics.
+
+        Currently returns basic stats (event count as total_calls, 0 errors).
+        Full gRPC-level call/error tracking is pending Phase 4 (SecretsStore).
+
+        Args:
+            window_seconds: Unused — reserved for future time-windowed stats.
+        """
+        return [
+            PluginStats(
+                plugin_id=record.plugin_id,
+                total_calls=record.event_count,
+                errors=0,
+            )
+            for record in self._records.values()
+        ]
 
 
 # ---------------------------------------------------------------------------
