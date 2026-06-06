@@ -242,7 +242,9 @@ async def _emit_state_change(
         try:
             await stub.EmitEvent(event, metadata=metadata)
         except grpc.RpcError as exc:
-            log.warning("homeassistant.emit_failed_reconnecting", entity=entity_id, error=exc.details())
+            log.warning(
+                "homeassistant.emit_failed_reconnecting", entity=entity_id, error=exc.details()
+            )
             raise  # Propagate to trigger reconnection in caller
         log.info(
             "homeassistant.emitted",

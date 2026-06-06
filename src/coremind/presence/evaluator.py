@@ -42,9 +42,7 @@ class ActivityEvaluation(BaseModel):
         le=1.0,
         description="How confident the LLM is in this evaluation",
     )
-    reason: str = Field(
-        description="Brief explanation of the decision (max 80 chars, for logging)"
-    )
+    reason: str = Field(description="Brief explanation of the decision (max 80 chars, for logging)")
     suggested_message: str = Field(
         default="",
         description="Natural, warm message to send if should_notify is true. "
@@ -234,9 +232,8 @@ class ActivityEvaluator:
         if sleep_hours is not None:
             if sleep_hours < 4:
                 sleep_text = (
-                f"A dormi seulement {sleep_hours:.1f}h la nuit dernière "
-                f"— fatigue probable ⚠️"
-            )
+                    f"A dormi seulement {sleep_hours:.1f}h la nuit dernière — fatigue probable ⚠️"
+                )
             elif sleep_hours < 6:
                 sleep_text = f"A dormi {sleep_hours:.1f}h la nuit dernière — un peu court"
             else:
@@ -301,9 +298,7 @@ class ActivityEvaluator:
             # Fallback: use simple heuristic when LLM is unavailable
             return self._fallback_evaluation(elapsed_minutes, current_activity)
 
-    def _fallback_evaluation(
-        self, elapsed_minutes: float, activity: str
-    ) -> ActivityEvaluation:
+    def _fallback_evaluation(self, elapsed_minutes: float, activity: str) -> ActivityEvaluation:
         """Simple heuristic fallback when the LLM is unavailable.
 
         Conservative: only notify for very long periods at desk, never at night.

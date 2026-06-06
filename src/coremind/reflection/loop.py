@@ -555,7 +555,7 @@ class ReflectionLoop:
 
         # Build a verification table for active concerns
         concern_verification_lines: list[str] = []
-        for c in (current.active_concerns or []):
+        for c in current.active_concerns or []:
             concern_verification_lines.append(
                 f"- Concern: {c.text}\n"
                 f"  Recorded: {c.recorded_at.isoformat() if hasattr(c, 'recorded_at') else 'unknown'}\n"
@@ -564,16 +564,18 @@ class ReflectionLoop:
                 f"If data shows the issue persists, keep it but update the description "
                 f"with the latest evidence."
             )
-        concern_verification = "\n".join(concern_verification_lines) if concern_verification_lines else "(no active concerns)"
+        concern_verification = (
+            "\n".join(concern_verification_lines)
+            if concern_verification_lines
+            else "(no active concerns)"
+        )
 
         # Summarise intents for context
         intents_summary = "\n".join(
-            f"- Intent: {i.question or str(i)[:200]}"
-            for i in (intents or [])[-15:]
+            f"- Intent: {i.question or str(i)[:200]}" for i in (intents or [])[-15:]
         )[:1500]
         actions_summary = "\n".join(
-            f"- Action: {getattr(a, 'operation', str(a))[:200]}"
-            for a in (actions or [])[-15:]
+            f"- Action: {getattr(a, 'operation', str(a))[:200]}" for a in (actions or [])[-15:]
         )[:1500]
 
         prompt = (

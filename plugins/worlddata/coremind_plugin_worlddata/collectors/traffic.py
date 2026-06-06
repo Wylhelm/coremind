@@ -42,21 +42,25 @@ def _extract_camera_events(features: list[Any]) -> list[dict[str, Any]]:
         snapshot_url = str(props.get("URL_FLUX_DONNEE", ""))
         status = "active" if snapshot_url else "inactive"
 
-        events.append({
-            "entity_type": "traffic_camera",
-            "entity_id": f"camera_{cam_id}",
-            "attribute": "status",
-            "value": status,
-            "confidence": 0.2,
-        })
-        if snapshot_url:
-            events.append({
+        events.append(
+            {
                 "entity_type": "traffic_camera",
                 "entity_id": f"camera_{cam_id}",
-                "attribute": "snapshot_url",
-                "value": snapshot_url,
+                "attribute": "status",
+                "value": status,
                 "confidence": 0.2,
-            })
+            }
+        )
+        if snapshot_url:
+            events.append(
+                {
+                    "entity_type": "traffic_camera",
+                    "entity_id": f"camera_{cam_id}",
+                    "attribute": "snapshot_url",
+                    "value": snapshot_url,
+                    "confidence": 0.2,
+                }
+            )
     return events
 
 
@@ -80,34 +84,42 @@ def _extract_event_features(features: list[Any]) -> list[dict[str, Any]]:
         salience = 0.3
         if any(kw in entrave.lower() for kw in ("fermée", "ferm", "bloquée", "déviation")):
             salience = 0.8
-        elif any(kw in entrave.lower() for kw in ("alternance", "circulation réduite", "voie unique")):
+        elif any(
+            kw in entrave.lower() for kw in ("alternance", "circulation réduite", "voie unique")
+        ):
             salience = 0.5
         elif any(kw in cause.lower() for kw in ("accident", "collision", "véhicule", "camion")):
             salience = 0.7
 
-        events.append({
-            "entity_type": "road_event",
-            "entity_id": f"event_{ev_id}",
-            "attribute": "entrave",
-            "value": entrave,
-            "confidence": salience,
-        })
+        events.append(
+            {
+                "entity_type": "road_event",
+                "entity_id": f"event_{ev_id}",
+                "attribute": "entrave",
+                "value": entrave,
+                "confidence": salience,
+            }
+        )
         if localisation:
-            events.append({
-                "entity_type": "road_event",
-                "entity_id": f"event_{ev_id}",
-                "attribute": "localisation",
-                "value": localisation,
-                "confidence": salience,
-            })
+            events.append(
+                {
+                    "entity_type": "road_event",
+                    "entity_id": f"event_{ev_id}",
+                    "attribute": "localisation",
+                    "value": localisation,
+                    "confidence": salience,
+                }
+            )
         if route:
-            events.append({
-                "entity_type": "road_event",
-                "entity_id": f"event_{ev_id}",
-                "attribute": "route",
-                "value": route,
-                "confidence": salience,
-            })
+            events.append(
+                {
+                    "entity_type": "road_event",
+                    "entity_id": f"event_{ev_id}",
+                    "attribute": "route",
+                    "value": route,
+                    "confidence": salience,
+                }
+            )
     return events[:10]
 
 

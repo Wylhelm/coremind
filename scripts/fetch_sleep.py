@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Quick sleep query for CoreMind presence detector.
 Returns last night's totalSleep hours, or None if unavailable."""
+
 import os, sys, json, requests
 from datetime import datetime, timedelta, timezone
 
@@ -18,7 +19,11 @@ query = f'''from(bucket: "{BUCKET}")
 resp = requests.post(
     f"{INFLUX_URL}/api/v2/query",
     params={"org": ORG},
-    headers={"Authorization": f"Token {INFLUX_TOKEN}", "Accept": "application/csv", "Content-Type": "application/vnd.flux"},
+    headers={
+        "Authorization": f"Token {INFLUX_TOKEN}",
+        "Accept": "application/csv",
+        "Content-Type": "application/vnd.flux",
+    },
     data=query.encode(),
     timeout=15,
 )

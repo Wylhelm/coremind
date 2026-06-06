@@ -146,11 +146,13 @@ class PresenceDetector:
             return  # Wait for next check to confirm presence
 
         # Phase 2: Record activity sample for context
-        self._activity_history.append({
-            "timestamp": now.isoformat(),
-            "activity": activity,
-            "person_name": person_name,
-        })
+        self._activity_history.append(
+            {
+                "timestamp": now.isoformat(),
+                "activity": activity,
+                "person_name": person_name,
+            }
+        )
         # Trim history
         if len(self._activity_history) > ACTIVITY_HISTORY_SIZE:
             self._activity_history = self._activity_history[-ACTIVITY_HISTORY_SIZE:]

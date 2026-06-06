@@ -73,25 +73,29 @@ class CryptoCollector:
                 prev["change"] = change_pct
                 self._last_values[key] = prev
 
-                events.append({
-                    "entity_type": "crypto",
-                    "entity_id": coin,
-                    "attribute": f"price_{vs}",
-                    "value": price,
-                    "unit": vs.upper(),
-                    "confidence": max(0.5, salience),
-                })
+                events.append(
+                    {
+                        "entity_type": "crypto",
+                        "entity_id": coin,
+                        "attribute": f"price_{vs}",
+                        "value": price,
+                        "unit": vs.upper(),
+                        "confidence": max(0.5, salience),
+                    }
+                )
 
             # 24h change event (one per coin)
             if change_pct is not None:
-                events.append({
-                    "entity_type": "crypto",
-                    "entity_id": coin,
-                    "attribute": "change_24h_pct",
-                    "value": change_pct,
-                    "unit": "%",
-                    "confidence": max(0.5, salience),
-                })
+                events.append(
+                    {
+                        "entity_type": "crypto",
+                        "entity_id": coin,
+                        "attribute": "change_24h_pct",
+                        "value": change_pct,
+                        "unit": "%",
+                        "confidence": max(0.5, salience),
+                    }
+                )
 
         if events:
             log.info("crypto.fetched", events=len(events))

@@ -50,9 +50,13 @@ class GasPriceCollector:
     def fetch(self) -> list[dict[str, Any]]:
         """Return event dicts for gas price metrics in Capitale-Nationale."""
         try:
-            r = requests.get(_URL, timeout=_TIMEOUT, headers={
-                "User-Agent": "CoreMind-WorldData/0.1 (+https://github.com/galilai-group/coremind)",
-            })
+            r = requests.get(
+                _URL,
+                timeout=_TIMEOUT,
+                headers={
+                    "User-Agent": "CoreMind-WorldData/0.1 (+https://github.com/galilai-group/coremind)",
+                },
+            )
             r.raise_for_status()
             html = r.text
         except Exception:
@@ -72,6 +76,7 @@ class GasPriceCollector:
 
         try:
             import json
+
             data = json.loads(match.group(1))
         except Exception:
             log.warning("gasprice.jsonld_parse_failed", exc_info=True)

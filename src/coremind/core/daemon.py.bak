@@ -30,12 +30,9 @@ from coremind.action.router import ActionRouter
 from coremind.config import DaemonConfig, load_config
 from coremind.conversation.handler import ConversationHandler
 from coremind.conversation.store import ConversationStore
-from coremind.core.daemon_anomalies import create_anomaly_checker_task
 from coremind.core.daemon_dashboard import start_dashboard
 from coremind.core.daemon_effectors import build_effector_registry
-from coremind.core.daemon_meta import build_meta_system
 from coremind.core.daemon_notifications import build_notification_router
-from coremind.core.daemon_reflection import build_reflection_system
 from coremind.core.event_bus import EventBus
 from coremind.crypto.signatures import ensure_daemon_keypair
 from coremind.dashboard import DashboardServer
@@ -46,6 +43,7 @@ from coremind.intention.persistence import IntentStore
 from coremind.memory.narrative import NarrativeMemory
 from coremind.memory.procedural import ProceduralMemory
 from coremind.meta.loop import MetaLoop
+from coremind.meta.schemas import AdjustmentRecord
 from coremind.notify.adapters.dashboard import DashboardNotificationPort
 from coremind.notify.port import (
     ApprovalAction,
@@ -482,9 +480,6 @@ class CoreMindDaemon:
                     self._embedding_pipeline_memory = shared_memory
                     self._embedding_pipeline_encoder = shared_encoder
                     log.info("daemon.embedding_pipeline_initialised")
-                    # Inject pipeline into already-created loops (they were created before pipeline init)
-                    intention_loop._pipeline = pipeline_intention
-                    log.info("daemon.pipeline_injected_into_intention")
                     # Start periodic pruning task
                     self._embedding_prune_stop.clear()
                     self._embedding_prune_task = asyncio.create_task(
@@ -576,72 +571,284 @@ class CoreMindDaemon:
             )
             log.info("daemon.presence_detector_started")
 
-            # Conversation auto-archive — prevent stale conversations from
-            # polluting the intention loop context (e.g. old corrections that
-            # cause the LLM to loop on apologies).
-            conv_auto_archive_interval = 3600  # Check every hour
+            # Schedule anomaly alert checker with dedup via notification journal
+            reasoning_journal_path = reasoning_journal
+            notify_journal = NotificationJournal()
 
-            async def _run_conv_auto_archive() -> None:
-                """Periodically archive conversations older than TTL."""
+            async def _check_anomalies() -> None:
+                """Watch reasoning.log for high-severity anomalies and alert."""
+                import json as _json
+
+                _last_pos = 0
                 while True:
                     try:
-                        if self._conversation_handler is not None:
-                            count = await self._conversation_handler.archive_old_conversations()
-                            if count:
-                                log.info("conversation.auto_archive_done", archived=count)
+                        if reasoning_journal_path.exists():
+                            with open(reasoning_journal_path) as _f:
+                                _f.seek(_last_pos)
+                                for _line in _f:
+                                    try:
+                                        _cycle = _json.loads(_line)
+                                    except _json.JSONDecodeError:
+                                        continue
+                                    for _a in _cycle.get("anomalies", []):
+                                        if _a.get("severity") == "high":
+                                            msg = (
+                                                f"🚨 **High-Severity Anomaly**\n\n"
+                                                f"{_a['description']}\n\n"
+                                                f"Baseline: {_a.get('baseline_description', 'N/A')}\n"
+                                                f"Cycle: `{_cycle.get('cycle_id', '?')[:16]}`"
+                                            )
+                                            if notify_journal.should_send(msg):
+                                                await notify_router.notify(
+                                                    actions=None,
+                                                    intent_id=None,
+                                                    message=msg,
+                                                    category="suggest",
+                                                    action_class="anomaly_alert",
+                                                )
+                                _last_pos = _f.tell()
+                        await asyncio.sleep(15)
                     except asyncio.CancelledError:
                         raise
                     except Exception:
-                        log.exception("conversation.auto_archive_error")
-                    await asyncio.sleep(conv_auto_archive_interval)
+                        await asyncio.sleep(30)
 
-            self._conv_auto_archive_task = asyncio.create_task(
-                _run_conv_auto_archive(),
-                name="coremind.conversation.auto_archive",
-            )
-            log.info(
-                "daemon.conversation_auto_archive_started", interval_s=conv_auto_archive_interval
-            )
-
-            # Schedule anomaly alert checker with dedup via notification journal
-            self._anomaly_checker_task = create_anomaly_checker_task(
-                reasoning_journal_path=reasoning_journal,
-                notify_journal=NotificationJournal(),
-                notify_router=notify_router,
+            self._anomaly_checker_task = asyncio.create_task(
+                _check_anomalies(), name="coremind.anomaly_checker"
             )
 
             # ----------------------------------------------------------
             # L7 — Reflection Loop (24-hour cadence)
             # ----------------------------------------------------------
+            from coremind.reflection.calibration import (
+                Calibrator,
+            )
+            from coremind.reflection.evaluator import (
+                BasicConditionResolver,
+                PredictionEvaluatorImpl,
+            )
+            from coremind.reflection.feedback import (
+                FeedbackEvaluatorImpl,
+            )
+            from coremind.reflection.rule_learner import (
+                InMemoryCandidateLedger,
+                InMemoryRuleProposalStore,
+                RuleLearnerImpl,
+            )
+
+            # Wire procedural memory (hash-chained rule store)
             procedural_store_path = config.audit_log_path.parent / "procedural.jsonl"
             procedural_memory = ProceduralMemory(procedural_store_path)
             await procedural_memory.load()
             log.info("daemon.procedural_memory_loaded", path=str(procedural_store_path))
-
-            reflection_loop, report_store = await build_reflection_system(
-                config=config,
-                world_store=world_store,
-                intents=intents,
-                journal=journal,
-                reasoning_journal=reasoning_journal,
-                narrative_memory=narrative_memory,
-                llm=llm_4,
-                notify_router=notify_router,
-                procedural_memory=procedural_memory,
+            from coremind.reflection.loop import (
+                ReflectionLoop,
+                ReflectionLoopConfig,
             )
+            from coremind.reflection.report import (
+                MarkdownReportProducer,
+            )
+            from coremind.reflection.store import (
+                SurrealReflectionStore,
+            )
+
+            # Try SurrealDB-backed reflection store; fall back to
+            # in-memory stores if SurrealDB is unavailable.
+            reflection_store_ok = False
+            try:
+                reflection_store = SurrealReflectionStore(
+                    url=config.world_db_url,
+                    username=config.world_db_username,
+                    password=config.world_db_password,
+                )
+                await reflection_store.connect()
+                await reflection_store.apply_schema()
+                reflection_store_ok = True
+            except Exception as exc:
+                log.warning(
+                    "daemon.reflection_store_unavailable",
+                    detail="SurrealDB not available for reflection store; "
+                    "falling back to in-memory stores. Reflection data "
+                    "will not persist across restarts.",
+                    error=str(exc),
+                )
+                reflection_store = None
+
+            # Build prediction evaluator with BasicConditionResolver
+            # Build calibration updater
+            # (shared in-memory stores for the fallback case)
+            from coremind.reflection.calibration import (
+                InMemoryCalibrationStore,
+            )
+            from coremind.reflection.evaluator import (
+                InMemoryPredictionEvaluationStore,
+            )
+
+            _in_memory_eval_store = InMemoryPredictionEvaluationStore()
+            _in_memory_cal_store = InMemoryCalibrationStore()
+
+            if reflection_store_ok:
+                prediction_evaluator = PredictionEvaluatorImpl(
+                    history=world_store,  # type: ignore[arg-type]
+                    resolver=BasicConditionResolver(),
+                    store=reflection_store.predictions(),  # type: ignore[union-attr]
+                )
+                calibration_updater = Calibrator(
+                    eval_store=reflection_store.predictions(),  # type: ignore[union-attr]
+                    cal_store=reflection_store.calibration(),  # type: ignore[union-attr]
+                    layer="reasoning",
+                )
+            else:
+                prediction_evaluator = PredictionEvaluatorImpl(
+                    history=world_store,  # type: ignore[arg-type]
+                    resolver=BasicConditionResolver(),
+                    store=_in_memory_eval_store,
+                )
+                calibration_updater = Calibrator(
+                    eval_store=_in_memory_eval_store,
+                    cal_store=_in_memory_cal_store,
+                    layer="reasoning",
+                )
+
+            # Build feedback evaluator
+            feedback_evaluator = FeedbackEvaluatorImpl()
+
+            # Build rule learner with in-memory stores (ProceduralMemory
+            # wiring is a follow-up).
+            rule_learner = RuleLearnerImpl(
+                rule_source=procedural_memory,
+                ledger=InMemoryCandidateLedger(),
+                proposal_store=InMemoryRuleProposalStore(),
+            )
+
+            # Build report producer + in-memory report store (shared with dashboard)
+            from coremind.reflection.report import InMemoryReportStore
+
+            report_producer = MarkdownReportProducer(
+                proposal_store=InMemoryRuleProposalStore(),
+            )
+            report_store = InMemoryReportStore()
+
+            # Build reflection notifier (sends reports via Telegram/dashboard)
+            from coremind.reflection.notify import (
+                ReflectionNotifier,
+            )
+
+            reflection_notifier = ReflectionNotifier(
+                port=notify_router,
+                dashboard_url=f"http://10.0.0.253:{config.dashboard.port}/reflection",
+            )
+
+            reflection_loop = ReflectionLoop(
+                cycle_source=JsonlCyclePersister(reasoning_journal),
+                intent_source=intents,
+                action_feed=journal,
+                prediction_evaluator=prediction_evaluator,
+                feedback_evaluator=feedback_evaluator,
+                calibration_updater=calibration_updater,
+                rule_learner=rule_learner,
+                report_producer=report_producer,
+                notifier=reflection_notifier,
+                report_store=report_store,
+                narrative_state=narrative_memory,
+                narrative_llm=llm_4,
+                config=ReflectionLoopConfig(
+                    interval_seconds=86400,  # 24 hours
+                    window_days=1,
+                    notify_on_cycle=True,
+                ),
+            )
+            reflection_loop.start()
             self._reflection_loop = reflection_loop
+            log.info("daemon.reflection_loop_started")
 
         # ----------------------------------------------------------
         # L8: Meta-loop (self-improvement)
         # ----------------------------------------------------------
-        meta_result = await build_meta_system(
-            config=config,
-            intents=intents,
-            journal=journal,
-            registry=registry,
-            narrative_memory=narrative_memory,
-        )
-        self._meta_loop = meta_result.meta_loop
+        if config.meta.enabled:
+            from coremind.meta.adjuster import MetaAdjuster
+            from coremind.meta.constants import (
+                DEFAULT_POLICIES,
+                FORBIDDEN_PARAMETER_PATHS,
+                HARD_BOUNDS,
+            )
+            from coremind.meta.evaluator import PolicyEvaluator
+            from coremind.meta.observer import MetaObserver
+            from coremind.meta.safety_validator import MetaSafetyValidator
+            from coremind.meta.stores import (
+                InMemoryApprovalQueue,
+                InMemoryConfigStore,
+                InMemoryMetaStore,
+                LoggingMetaEventBus,
+            )
+
+            meta_config_store = InMemoryConfigStore(
+                {
+                    "intention.min_salience": config.intention.min_salience,
+                    "intention.min_confidence": config.intention.min_confidence,
+                    "intention.interval_seconds": float(config.intention.interval_seconds),
+                }
+            )
+            meta_store = InMemoryMetaStore()
+            meta_event_bus = LoggingMetaEventBus()
+            meta_approval_queue = InMemoryApprovalQueue()
+
+            meta_observer = MetaObserver(
+                intention_store=intents,
+                action_store=journal,
+                plugin_registry=registry,  # type: ignore[arg-type]
+                narrative_store=narrative_memory,
+            )
+
+            class _AdjustmentHistoryAdapter:
+                """Adapter from InMemoryMetaStore to AdjustmentHistoryProtocol."""
+
+                def __init__(self, store: InMemoryMetaStore) -> None:
+                    self._store = store
+
+                def last_adjustment(self, parameter_path: str) -> AdjustmentRecord | None:
+                    for record in reversed(list(self._store._adjustments.values())):
+                        if record.parameter_path == parameter_path:
+                            return record
+                    return None
+
+            class _ConfigReaderAdapter:
+                """Adapter from InMemoryConfigStore to sync ConfigReaderProtocol."""
+
+                def __init__(self, store: InMemoryConfigStore) -> None:
+                    self._store = store
+
+                def get(self, dotted_path: str) -> float:
+                    try:
+                        val = self._store._data[dotted_path]
+                        return float(val)
+                    except (KeyError, TypeError, ValueError):
+                        return 0.0
+
+            meta_evaluator = PolicyEvaluator(
+                policies=DEFAULT_POLICIES,
+                adjustment_history=_AdjustmentHistoryAdapter(meta_store),
+                config_reader=_ConfigReaderAdapter(meta_config_store),
+            )
+            meta_validator = MetaSafetyValidator(FORBIDDEN_PARAMETER_PATHS, HARD_BOUNDS)
+            meta_adjuster = MetaAdjuster(
+                config_store=meta_config_store,
+                meta_store=meta_store,
+                event_bus=meta_event_bus,
+            )
+
+            meta_loop = MetaLoop(
+                observer=meta_observer,
+                evaluator=meta_evaluator,
+                validator=meta_validator,
+                adjuster=meta_adjuster,
+                meta_store=meta_store,
+                approval_queue=meta_approval_queue,
+                config=config.meta,
+            )
+            await meta_loop.start()
+            self._meta_loop = meta_loop
+            log.info("daemon.meta_loop_started")
 
         if config.dashboard.enabled:
             configure_dashboard_timezone(get_timezone(config.personalization))
@@ -651,9 +858,9 @@ class CoreMindDaemon:
 
                 _meta_source = DaemonMetaSource(
                     meta_config=config.meta,
-                    meta_store=meta_result.meta_store,
-                    approval_queue=meta_result.meta_approval_queue,
-                    adjuster=meta_result.meta_adjuster,
+                    meta_store=meta_store,
+                    approval_queue=meta_approval_queue,
+                    adjuster=meta_adjuster,
                 )
             dashboard_server = await start_dashboard(
                 config=config.dashboard,
@@ -1068,3 +1275,4 @@ class CoreMindDaemon:
                 )
             except TimeoutError:
                 continue
+

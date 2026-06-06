@@ -93,12 +93,27 @@ def _is_dismissal(text: str) -> bool:
         return True
     # Short responses that start with dismissal prefixes
     if len(cleaned) <= _DISMISSAL_MAX_LEN:
-        for prefix in ("oublie", "laisse", "passe à", "passons", "c'est réglé", "c'est ok",
-                        "c'est bon", "c'est fini", "c'est clos", "pas grave", "peu importe",
-                        "next", "nevermind", "forget", "drop"):
+        for prefix in (
+            "oublie",
+            "laisse",
+            "passe à",
+            "passons",
+            "c'est réglé",
+            "c'est ok",
+            "c'est bon",
+            "c'est fini",
+            "c'est clos",
+            "pas grave",
+            "peu importe",
+            "next",
+            "nevermind",
+            "forget",
+            "drop",
+        ):
             if cleaned.startswith(prefix):
                 return True
     return False
+
 
 # Affirmative responses that should trigger action execution
 _AFFIRMATIVE = {
@@ -229,10 +244,12 @@ class ConversationHandler:
         # Check if user is dismissing/resolving this conversation —
         # if so, acknowledge and archive to prevent stale context loops.
         if _is_dismissal(text):
-            conversation.add_message(Message(
-                role=MessageRole.COREMIND,
-                text="Compris, on passe à autre chose ! 👌",
-            ))
+            conversation.add_message(
+                Message(
+                    role=MessageRole.COREMIND,
+                    text="Compris, on passe à autre chose ! 👌",
+                )
+            )
             await self._store.archive(conversation.conversation_id)
             log.info(
                 "conversation.dismissed",
