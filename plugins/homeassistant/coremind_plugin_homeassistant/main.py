@@ -298,8 +298,8 @@ async def run(
                     while True:
                         await asyncio.sleep(30)
                         try:
-                            await stub.HealthCheck(
-                                plugin_pb2.HealthCheckRequest(),
+                            await stub.HealthCheck(  # type: ignore[attr-defined]
+                                plugin_pb2.HealthCheckRequest(),  # type: ignore[attr-defined]
                                 metadata=(("x-plugin-id", PLUGIN_ID),),
                             )
                         except Exception:
