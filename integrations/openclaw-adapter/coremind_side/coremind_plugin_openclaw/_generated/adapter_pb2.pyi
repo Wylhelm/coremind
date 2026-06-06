@@ -78,7 +78,7 @@ class NotifyResult(_message.Message):
     delivered: bool
     message_id: str
     error: str
-    def __init__(self, delivered: bool = ..., message_id: _Optional[str] = ..., error: _Optional[str] = ...) -> None: ...
+    def __init__(self, delivered: _Optional[bool] = ..., message_id: _Optional[str] = ..., error: _Optional[str] = ...) -> None: ...
 
 class ApprovalRequest(_message.Message):
     __slots__ = ("approval_id", "channel", "target", "prompt", "context", "timeout_seconds")
@@ -130,7 +130,7 @@ class SkillResult(_message.Message):
     output: _struct_pb2.Struct
     error: str
     completed_at: _timestamp_pb2.Timestamp
-    def __init__(self, call_id: _Optional[str] = ..., ok: bool = ..., output: _Optional[_Union[_struct_pb2.Struct, _Mapping]] = ..., error: _Optional[str] = ..., completed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+    def __init__(self, call_id: _Optional[str] = ..., ok: _Optional[bool] = ..., output: _Optional[_Union[_struct_pb2.Struct, _Mapping]] = ..., error: _Optional[str] = ..., completed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class CronScheduleRequest(_message.Message):
     __slots__ = ("cron_id", "expression", "skill_name", "parameters", "description")
@@ -154,7 +154,7 @@ class CronScheduleResult(_message.Message):
     scheduled: bool
     cron_id: str
     error: str
-    def __init__(self, scheduled: bool = ..., cron_id: _Optional[str] = ..., error: _Optional[str] = ...) -> None: ...
+    def __init__(self, scheduled: _Optional[bool] = ..., cron_id: _Optional[str] = ..., error: _Optional[str] = ...) -> None: ...
 
 class CronCancelRequest(_message.Message):
     __slots__ = ("cron_id",)
@@ -168,7 +168,7 @@ class CronCancelResult(_message.Message):
     ERROR_FIELD_NUMBER: _ClassVar[int]
     cancelled: bool
     error: str
-    def __init__(self, cancelled: bool = ..., error: _Optional[str] = ...) -> None: ...
+    def __init__(self, cancelled: _Optional[bool] = ..., error: _Optional[str] = ...) -> None: ...
 
 class Mem0QueryRequest(_message.Message):
     __slots__ = ("query", "top_k", "filters")
@@ -218,7 +218,7 @@ class Mem0StoreResult(_message.Message):
     record_id: str
     ok: bool
     error: str
-    def __init__(self, record_id: _Optional[str] = ..., ok: bool = ..., error: _Optional[str] = ...) -> None: ...
+    def __init__(self, record_id: _Optional[str] = ..., ok: _Optional[bool] = ..., error: _Optional[str] = ...) -> None: ...
 
 class Mem0Record(_message.Message):
     __slots__ = ("record_id", "content", "score", "metadata", "stored_at")

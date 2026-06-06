@@ -6,7 +6,7 @@ import warnings
 from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
 from coremind.plugin_api._generated import plugin_pb2 as plugin__pb2
 
-GRPC_GENERATED_VERSION = '1.80.0'
+GRPC_GENERATED_VERSION = '1.81.0'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
@@ -26,7 +26,7 @@ if _version_not_supported:
     )
 
 
-class CoreMindPluginStub(object):
+class CoreMindPluginStub:
     """---------------------------------------------------------------------------
     Services
     ---------------------------------------------------------------------------
@@ -69,7 +69,7 @@ class CoreMindPluginStub(object):
                 _registered_method=True)
 
 
-class CoreMindPluginServicer(object):
+class CoreMindPluginServicer:
     """---------------------------------------------------------------------------
     Services
     ---------------------------------------------------------------------------
@@ -163,7 +163,7 @@ def add_CoreMindPluginServicer_to_server(servicer, server):
 
 
  # This class is part of an EXPERIMENTAL API.
-class CoreMindPlugin(object):
+class CoreMindPlugin:
     """---------------------------------------------------------------------------
     Services
     ---------------------------------------------------------------------------
@@ -309,7 +309,7 @@ class CoreMindPlugin(object):
             _registered_method=True)
 
 
-class CoreMindHostStub(object):
+class CoreMindHostStub:
     """CoreMindHost is implemented by the daemon.
     Plugins call back on this service to request secrets or emit out-of-band events.
     """
@@ -337,7 +337,7 @@ class CoreMindHostStub(object):
                 _registered_method=True)
 
 
-class CoreMindHostServicer(object):
+class CoreMindHostServicer:
     """CoreMindHost is implemented by the daemon.
     Plugins call back on this service to request secrets or emit out-of-band events.
     """
@@ -401,7 +401,7 @@ def add_CoreMindHostServicer_to_server(servicer, server):
 
 
  # This class is part of an EXPERIMENTAL API.
-class CoreMindHost(object):
+class CoreMindHost:
     """CoreMindHost is implemented by the daemon.
     Plugins call back on this service to request secrets or emit out-of-band events.
     """
