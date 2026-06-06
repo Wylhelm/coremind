@@ -118,8 +118,20 @@ ignore = [
     "T20",
     "S603",
     "S607",
-] # CLI scripts are allowed to print and shell out
+    "E401",
+    "I001",
+    "F401",
+    "PLR2004",
+    "E501",
+    "E741",
+    "UP017",
+] # CLI scripts are allowed to print, shell out, and have relaxed import rules
 "scripts/build_pptx.py" = ["ALL"] # presentation builder, not production code
+"src/coremind/core/daemon_anomalies.py" = ["PLR0915"]
+"src/coremind/presence/evaluator.py" = [
+    "PLR2004",
+    "PLR0912",
+] # time/sleep/activity thresholds are self-documenting magic values
 "integrations/openclaw-adapter/openclaw_side_bridge.py" = [
     "N802",
     "ANN",
@@ -140,6 +152,7 @@ ignore = [
     "PLR2004",
     "ASYNC210",
     "N802",
+    "B023",
     "E741",
     "I001",
     "PTH123",
@@ -199,7 +212,7 @@ ignore = [
 "src/coremind/reasoning/schemas.py" = ["E501"]
 "src/coremind/reflection/loop.py" = ["E501"]
 "src/coremind/conversation/handler.py" = ["PLC0415", "DTZ005"]
-"src/coremind/presence/detector.py" = ["PLR0911", "PLR0912", "PLR2004", "E501"]
+"src/coremind/presence/detector.py" = ["PLR0911", "PLR0912", "PLR2004", "PLR0915", "E501"]
 "src/coremind/presence/scheduler.py" = ["DTZ005", "PLR2004"]
 "src/coremind/notify/adapters/nest_hub.py" = ["PTH123", "PTH111"]
 "src/coremind/plugin_helpers.py" = ["PLC0415"]
