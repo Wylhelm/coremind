@@ -17,7 +17,7 @@ echo "Starting daemon..."
 rm -f ~/.coremind/run/daemon.pid
 export OLLAMA_API_BASE=http://10.0.0.175:11434
 export COREMIND_TELEGRAM_BOT_TOKEN="$(cat ~/.openclaw/secrets/coremind-telegram-token 2>/dev/null || echo 'MISSING')"
-nohup .venv/bin/coremind daemon start > /tmp/cm.log 2>&1 &
+nohup .venv/bin/coremind daemon start >> /tmp/coremind-daemon.log 2>&1 &
 sleep 6
 
 # Start bridge + all plugins
@@ -32,7 +32,7 @@ export TAPO_USERNAME TAPO_PASSWORD TAPO_IP
 VENV=.venv/bin
 nohup $VENV/python3.12 integrations/openclaw-adapter/openclaw_side_bridge.py >> ~/.coremind/logs/bridge.log 2>&1 &
 
-for plugin in homeassistant firefly weather vikunja tapo health gog openclaw-adapter; do
+for plugin in homeassistant firefly weather vikunja tapo health gog openclaw-adapter webcam worlddata; do
     nohup $VENV/coremind-plugin-$plugin >> ~/.coremind/logs/plugin-$plugin.log 2>&1 &
     echo "  started $plugin"
 done
