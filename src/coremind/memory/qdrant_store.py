@@ -173,7 +173,7 @@ class QdrantVectorStore:
             )
 
         def _search() -> list[SearchHit]:
-            results = self._db.query_points(  # type: ignore[attr-defined]
+            results = self._db.query_points(
                 collection_name=collection,
                 query=vector,
                 limit=k,

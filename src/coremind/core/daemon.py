@@ -651,9 +651,9 @@ class CoreMindDaemon:
 
                 _meta_source = DaemonMetaSource(
                     meta_config=config.meta,
-                    meta_store=meta_result.meta_store,
-                    approval_queue=meta_result.meta_approval_queue,
-                    adjuster=meta_result.meta_adjuster,
+                    meta_store=meta_result.meta_store,  # type: ignore[arg-type]
+                    approval_queue=meta_result.meta_approval_queue,  # type: ignore[arg-type]
+                    adjuster=meta_result.meta_adjuster,  # type: ignore[arg-type]
                 )
             dashboard_server = await start_dashboard(
                 config=config.dashboard,

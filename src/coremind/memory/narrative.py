@@ -16,6 +16,7 @@ import asyncio
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import structlog
 from pydantic import BaseModel, Field
@@ -189,7 +190,7 @@ class NarrativeMemory:
         """
         return 0
 
-    async def list_investigations(self, window: timedelta) -> list:
+    async def list_investigations(self, window: timedelta) -> list[Any]:
         """Return investigation summaries for the given window.
 
         Stub — narrative layer does not track investigations yet.

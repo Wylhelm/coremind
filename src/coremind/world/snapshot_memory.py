@@ -199,9 +199,11 @@ class SnapshotMemory:
                 SimilarSnapshot(
                     snapshot_id=str(r.id),
                     score=float(r.score),
-                    summary=r.payload["summary"],
-                    entity_count=r.payload["entity_count"],
-                    timestamp=datetime.fromisoformat(r.payload["timestamp"]),
+                    summary=r.payload["summary"] if r.payload else "",
+                    entity_count=r.payload["entity_count"] if r.payload else 0,
+                    timestamp=datetime.fromisoformat(r.payload["timestamp"])
+                    if r.payload
+                    else datetime.fromtimestamp(0, tz=UTC),
                 )
                 for r in results
             ]
