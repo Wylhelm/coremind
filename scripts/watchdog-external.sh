@@ -8,7 +8,7 @@
 
 EXPECTED_PLUGINS=8
 MAX_PLUGINS=12  # Above this = duplicate processes, kill and restart
-TELEGRAM_CHAT_ID="6394043863"
+TELEGRAM_CHAT_ID="TELEGRAM_CHAT_ID"
 TELEGRAM_BOT_TOKEN="$(cat /home/guillaume/.coremind/secrets/telegram_bot_token 2>/dev/null || echo '')"
 LOG="/home/guillaume/workspace/gbot-logs/coremind-watchdog.log"
 

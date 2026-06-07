@@ -63,9 +63,15 @@ print(d['timestamp'])
         if [ "$SILENCE_MINS" -gt $((MAX_SILENCE_HOURS * 60)) ]; then
             alert "SILENCE: No notification for ${SILENCE_HOURS}h${SILENCE_MINS}m (max ${MAX_SILENCE_HOURS}h)"
             EXIT_CODE=2
-        elif [ "$SILENCE_MINS" -gt $((MAX_SILENCE_HOURS * 30)) ]; then
-            warn "Quiet: ${SILENCE_MINS}min since last notification (threshold: ${MAX_SILENCE_HOURS}h)"
-            [ $EXIT_CODE -eq 0 ] && EXIT_CODE=1
+        elif [ "$SILENCE_MINS" -gt $((MAX_SILENCE_HOURS * 45)) ]; then
+            # Suppress quiet noise warning during night hours (23:00-08:00)
+            HOUR=$(date +%H)
+            if [ "$HOUR" -ge 23 ] || [ "$HOUR" -lt 8 ]; then
+                echo "✅ Last notification: ${SILENCE_MINS}min ago (night hours — suppressed)"
+            else
+                warn "Quiet: ${SILENCE_MINS}min since last notification (threshold: ${MAX_SILENCE_HOURS}h)"
+                [ $EXIT_CODE -eq 0 ] && EXIT_CODE=1
+            fi
         else
             echo "✅ Last notification: ${SILENCE_MINS}min ago"
         fi
@@ -103,7 +109,7 @@ INTENTION_INTERVAL_MINS=$(( INTENTION_INTERVAL_SECONDS / 60 ))
 # Allow 2x interval before warning (handles startup grace + normal variance).
 MAX_INTENT_MINS=$(( INTENTION_INTERVAL_MINS * 2 ))
 
-LAST_INTENT=$(grep "intention.cycle.done\|intention.cycle_failed" ~/.coremind/logs/daemon.log /tmp/coremind-daemon.log 2>/dev/null | tail -1 | grep -oP '\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}' || echo "")
+LAST_INTENT=$(grep -h "intention.cycle.done\|intention.cycle_failed" ~/.coremind/logs/daemon.log 2>/dev/null | tail -1 | grep -oP '\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}' || echo "")
 if [ -n "$LAST_INTENT" ]; then
     INTENT_EPOCH=$(date -d "$LAST_INTENT" +%s 2>/dev/null || echo 0)
     INTENT_MINS=$(( (NOW_EPOCH - INTENT_EPOCH) / 60 ))
@@ -117,11 +123,18 @@ else
 fi
 
 # --- 5. Daemon log errors (last 30 min) ---
-ERRORS_30M=$(grep "\[error" ~/.coremind/logs/daemon.log /tmp/coremind-daemon.log 2>/dev/null | tail -50 | wc -l)
+ERRORS_30M=$(grep -h "\[error" ~/.coremind/logs/daemon.log 2>/dev/null | tail -50 | wc -l || true)
 if [ "$ERRORS_30M" -gt 10 ]; then
     warn "High error rate: $ERRORS_30M errors in recent log"
 fi
 
 echo ""
 echo "Exit code: $EXIT_CODE"
+if [ "$EXIT_CODE" -ge 2 ]; then
+    echo "STATUS: CRITICAL"
+elif [ "$EXIT_CODE" -eq 1 ]; then
+    echo "STATUS: WARNING"
+else
+    echo "STATUS: HEALTHY"
+fi
 exit $EXIT_CODE

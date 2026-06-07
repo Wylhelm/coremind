@@ -61,7 +61,7 @@ class EmbeddingEncoder:
 
     def __init__(
         self,
-        ollama_url: str = "http://10.0.0.175:11434",
+        ollama_url: str = "http://OLLAMA_HOST:11434",
         model: str = "nomic-embed-text",
         cache_size: int = 5000,
         timeout_seconds: float = 10.0,
@@ -256,7 +256,7 @@ Add to `EmbeddingConfig` (in `src/coremind/core/config.py` or wherever config li
 ```python
 class EmbeddingConfig(BaseModel):
     enabled: bool = True
-    encoder_url: str = "http://10.0.0.175:11434"
+    encoder_url: str = "http://OLLAMA_HOST:11434"
     encoder_model: str = "nomic-embed-text"
     cache_size: int = 5000
     timeout_seconds: float = 10.0
@@ -267,7 +267,7 @@ Corresponding TOML:
 ```toml
 [embedding]
 enabled = true
-encoder_url = "http://10.0.0.175:11434"
+encoder_url = "http://OLLAMA_HOST:11434"
 encoder_model = "nomic-embed-text"
 cache_size = 5000
 timeout_seconds = 10.0

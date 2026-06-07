@@ -137,7 +137,7 @@ CoreMind v2 evolves the v1 7-layer cognitive architecture by adding:
 **v1 behavior:** Aggregates all entity states into a `WorldSnapshot` JSON object. Sends this snapshot to L4/L5 as prompt context (typically 10K–30K tokens).
 
 **v2 enhancements:**
-1. **Embedding computation.** Each entity gets an embedding via `nomic-embed-text` (Ollama @ 10.0.0.175:11434).
+1. **Embedding computation.** Each entity gets an embedding via `nomic-embed-text` (Ollama @ OLLAMA_HOST:11434).
 2. **Snapshot diffing.** Compares current snapshot to previous, identifies added/removed/changed entities.
 3. **Compressed prompts.** Generates a `CompressedPrompt` with only the diff + similarity context.
 

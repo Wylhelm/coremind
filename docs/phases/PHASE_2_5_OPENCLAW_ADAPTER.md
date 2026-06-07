@@ -237,8 +237,8 @@ The user approves these at install time. They can narrow the scope (e.g. `opencl
 {
   "kind": "message.received",
   "channel": "telegram",
-  "chat_id": "telegram:6394043863",
-  "sender_id": "6394043863",
+  "chat_id": "telegram:TELEGRAM_USER_ID",
+  "sender_id": "TELEGRAM_USER_ID",
   "sender_name": "Guillaume",
   "text": "what's for dinner tonight?",
   "timestamp": "2026-04-19T20:14:02Z"
@@ -256,11 +256,11 @@ Becomes:
   "source_version": "0.1.0",
   "entity": {
     "type": "conversation",
-    "id": "telegram:6394043863"
+    "id": "telegram:TELEGRAM_USER_ID"
   },
   "attribute": "message_received",
   "value": {
-    "from": { "id": "6394043863", "display_name": "Guillaume" },
+    "from": { "id": "TELEGRAM_USER_ID", "display_name": "Guillaume" },
     "text_excerpt": "what's for dinner tonight?",
     "length_chars": 29,
     "has_media": false
@@ -278,7 +278,7 @@ Becomes:
   "operation": "openclaw.notify",
   "parameters": {
     "channel": "telegram",
-    "target": "6394043863",
+    "target": "TELEGRAM_USER_ID",
     "text": "I noticed you haven't slept well in 3 nights. Everything ok?"
   }
 }

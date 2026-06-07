@@ -44,7 +44,7 @@ Wire the `WorldEncodingPipeline` into the existing daemon lifecycle:
 class EmbeddingConfig(BaseModel):
     """Configuration for the embedding world pipeline."""
     enabled: bool = True
-    encoder_url: str = "http://10.0.0.175:11434"
+    encoder_url: str = "http://OLLAMA_HOST:11434"
     encoder_model: str = "nomic-embed-text"
     cache_size: int = 5000
     timeout_seconds: float = 10.0
@@ -62,7 +62,7 @@ class EmbeddingConfig(BaseModel):
 ```toml
 [embedding]
 enabled = true
-encoder_url = "http://10.0.0.175:11434"
+encoder_url = "http://OLLAMA_HOST:11434"
 encoder_model = "nomic-embed-text"
 cache_size = 5000
 timeout_seconds = 10.0
@@ -265,7 +265,7 @@ async def test_intention_loop_falls_back_without_pipeline():
 async def test_config_loads_embedding_section():
     config = load_config(toml_with_embedding_section)
     assert config.embedding.enabled is True
-    assert config.embedding.encoder_url == "http://10.0.0.175:11434"
+    assert config.embedding.encoder_url == "http://OLLAMA_HOST:11434"
     assert config.embedding.cache_size == 5000
 ```
 

@@ -25,8 +25,8 @@ def test_translate_message_received_happy_path() -> None:
     raw = {
         "kind": "message.received",
         "channel": "telegram",
-        "chat_id": "telegram:6394043863",
-        "sender_id": "6394043863",
+        "chat_id": "telegram:TELEGRAM_USER_ID",
+        "sender_id": "TELEGRAM_USER_ID",
         "sender_name": "Guillaume",
         "text": "what's for dinner tonight?",
         "has_media": False,
@@ -39,7 +39,7 @@ def test_translate_message_received_happy_path() -> None:
     )
     assert event.source == PLUGIN_ID
     assert event.entity.type == "conversation"
-    assert event.entity.entity_id == "telegram:6394043863"
+    assert event.entity.entity_id == "telegram:TELEGRAM_USER_ID"
     assert event.attribute == "message_received"
     value = MessageToDict(event.value)
     assert value["text_excerpt"] == "what's for dinner tonight?"

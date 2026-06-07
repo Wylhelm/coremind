@@ -60,7 +60,7 @@ Yann LeCun's **JEPA (Joint Embedding Predictive Architecture)** trains models to
 
 We're not implementing JEPA itself. We're using its core idea — that **rich embedding representations beat verbose text** — as a practical engineering pattern.
 
-We already have `nomic-embed-text` running locally via Ollama at `10.0.0.175:11434`. This gives us 768-dimensional embeddings for free.
+We already have `nomic-embed-text` running locally via Ollama at `OLLAMA_HOST:11434`. This gives us 768-dimensional embeddings for free.
 
 ---
 
@@ -125,7 +125,7 @@ class EmbeddingEncoder:
 
     def __init__(
         self,
-        ollama_url: str = "http://10.0.0.175:11434",
+        ollama_url: str = "http://OLLAMA_HOST:11434",
         model: str = "nomic-embed-text",
         cache_size: int = 5000,
     ):
@@ -641,7 +641,7 @@ class WorldEncodingPipeline:
 ```toml
 [embedding]
 enabled = true
-encoder_url = "http://10.0.0.175:11434"
+encoder_url = "http://OLLAMA_HOST:11434"
 encoder_model = "nomic-embed-text"
 cache_size = 5000
 

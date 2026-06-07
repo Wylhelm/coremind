@@ -203,7 +203,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 - Plugin environment: `HA_TOKEN`, `FIREFLY_TOKEN`, `INFLUXDB_TOKEN` injected for homeassistant, firefly, health plugins
-- `OLLAMA_API_BASE` set to remote Ollama instance (10.0.0.175:11434) in start script
+- `OLLAMA_API_BASE` set to remote Ollama instance (OLLAMA_HOST:11434) in start script
 - `mcporter` and `gog` CLI tools now accessible from CoreMind plugin context
 
 ### Added

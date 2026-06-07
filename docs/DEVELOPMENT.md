@@ -164,7 +164,7 @@ rm -f ~/.coremind/run/daemon.pid
 
 # 3. Start daemon with required env vars
 cd ~/.openclaw/workspace/coremind
-export OLLAMA_API_BASE=http://10.0.0.175:11434
+export OLLAMA_API_BASE=http://OLLAMA_HOST:11434
 export COREMIND_TELEGRAM_BOT_TOKEN="..."
 nohup .venv/bin/coremind daemon start > /tmp/cm.log 2>&1 &
 sleep 6

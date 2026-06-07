@@ -74,7 +74,7 @@ async def test_notify_happy_path() -> None:
     dispatcher, client = _dispatcher()
     out = await dispatcher.dispatch(
         "openclaw.notify",
-        {"channel": "telegram", "target": "6394043863", "text": "hello"},
+        {"channel": "telegram", "target": "TELEGRAM_USER_ID", "text": "hello"},
     )
     assert out["delivered"] is True
     assert out["message_id"] == "msg-1"
@@ -159,7 +159,7 @@ async def test_approve_request_roundtrip() -> None:
         {
             "approval_id": "appr-1",
             "channel": "telegram",
-            "target": "6394043863",
+            "target": "TELEGRAM_USER_ID",
             "prompt": "please approve",
         },
     )

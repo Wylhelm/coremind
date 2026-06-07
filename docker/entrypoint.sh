@@ -30,7 +30,7 @@ quiet_start = "23:00"
 quiet_end = "07:00"
 [notify.telegram]
 enabled = true
-chat_id = "6394043863"
+chat_id = "TELEGRAM_CHAT_ID"
 bot_token_secret = "telegram_bot_token"
 [llm.reasoning]
 model = "ollama/mistral-large-3:675b-cloud"

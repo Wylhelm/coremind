@@ -135,7 +135,7 @@ async def test_notify_end_to_end(openclaw_server: tuple[str, _FakeOpenClawServic
         dispatcher = ActionDispatcher(client=client, scope=PermissionScope(), schema_dir=SCHEMA_DIR)
         out = await dispatcher.dispatch(
             "openclaw.notify",
-            {"channel": "telegram", "target": "6394043863", "text": "hello"},
+            {"channel": "telegram", "target": "TELEGRAM_USER_ID", "text": "hello"},
         )
         assert out["delivered"] is True
         assert len(servicer.notify_calls) == 1
@@ -170,8 +170,8 @@ async def test_ingest_event_roundtrip(
         raw = {
             "kind": "message.received",
             "channel": "telegram",
-            "chat_id": "telegram:6394043863",
-            "sender_id": "6394043863",
+            "chat_id": "telegram:TELEGRAM_USER_ID",
+            "sender_id": "TELEGRAM_USER_ID",
             "sender_name": "Guillaume",
             "text": "what's for dinner tonight?",
             "timestamp": "2026-04-19T20:14:02Z",
